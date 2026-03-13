@@ -1,0 +1,1220 @@
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Checkbox } from "@/components/ui/checkbox";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  AlertTriangle,
+  Calendar,
+  CheckCircle2,
+  ClipboardList,
+  FileText,
+  HardHat,
+  Image,
+  MapPin,
+  Paperclip,
+  Plus,
+  User,
+  Wrench,
+} from "lucide-react";
+import { useMemo, useState } from "react";
+import AccessDenied from "../components/AccessDenied";
+import {
+  type FieldInspection,
+  type InspectionStatus,
+  type TaskPriority,
+  type WorkOrder,
+  type WorkOrderStatus,
+  useApp,
+} from "../contexts/AppContext";
+
+const STATUS_COLORS: Record<WorkOrderStatus, string> = {
+  open: "oklch(0.68 0.18 200)",
+  in_progress: "oklch(0.72 0.18 50)",
+  completed: "oklch(0.72 0.16 160)",
+  cancelled: "oklch(0.58 0.015 264)",
+};
+
+const INSPECTION_STATUS_COLORS: Record<InspectionStatus, string> = {
+  scheduled: "oklch(0.68 0.18 200)",
+  in_progress: "oklch(0.72 0.18 50)",
+  completed: "oklch(0.72 0.16 160)",
+  failed: "oklch(0.65 0.22 25)",
+};
+
+const PRIORITY_COLORS: Record<TaskPriority, string> = {
+  low: "oklch(0.58 0.015 264)",
+  medium: "oklch(0.72 0.18 50)",
+  high: "oklch(0.68 0.22 30)",
+  critical: "oklch(0.65 0.22 25)",
+};
+
+const INSPECTION_TYPES = [
+  "Yangın Güvenliği",
+  "Yapısal Güvenlik",
+  "Elektrik",
+  "Sıhhi Tesisat",
+  "Genel",
+];
+
+const DEFAULT_CHECKLIST: Record<string, string[]> = {
+  "Yangın Güvenliği": [
+    "Yangın tüpleri doluluk kontrolü",
+    "Acil çıkış yollarının açıklığı",
+    "Yangın alarm sistemi testi",
+    "Sprinkler sistemi basınç testi",
+  ],
+  "Yapısal Güvenlik": [
+    "Kolon ve kirişlerde çatlak kontrolü",
+    "Zemin oturma belirtileri",
+    "İskele güvenlik kontrolleri",
+    "Taşıyıcı sistem görsel muayene",
+  ],
+  Elektrik: [
+    "Topraklama kontrolü",
+    "Kablo yalıtım testi",
+    "Pano terminalleri sıkılığı",
+    "Aşırı akım koruyucular",
+  ],
+  "Sıhhi Tesisat": [
+    "Boru bağlantı sızdırmazlık testi",
+    "Su basıncı ölçümü",
+    "Atık su hattı akış kontrolü",
+  ],
+  Genel: [
+    "Genel temizlik ve düzen",
+    "Güvenlik ekipman kontrolü",
+    "Malzeme depolama uygunluğu",
+    "Personel güvenlik tedbiri kontrolü",
+  ],
+};
+
+interface FieldOpsProps {
+  onNavigate?: (page: string) => void;
+}
+
+export default function FieldOps({ onNavigate }: FieldOpsProps = {}) {
+  const {
+    checkPermission,
+    t,
+    projects,
+    workOrders,
+    fieldInspections,
+    addWorkOrder,
+    updateWorkOrderStatus,
+    addFieldInspection,
+    updateInspectionItem,
+    completeInspection,
+  } = useApp();
+
+  const [woFilter, setWoFilter] = useState({
+    search: "",
+    status: "all",
+    priority: "all",
+    project: "all",
+  });
+  const [selectedWO, setSelectedWO] = useState<WorkOrder | null>(null);
+  const [woCosts, setWoCosts] = useState<
+    Record<string, { estimated: string; actual: string }>
+  >({});
+  const [selectedInspection, setSelectedInspection] =
+    useState<FieldInspection | null>(null);
+  const [showNewWO, setShowNewWO] = useState(false);
+  const [showNewInspection, setShowNewInspection] = useState(false);
+
+  const [newWO, setNewWO] = useState({
+    title: "",
+    description: "",
+    projectId: "",
+    assignedTo: "",
+    priority: "medium" as TaskPriority,
+    location: "",
+    dueDate: "",
+    status: "open" as WorkOrderStatus,
+  });
+  const [newInsp, setNewInsp] = useState({
+    title: "",
+    inspectionType: "Genel",
+    projectId: "",
+    assignedTo: "",
+    scheduledDate: "",
+    notes: "",
+    status: "scheduled" as InspectionStatus,
+    items: [] as {
+      id: string;
+      label: string;
+      checked: boolean;
+      note: string;
+    }[],
+    completedAt: undefined as string | undefined,
+  });
+
+  const stats = useMemo(() => {
+    const activeWO = workOrders.filter(
+      (w) => w.status === "open" || w.status === "in_progress",
+    ).length;
+    const openInsp = fieldInspections.filter(
+      (f) => f.status === "scheduled" || f.status === "in_progress",
+    ).length;
+    const completedWO = workOrders.filter(
+      (w) => w.status === "completed",
+    ).length;
+    return { activeWO, openInsp, completedWO, totalWO: workOrders.length };
+  }, [workOrders, fieldInspections]);
+
+  const filteredWO = useMemo(() => {
+    return workOrders.filter((w) => {
+      if (
+        woFilter.search &&
+        !w.title.toLowerCase().includes(woFilter.search.toLowerCase())
+      )
+        return false;
+      if (woFilter.status !== "all" && w.status !== woFilter.status)
+        return false;
+      if (woFilter.priority !== "all" && w.priority !== woFilter.priority)
+        return false;
+      if (woFilter.project !== "all" && w.projectId !== woFilter.project)
+        return false;
+      return true;
+    });
+  }, [workOrders, woFilter]);
+
+  const getProjectName = (id: string) =>
+    projects.find((p) => p.id === id)?.title || id;
+
+  const getWOStatusLabel = (s: WorkOrderStatus) => {
+    const map: Record<WorkOrderStatus, string> = {
+      open: t.workOrderOpen,
+      in_progress: t.workOrderInProgress,
+      completed: t.workOrderCompleted,
+      cancelled: t.workOrderCancelled,
+    };
+    return map[s];
+  };
+  const getInspStatusLabel = (s: InspectionStatus) => {
+    const map: Record<InspectionStatus, string> = {
+      scheduled: t.inspectionScheduled,
+      in_progress: t.inspectionInProgress,
+      completed: t.inspectionCompleted,
+      failed: t.inspectionFailed,
+    };
+    return map[s];
+  };
+  const getPriorityLabel = (p: TaskPriority) => {
+    const map: Record<TaskPriority, string> = {
+      low: t.low,
+      medium: t.medium,
+      high: t.high,
+      critical: t.critical,
+    };
+    return map[p];
+  };
+
+  const handleCreateWO = () => {
+    if (!newWO.title || !newWO.projectId) return;
+    addWorkOrder(newWO);
+    setShowNewWO(false);
+    setNewWO({
+      title: "",
+      description: "",
+      projectId: "",
+      assignedTo: "",
+      priority: "medium",
+      location: "",
+      dueDate: "",
+      status: "open",
+    });
+  };
+
+  const handleCreateInspection = () => {
+    if (!newInsp.title || !newInsp.projectId) return;
+    const items = (DEFAULT_CHECKLIST[newInsp.inspectionType] || []).map(
+      (label, idx) => ({
+        id: `item_${Date.now()}_${idx}`,
+        label,
+        checked: false,
+        note: "",
+      }),
+    );
+    addFieldInspection({ ...newInsp, items, completedAt: undefined });
+    setShowNewInspection(false);
+    setNewInsp({
+      title: "",
+      inspectionType: "Genel",
+      projectId: "",
+      assignedTo: "",
+      scheduledDate: "",
+      notes: "",
+      status: "scheduled",
+      items: [],
+      completedAt: undefined,
+    });
+  };
+
+  const handleCompleteInspection = () => {
+    if (!selectedInspection) return;
+    completeInspection(selectedInspection.id, selectedInspection.notes);
+    setSelectedInspection(null);
+  };
+
+  const StatusBadge = ({ color, label }: { color: string; label: string }) => (
+    <span
+      className="text-xs px-2 py-0.5 rounded-full font-medium"
+      style={{
+        background: `${color}22`,
+        color,
+        border: `1px solid ${color}44`,
+      }}
+    >
+      {label}
+    </span>
+  );
+
+  if (!checkPermission("fieldOps", "view")) return <AccessDenied />;
+  return (
+    <div className="space-y-6">
+      <div>
+        <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
+          <HardHat
+            className="w-6 h-6"
+            style={{ color: "oklch(0.72 0.18 50)" }}
+          />
+          {t.fieldOps}
+        </h1>
+        <p className="text-muted-foreground text-sm mt-1">
+          Saş operasyonlarınızı yönetin
+        </p>
+      </div>
+
+      {/* Stats */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        {[
+          {
+            label: t.activeWorkOrders,
+            value: stats.activeWO,
+            icon: <Wrench className="w-5 h-5" />,
+            color: "oklch(0.62 0.22 280)",
+          },
+          {
+            label: t.openInspections,
+            value: stats.openInsp,
+            icon: <ClipboardList className="w-5 h-5" />,
+            color: "oklch(0.72 0.18 50)",
+          },
+          {
+            label: t.workOrderCompleted,
+            value: stats.completedWO,
+            icon: <CheckCircle2 className="w-5 h-5" />,
+            color: "oklch(0.72 0.16 160)",
+          },
+          {
+            label: t.allWorkOrders,
+            value: stats.totalWO,
+            icon: <HardHat className="w-5 h-5" />,
+            color: "oklch(0.68 0.18 200)",
+          },
+        ].map((s) => (
+          <Card key={s.label} className="bg-card border-border">
+            <CardContent className="pt-5 pb-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-muted-foreground text-xs">{s.label}</p>
+                  <p className="text-3xl font-bold text-foreground mt-1">
+                    {s.value}
+                  </p>
+                </div>
+                <div
+                  className="w-10 h-10 rounded-xl flex items-center justify-center"
+                  style={{
+                    background: `${s.color}22`,
+                    border: `1px solid ${s.color}44`,
+                  }}
+                >
+                  <span style={{ color: s.color }}>{s.icon}</span>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+
+      <Tabs defaultValue="workorders">
+        <TabsList className="bg-card border border-border">
+          <TabsTrigger
+            value="workorders"
+            data-ocid="fieldops.workorders_tab"
+            className="data-[state=active]:bg-primary/20"
+          >
+            <Wrench className="w-4 h-4 mr-2" />
+            {t.workOrders}
+          </TabsTrigger>
+          <TabsTrigger
+            value="inspections"
+            data-ocid="fieldops.inspections_tab"
+            className="data-[state=active]:bg-primary/20"
+          >
+            <ClipboardList className="w-4 h-4 mr-2" />
+            {t.inspections}
+          </TabsTrigger>
+        </TabsList>
+
+        {/* Work Orders Tab */}
+        <TabsContent value="workorders" className="mt-4 space-y-4">
+          <div className="flex flex-wrap gap-3 items-center justify-between">
+            <div className="flex flex-wrap gap-2">
+              <Input
+                data-ocid="fieldops.workorder_search_input"
+                placeholder={t.search}
+                value={woFilter.search}
+                onChange={(e) =>
+                  setWoFilter((f) => ({ ...f, search: e.target.value }))
+                }
+                className="w-48 bg-card border-border"
+              />
+              <Select
+                value={woFilter.status}
+                onValueChange={(v) => setWoFilter((f) => ({ ...f, status: v }))}
+              >
+                <SelectTrigger
+                  data-ocid="fieldops.workorder_status_select"
+                  className="w-36 bg-card border-border"
+                >
+                  <SelectValue placeholder="Durum" />
+                </SelectTrigger>
+                <SelectContent className="bg-card border-border">
+                  <SelectItem value="all">Tüm Durumlar</SelectItem>
+                  <SelectItem value="open">{t.workOrderOpen}</SelectItem>
+                  <SelectItem value="in_progress">
+                    {t.workOrderInProgress}
+                  </SelectItem>
+                  <SelectItem value="completed">
+                    {t.workOrderCompleted}
+                  </SelectItem>
+                  <SelectItem value="cancelled">
+                    {t.workOrderCancelled}
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+              <Select
+                value={woFilter.priority}
+                onValueChange={(v) =>
+                  setWoFilter((f) => ({ ...f, priority: v }))
+                }
+              >
+                <SelectTrigger
+                  data-ocid="fieldops.workorder_priority_select"
+                  className="w-36 bg-card border-border"
+                >
+                  <SelectValue placeholder="Öncelik" />
+                </SelectTrigger>
+                <SelectContent className="bg-card border-border">
+                  <SelectItem value="all">Tüm Öncelikler</SelectItem>
+                  <SelectItem value="critical">{t.critical}</SelectItem>
+                  <SelectItem value="high">{t.high}</SelectItem>
+                  <SelectItem value="medium">{t.medium}</SelectItem>
+                  <SelectItem value="low">{t.low}</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <Button
+              data-ocid="fieldops.new_workorder_button"
+              onClick={() => setShowNewWO(true)}
+              className="gradient-bg text-white"
+            >
+              <Plus className="w-4 h-4 mr-2" />
+              {t.newWorkOrder}
+            </Button>
+          </div>
+
+          {filteredWO.length === 0 ? (
+            <div
+              className="text-center py-12 text-muted-foreground"
+              data-ocid="fieldops.workorders.empty_state"
+            >
+              {t.noWorkOrders}
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+              {filteredWO.map((wo, idx) => (
+                <Card
+                  key={wo.id}
+                  data-ocid={`fieldops.workorder.item.${idx + 1}`}
+                  className="bg-card border-border cursor-pointer hover:border-primary/40 transition-colors"
+                  onClick={() => setSelectedWO(wo)}
+                >
+                  <CardContent className="pt-4 pb-4">
+                    <div className="flex items-start justify-between gap-2 mb-3">
+                      <h3 className="font-semibold text-foreground text-sm leading-snug flex-1">
+                        {wo.title}
+                      </h3>
+                      <StatusBadge
+                        color={STATUS_COLORS[wo.status]}
+                        label={getWOStatusLabel(wo.status)}
+                      />
+                    </div>
+                    <div className="space-y-1.5 text-xs text-muted-foreground">
+                      <div className="flex items-center gap-1.5">
+                        <FolderIcon className="w-3.5 h-3.5" />
+                        <span className="truncate">
+                          {getProjectName(wo.projectId)}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <User className="w-3.5 h-3.5" />
+                        <span>{wo.assignedTo || "-"}</span>
+                      </div>
+                      {wo.location && (
+                        <div className="flex items-center gap-1.5">
+                          <MapPin className="w-3.5 h-3.5" />
+                          <span className="truncate">{wo.location}</span>
+                        </div>
+                      )}
+                      <div className="flex items-center gap-1.5">
+                        <Calendar className="w-3.5 h-3.5" />
+                        <span>{wo.dueDate}</span>
+                      </div>
+                    </div>
+                    <div className="flex items-center justify-between mt-3">
+                      <StatusBadge
+                        color={PRIORITY_COLORS[wo.priority]}
+                        label={getPriorityLabel(wo.priority)}
+                      />
+                      {wo.attachments.length > 0 && (
+                        <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                          <Paperclip className="w-3 h-3" />
+                          {wo.attachments.length}
+                        </span>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          )}
+        </TabsContent>
+
+        {/* Inspections Tab */}
+        <TabsContent value="inspections" className="mt-4 space-y-4">
+          <div className="flex justify-end">
+            <Button
+              data-ocid="fieldops.new_inspection_button"
+              onClick={() => setShowNewInspection(true)}
+              className="gradient-bg text-white"
+            >
+              <Plus className="w-4 h-4 mr-2" />
+              {t.newInspection}
+            </Button>
+          </div>
+
+          {fieldInspections.length === 0 ? (
+            <div
+              className="text-center py-12 text-muted-foreground"
+              data-ocid="fieldops.inspections.empty_state"
+            >
+              {t.noInspections}
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+              {fieldInspections.map((insp, idx) => {
+                const checkedCount = insp.items.filter((i) => i.checked).length;
+                return (
+                  <Card
+                    key={insp.id}
+                    data-ocid={`fieldops.inspection.item.${idx + 1}`}
+                    className="bg-card border-border cursor-pointer hover:border-primary/40 transition-colors"
+                    onClick={() => setSelectedInspection(insp)}
+                  >
+                    <CardContent className="pt-4 pb-4">
+                      <div className="flex items-start justify-between gap-2 mb-3">
+                        <h3 className="font-semibold text-foreground text-sm leading-snug flex-1">
+                          {insp.title}
+                        </h3>
+                        <StatusBadge
+                          color={INSPECTION_STATUS_COLORS[insp.status]}
+                          label={getInspStatusLabel(insp.status)}
+                        />
+                      </div>
+                      <div className="space-y-1.5 text-xs text-muted-foreground">
+                        <div className="flex items-center gap-1.5">
+                          <ClipboardList className="w-3.5 h-3.5" />
+                          <span>{insp.inspectionType}</span>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <FolderIcon className="w-3.5 h-3.5" />
+                          <span className="truncate">
+                            {getProjectName(insp.projectId)}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <User className="w-3.5 h-3.5" />
+                          <span>{insp.assignedTo || "-"}</span>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <Calendar className="w-3.5 h-3.5" />
+                          <span>{insp.scheduledDate}</span>
+                        </div>
+                      </div>
+                      {insp.items.length > 0 && (
+                        <div className="mt-3">
+                          <div className="flex justify-between text-xs text-muted-foreground mb-1">
+                            <span>{t.checklist}</span>
+                            <span>
+                              {checkedCount}/{insp.items.length}
+                            </span>
+                          </div>
+                          <div
+                            className="h-1.5 rounded-full overflow-hidden"
+                            style={{ background: "oklch(0.26 0.01 264)" }}
+                          >
+                            <div
+                              className="h-full rounded-full transition-all"
+                              style={{
+                                width: `${insp.items.length > 0 ? (checkedCount / insp.items.length) * 100 : 0}%`,
+                                background: "oklch(0.72 0.16 160)",
+                              }}
+                            />
+                          </div>
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+                );
+              })}
+            </div>
+          )}
+        </TabsContent>
+      </Tabs>
+
+      {/* Work Order Detail Dialog */}
+      <Dialog
+        open={!!selectedWO}
+        onOpenChange={(open) => !open && setSelectedWO(null)}
+      >
+        <DialogContent
+          data-ocid="workorder_detail.dialog"
+          className="bg-card border-border max-w-lg"
+        >
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Wrench
+                className="w-5 h-5"
+                style={{ color: "oklch(0.62 0.22 280)" }}
+              />
+              {selectedWO?.title}
+            </DialogTitle>
+          </DialogHeader>
+          {selectedWO && (
+            <div className="space-y-4">
+              <div className="flex gap-2 flex-wrap">
+                <StatusBadge
+                  color={STATUS_COLORS[selectedWO.status]}
+                  label={getWOStatusLabel(selectedWO.status)}
+                />
+                <StatusBadge
+                  color={PRIORITY_COLORS[selectedWO.priority]}
+                  label={getPriorityLabel(selectedWO.priority)}
+                />
+              </div>
+              {selectedWO.description && (
+                <p className="text-sm text-muted-foreground">
+                  {selectedWO.description}
+                </p>
+              )}
+              <div className="grid grid-cols-2 gap-3 text-sm">
+                <div className="flex items-center gap-2 text-muted-foreground">
+                  <FolderIcon className="w-4 h-4" />
+                  <span>{getProjectName(selectedWO.projectId)}</span>
+                </div>
+                <div className="flex items-center gap-2 text-muted-foreground">
+                  <User className="w-4 h-4" />
+                  <span>{selectedWO.assignedTo || "-"}</span>
+                </div>
+                {selectedWO.location && (
+                  <div className="flex items-center gap-2 text-muted-foreground col-span-2">
+                    <MapPin className="w-4 h-4" />
+                    <span>{selectedWO.location}</span>
+                  </div>
+                )}
+                <div className="flex items-center gap-2 text-muted-foreground">
+                  <Calendar className="w-4 h-4" />
+                  <span>{selectedWO.dueDate}</span>
+                </div>
+              </div>
+
+              <div>
+                <Label className="text-xs text-muted-foreground mb-2 block">
+                  Durum Güncelle
+                </Label>
+                <Select
+                  value={selectedWO.status}
+                  onValueChange={(v) => {
+                    updateWorkOrderStatus(selectedWO.id, v as WorkOrderStatus);
+                    setSelectedWO({
+                      ...selectedWO,
+                      status: v as WorkOrderStatus,
+                    });
+                  }}
+                >
+                  <SelectTrigger
+                    data-ocid="workorder_detail.status_select"
+                    className="bg-background border-border"
+                  >
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent className="bg-card border-border">
+                    <SelectItem value="open">{t.workOrderOpen}</SelectItem>
+                    <SelectItem value="in_progress">
+                      {t.workOrderInProgress}
+                    </SelectItem>
+                    <SelectItem value="completed">
+                      {t.workOrderCompleted}
+                    </SelectItem>
+                    <SelectItem value="cancelled">
+                      {t.workOrderCancelled}
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <Label className="text-xs text-muted-foreground">
+                    {t.attachments} ({selectedWO.attachments.length})
+                  </Label>
+                  <Button
+                    data-ocid="workorder_detail.upload_button"
+                    size="sm"
+                    variant="outline"
+                    className="text-xs h-7 border-border"
+                  >
+                    <Paperclip className="w-3 h-3 mr-1" />
+                    {t.uploadFile}
+                  </Button>
+                </div>
+                {selectedWO.attachments.length === 0 ? (
+                  <p className="text-xs text-muted-foreground">Henüz ek yok.</p>
+                ) : (
+                  <div className="space-y-1">
+                    {selectedWO.attachments.map((a) => (
+                      <div
+                        key={a.id}
+                        className="flex items-center gap-2 text-xs p-2 rounded-lg"
+                        style={{ background: "oklch(0.22 0.01 264)" }}
+                      >
+                        {a.type === "image" ? (
+                          <Image className="w-3.5 h-3.5 text-blue-400" />
+                        ) : (
+                          <FileText className="w-3.5 h-3.5 text-orange-400" />
+                        )}
+                        <span className="text-foreground">{a.name}</span>
+                        <span className="text-muted-foreground ml-auto">
+                          {a.uploadedAt}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Cost section */}
+              <div className="space-y-2">
+                <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider">
+                  Maliyet Bilgileri
+                </p>
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <Label className="text-xs text-muted-foreground">
+                      Tahmini Maliyet (₺)
+                    </Label>
+                    <Input
+                      data-ocid="workorder_detail.input"
+                      type="number"
+                      placeholder="0"
+                      value={woCosts[selectedWO.id]?.estimated || ""}
+                      onChange={(e) =>
+                        setWoCosts((prev) => ({
+                          ...prev,
+                          [selectedWO.id]: {
+                            estimated: e.target.value,
+                            actual: prev[selectedWO.id]?.actual || "",
+                          },
+                        }))
+                      }
+                      className="bg-background border-border mt-1 h-8 text-sm"
+                    />
+                  </div>
+                  <div>
+                    <Label className="text-xs text-muted-foreground">
+                      Gerçekleşen Maliyet (₺)
+                    </Label>
+                    <Input
+                      type="number"
+                      placeholder="0"
+                      value={woCosts[selectedWO.id]?.actual || ""}
+                      onChange={(e) =>
+                        setWoCosts((prev) => ({
+                          ...prev,
+                          [selectedWO.id]: {
+                            actual: e.target.value,
+                            estimated: prev[selectedWO.id]?.estimated || "",
+                          },
+                        }))
+                      }
+                      className="bg-background border-border mt-1 h-8 text-sm"
+                    />
+                  </div>
+                </div>
+                {onNavigate && (
+                  <Button
+                    data-ocid="workorder_detail.secondary_button"
+                    variant="outline"
+                    size="sm"
+                    className="border-border text-xs w-full mt-1"
+                    onClick={() => {
+                      setSelectedWO(null);
+                      onNavigate("finance");
+                    }}
+                  >
+                    Finans Modülünde Gider Oluştur →
+                  </Button>
+                )}
+              </div>
+              <div className="flex justify-end">
+                <Button
+                  data-ocid="workorder_detail.close_button"
+                  variant="outline"
+                  onClick={() => setSelectedWO(null)}
+                  className="border-border"
+                >
+                  {t.close}
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Inspection Form Dialog */}
+      <Dialog
+        open={!!selectedInspection}
+        onOpenChange={(open) => !open && setSelectedInspection(null)}
+      >
+        <DialogContent
+          data-ocid="inspection_form.dialog"
+          className="bg-card border-border max-w-lg max-h-[90vh] overflow-y-auto"
+        >
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <ClipboardList
+                className="w-5 h-5"
+                style={{ color: "oklch(0.72 0.18 50)" }}
+              />
+              {selectedInspection?.title}
+            </DialogTitle>
+          </DialogHeader>
+          {selectedInspection && (
+            <div className="space-y-4">
+              <div className="flex gap-2 flex-wrap">
+                <StatusBadge
+                  color={INSPECTION_STATUS_COLORS[selectedInspection.status]}
+                  label={getInspStatusLabel(selectedInspection.status)}
+                />
+                <span
+                  className="text-xs px-2 py-0.5 rounded-full"
+                  style={{
+                    background: "oklch(0.22 0.01 264)",
+                    color: "oklch(0.7 0.015 264)",
+                  }}
+                >
+                  {selectedInspection.inspectionType}
+                </span>
+              </div>
+
+              <div>
+                <Label className="text-xs text-muted-foreground mb-2 block">
+                  {t.checklist}
+                </Label>
+                <div className="space-y-2">
+                  {selectedInspection.items.map((item, idx) => (
+                    <div
+                      key={item.id}
+                      className="flex items-start gap-3 p-3 rounded-lg"
+                      style={{ background: "oklch(0.22 0.01 264)" }}
+                    >
+                      <Checkbox
+                        data-ocid={`inspection_form.checkbox.${idx + 1}`}
+                        checked={item.checked}
+                        disabled={selectedInspection.status === "completed"}
+                        onCheckedChange={(checked) => {
+                          updateInspectionItem(
+                            selectedInspection.id,
+                            item.id,
+                            !!checked,
+                            item.note,
+                          );
+                          setSelectedInspection({
+                            ...selectedInspection,
+                            items: selectedInspection.items.map((i) =>
+                              i.id === item.id
+                                ? { ...i, checked: !!checked }
+                                : i,
+                            ),
+                          });
+                        }}
+                        className="mt-0.5"
+                      />
+                      <div className="flex-1">
+                        <p
+                          className={`text-sm ${item.checked ? "line-through text-muted-foreground" : "text-foreground"}`}
+                        >
+                          {item.label}
+                        </p>
+                        {item.checked && (
+                          <Input
+                            placeholder="Not ekle..."
+                            value={item.note}
+                            onChange={(e) => {
+                              updateInspectionItem(
+                                selectedInspection.id,
+                                item.id,
+                                item.checked,
+                                e.target.value,
+                              );
+                              setSelectedInspection({
+                                ...selectedInspection,
+                                items: selectedInspection.items.map((i) =>
+                                  i.id === item.id
+                                    ? { ...i, note: e.target.value }
+                                    : i,
+                                ),
+                              });
+                            }}
+                            className="mt-1 h-7 text-xs bg-background border-border"
+                          />
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <Label className="text-xs text-muted-foreground mb-1 block">
+                  Genel Notlar
+                </Label>
+                <Textarea
+                  value={selectedInspection.notes}
+                  disabled={selectedInspection.status === "completed"}
+                  onChange={(e) =>
+                    setSelectedInspection({
+                      ...selectedInspection,
+                      notes: e.target.value,
+                    })
+                  }
+                  className="bg-background border-border text-sm"
+                  rows={2}
+                />
+              </div>
+
+              <div className="flex justify-between">
+                <Button
+                  data-ocid="inspection_form.close_button"
+                  variant="outline"
+                  onClick={() => setSelectedInspection(null)}
+                  className="border-border"
+                >
+                  {t.close}
+                </Button>
+                {selectedInspection.status !== "completed" && (
+                  <Button
+                    data-ocid="inspection_form.complete_button"
+                    onClick={handleCompleteInspection}
+                    className="gradient-bg text-white"
+                  >
+                    <CheckCircle2 className="w-4 h-4 mr-2" />
+                    {t.completeInspection}
+                  </Button>
+                )}
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* New Work Order Dialog */}
+      <Dialog open={showNewWO} onOpenChange={setShowNewWO}>
+        <DialogContent
+          data-ocid="new_workorder.dialog"
+          className="bg-card border-border max-w-md"
+        >
+          <DialogHeader>
+            <DialogTitle>{t.newWorkOrder}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div>
+              <Label className="text-xs text-muted-foreground">Başlık *</Label>
+              <Input
+                value={newWO.title}
+                onChange={(e) =>
+                  setNewWO((p) => ({ ...p, title: e.target.value }))
+                }
+                className="bg-background border-border mt-1"
+              />
+            </div>
+            <div>
+              <Label className="text-xs text-muted-foreground">
+                {t.description}
+              </Label>
+              <Textarea
+                value={newWO.description}
+                onChange={(e) =>
+                  setNewWO((p) => ({ ...p, description: e.target.value }))
+                }
+                className="bg-background border-border mt-1"
+                rows={2}
+              />
+            </div>
+            <div>
+              <Label className="text-xs text-muted-foreground">Proje *</Label>
+              <Select
+                value={newWO.projectId}
+                onValueChange={(v) => setNewWO((p) => ({ ...p, projectId: v }))}
+              >
+                <SelectTrigger className="bg-background border-border mt-1">
+                  <SelectValue placeholder="Proje seçin" />
+                </SelectTrigger>
+                <SelectContent className="bg-card border-border">
+                  {projects.map((p) => (
+                    <SelectItem key={p.id} value={p.id}>
+                      {p.title}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label className="text-xs text-muted-foreground">
+                  {t.assignedTo}
+                </Label>
+                <Input
+                  value={newWO.assignedTo}
+                  onChange={(e) =>
+                    setNewWO((p) => ({ ...p, assignedTo: e.target.value }))
+                  }
+                  className="bg-background border-border mt-1"
+                />
+              </div>
+              <div>
+                <Label className="text-xs text-muted-foreground">
+                  {t.priority}
+                </Label>
+                <Select
+                  value={newWO.priority}
+                  onValueChange={(v) =>
+                    setNewWO((p) => ({ ...p, priority: v as TaskPriority }))
+                  }
+                >
+                  <SelectTrigger className="bg-background border-border mt-1">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent className="bg-card border-border">
+                    <SelectItem value="critical">{t.critical}</SelectItem>
+                    <SelectItem value="high">{t.high}</SelectItem>
+                    <SelectItem value="medium">{t.medium}</SelectItem>
+                    <SelectItem value="low">{t.low}</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div>
+              <Label className="text-xs text-muted-foreground">
+                {t.location}
+              </Label>
+              <Input
+                value={newWO.location}
+                onChange={(e) =>
+                  setNewWO((p) => ({ ...p, location: e.target.value }))
+                }
+                className="bg-background border-border mt-1"
+              />
+            </div>
+            <div>
+              <Label className="text-xs text-muted-foreground">
+                {t.dueDate}
+              </Label>
+              <Input
+                type="date"
+                value={newWO.dueDate}
+                onChange={(e) =>
+                  setNewWO((p) => ({ ...p, dueDate: e.target.value }))
+                }
+                className="bg-background border-border mt-1"
+              />
+            </div>
+            <div className="flex justify-end gap-2 pt-2">
+              <Button
+                data-ocid="new_workorder.cancel_button"
+                variant="outline"
+                onClick={() => setShowNewWO(false)}
+                className="border-border"
+              >
+                {t.cancel}
+              </Button>
+              <Button
+                data-ocid="new_workorder.submit_button"
+                onClick={handleCreateWO}
+                className="gradient-bg text-white"
+              >
+                {t.create}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* New Inspection Dialog */}
+      <Dialog open={showNewInspection} onOpenChange={setShowNewInspection}>
+        <DialogContent
+          data-ocid="new_inspection.dialog"
+          className="bg-card border-border max-w-md"
+        >
+          <DialogHeader>
+            <DialogTitle>{t.newInspection}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div>
+              <Label className="text-xs text-muted-foreground">Başlık *</Label>
+              <Input
+                value={newInsp.title}
+                onChange={(e) =>
+                  setNewInsp((p) => ({ ...p, title: e.target.value }))
+                }
+                className="bg-background border-border mt-1"
+              />
+            </div>
+            <div>
+              <Label className="text-xs text-muted-foreground">
+                {t.inspectionType}
+              </Label>
+              <Select
+                value={newInsp.inspectionType}
+                onValueChange={(v) =>
+                  setNewInsp((p) => ({ ...p, inspectionType: v }))
+                }
+              >
+                <SelectTrigger className="bg-background border-border mt-1">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent className="bg-card border-border">
+                  {INSPECTION_TYPES.map((type) => (
+                    <SelectItem key={type} value={type}>
+                      {type}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label className="text-xs text-muted-foreground">Proje *</Label>
+              <Select
+                value={newInsp.projectId}
+                onValueChange={(v) =>
+                  setNewInsp((p) => ({ ...p, projectId: v }))
+                }
+              >
+                <SelectTrigger className="bg-background border-border mt-1">
+                  <SelectValue placeholder="Proje seçin" />
+                </SelectTrigger>
+                <SelectContent className="bg-card border-border">
+                  {projects.map((p) => (
+                    <SelectItem key={p.id} value={p.id}>
+                      {p.title}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label className="text-xs text-muted-foreground">
+                  {t.assignedTo}
+                </Label>
+                <Input
+                  value={newInsp.assignedTo}
+                  onChange={(e) =>
+                    setNewInsp((p) => ({ ...p, assignedTo: e.target.value }))
+                  }
+                  className="bg-background border-border mt-1"
+                />
+              </div>
+              <div>
+                <Label className="text-xs text-muted-foreground">
+                  {t.scheduledDate}
+                </Label>
+                <Input
+                  type="date"
+                  value={newInsp.scheduledDate}
+                  onChange={(e) =>
+                    setNewInsp((p) => ({ ...p, scheduledDate: e.target.value }))
+                  }
+                  className="bg-background border-border mt-1"
+                />
+              </div>
+            </div>
+            <div className="flex justify-end gap-2 pt-2">
+              <Button
+                data-ocid="new_inspection.cancel_button"
+                variant="outline"
+                onClick={() => setShowNewInspection(false)}
+                className="border-border"
+              >
+                {t.cancel}
+              </Button>
+              <Button
+                data-ocid="new_inspection.submit_button"
+                onClick={handleCreateInspection}
+                className="gradient-bg text-white"
+              >
+                {t.create}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
+function FolderIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      aria-hidden="true"
+      className={className}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
+    </svg>
+  );
+}

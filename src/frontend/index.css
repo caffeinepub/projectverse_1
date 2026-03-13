@@ -1,0 +1,100 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@font-face {
+  font-family: 'Plus Jakarta Sans';
+  src: url('/assets/fonts/PlusJakartaSans.woff2') format('woff2');
+  font-weight: 300 700;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Bricolage Grotesque';
+  src: url('/assets/fonts/BricolageGrotesque.woff2') format('woff2');
+  font-weight: 200 800;
+  font-display: swap;
+}
+
+@layer base {
+  :root {
+    --background: 0.22 0.005 264;
+    --foreground: 0.96 0.008 264;
+    --card: 0.19 0.008 264;
+    --card-foreground: 0.96 0.008 264;
+    --popover: 0.19 0.008 264;
+    --popover-foreground: 0.96 0.008 264;
+    --primary: 0.62 0.22 280;
+    --primary-foreground: 1 0 0;
+    --secondary: 0.26 0.01 264;
+    --secondary-foreground: 0.88 0.008 264;
+    --muted: 0.26 0.01 264;
+    --muted-foreground: 0.58 0.015 264;
+    --accent: 0.62 0.22 280;
+    --accent-foreground: 1 0 0;
+    --destructive: 0.58 0.22 25;
+    --destructive-foreground: 1 0 0;
+    --border: 0.3 0.012 264;
+    --input: 0.3 0.012 264;
+    --ring: 0.62 0.22 280;
+    --radius: 0.75rem;
+    --chart-1: 0.62 0.22 280;
+    --chart-2: 0.68 0.18 200;
+    --chart-3: 0.72 0.16 160;
+    --chart-4: 0.72 0.18 50;
+    --chart-5: 0.65 0.22 25;
+    --sidebar: 0.16 0.01 264;
+    --sidebar-foreground: 0.88 0.008 264;
+    --sidebar-primary: 0.62 0.22 280;
+    --sidebar-primary-foreground: 1 0 0;
+    --sidebar-accent: 0.22 0.01 264;
+    --sidebar-accent-foreground: 0.88 0.008 264;
+    --sidebar-border: 0.26 0.01 264;
+    --sidebar-ring: 0.62 0.22 280;
+  }
+}
+
+@layer base {
+  * { @apply border-border; }
+  body {
+    @apply bg-background text-foreground;
+    font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+  }
+  h1, h2, h3 {
+    font-family: 'Bricolage Grotesque', system-ui, sans-serif;
+  }
+}
+
+.gradient-text {
+  background: linear-gradient(135deg, oklch(0.72 0.22 280), oklch(0.72 0.2 200));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.gradient-bg {
+  background: linear-gradient(135deg, oklch(0.62 0.22 280), oklch(0.62 0.2 200));
+}
+
+.glass-card {
+  background: oklch(0.19 0.008 264 / 0.8);
+  backdrop-filter: blur(12px);
+  border: 1px solid oklch(0.35 0.02 264 / 0.5);
+}
+
+.sidebar-item {
+  @apply flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200;
+  color: oklch(0.7 0.01 264);
+}
+.sidebar-item:hover {
+  background: oklch(0.22 0.01 264);
+  color: oklch(0.96 0.008 264);
+}
+.sidebar-item.active {
+  background: linear-gradient(135deg, oklch(0.62 0.22 280 / 0.2), oklch(0.62 0.2 200 / 0.2));
+  color: oklch(0.82 0.18 280);
+  border: 1px solid oklch(0.62 0.22 280 / 0.3);
+}
+
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: oklch(0.35 0.01 264); border-radius: 3px; }
