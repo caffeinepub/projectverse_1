@@ -32,6 +32,7 @@ import { Textarea } from "@/components/ui/textarea";
 import {
   AlertCircle,
   Check,
+  CheckCircle2,
   Clock,
   DollarSign,
   FileText,
@@ -42,152 +43,16 @@ import {
   Upload,
   X,
 } from "lucide-react";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import AccessDenied from "../components/AccessDenied";
 import { useApp } from "../contexts/AppContext";
 
-type ExpenseStatus = "Onaylandı" | "Bekliyor" | "Reddedildi";
-type InvoiceStatus = "Ödendi" | "Bekliyor" | "Gecikmiş";
-
-interface ProjectBudget {
-  id: string;
-  project: string;
-  planned: number;
-  spent: number;
-}
-
-interface Expense {
-  id: string;
-  category: string;
-  projectId: string;
-  amount: number;
-  date: string;
-  status: ExpenseStatus;
-  description: string;
-  createdBy: string;
-}
-
-interface Invoice {
-  id: string;
-  supplier: string;
-  amount: number;
-  dueDate: string;
-  status: InvoiceStatus;
-  project: string;
-}
-
-const BUDGETS: ProjectBudget[] = [
-  { id: "p1", project: "İstanbul Rezidans", planned: 2500000, spent: 1820000 },
-  { id: "p2", project: "Ankara Plaza", planned: 4200000, spent: 1950000 },
-  { id: "p3", project: "İzmir Liman", planned: 1800000, spent: 1650000 },
-  { id: "p4", project: "Bursa Konutları", planned: 950000, spent: 310000 },
-];
-
-const INITIAL_EXPENSES: Expense[] = [
-  {
-    id: "e1",
-    category: "Malzeme",
-    projectId: "p1",
-    amount: 85000,
-    date: "2026-03-10",
-    status: "Onaylandı",
-    description: "Çelik profil alımı",
-    createdBy: "Mehmet Demir",
-  },
-  {
-    id: "e2",
-    category: "İşçilik",
-    projectId: "p2",
-    amount: 42000,
-    date: "2026-03-11",
-    status: "Bekliyor",
-    description: "Aylık işçilik gideri",
-    createdBy: "Ahmet Yılmaz",
-  },
-  {
-    id: "e3",
-    category: "Ekipman",
-    projectId: "p3",
-    amount: 120000,
-    date: "2026-03-08",
-    status: "Onaylandı",
-    description: "Vinç kiralama",
-    createdBy: "Ali Çelik",
-  },
-  {
-    id: "e4",
-    category: "Ulaşım",
-    projectId: "p1",
-    amount: 8500,
-    date: "2026-03-12",
-    status: "Bekliyor",
-    description: "Saha ulaşım masrafları",
-    createdBy: "Zeynep Arslan",
-  },
-  {
-    id: "e5",
-    category: "Malzeme",
-    projectId: "p4",
-    amount: 35000,
-    date: "2026-03-05",
-    status: "Reddedildi",
-    description: "Boya ve yalıtım malzemeleri",
-    createdBy: "Selin Öztürk",
-  },
-  {
-    id: "e6",
-    category: "Danışmanlık",
-    projectId: "p2",
-    amount: 18000,
-    date: "2026-03-13",
-    status: "Bekliyor",
-    description: "Mimari danışmanlık hizmeti",
-    createdBy: "Fatma Kaya",
-  },
-];
-
-const INITIAL_INVOICES: Invoice[] = [
-  {
-    id: "i1",
-    supplier: "Demirçelik A.Ş.",
-    amount: 285000,
-    dueDate: "2026-03-25",
-    status: "Bekliyor",
-    project: "İstanbul Rezidans",
-  },
-  {
-    id: "i2",
-    supplier: "İnşaat Malzeme Ltd.",
-    amount: 96000,
-    dueDate: "2026-03-10",
-    status: "Ödendi",
-    project: "Ankara Plaza",
-  },
-  {
-    id: "i3",
-    supplier: "Teknik Yapı San.",
-    amount: 145000,
-    dueDate: "2026-03-05",
-    status: "Gecikmiş",
-    project: "İzmir Liman",
-  },
-  {
-    id: "i4",
-    supplier: "Elektrik Sistemleri",
-    amount: 52000,
-    dueDate: "2026-04-01",
-    status: "Bekliyor",
-    project: "Bursa Konutları",
-  },
-  {
-    id: "i5",
-    supplier: "Yıldız İnşaat Malz.",
-    amount: 78000,
-    dueDate: "2026-02-28",
-    status: "Gecikmiş",
-    project: "İstanbul Rezidans",
-  },
-];
+import type {
+  Expense,
+  ExpenseStatus,
+  Invoice,
+  InvoiceStatus,
+} from "../contexts/AppContext";
 
 const CATEGORIES = [
   "Malzeme",
@@ -196,13 +61,6 @@ const CATEGORIES = [
   "Ulaşım",
   "Danışmanlık",
   "Diğer",
-];
-
-const PROJECTS = [
-  { id: "p1", name: "İstanbul Rezidans" },
-  { id: "p2", name: "Ankara Plaza" },
-  { id: "p3", name: "İzmir Liman" },
-  { id: "p4", name: "Bursa Konutları" },
 ];
 
 function fmt(n: number) {
@@ -226,7 +84,16 @@ const INVOICE_STATUS_STYLES: Record<InvoiceStatus, string> = {
 };
 
 export default function Finance() {
-  const { activeRoleId, checkPermission } = useApp();
+  const {
+    activeRoleId,
+    checkPermission,
+    expenses,
+    setExpenses,
+    invoices,
+    setInvoices,
+    projects,
+  } = useApp();
+
   const canEdit =
     activeRoleId === "owner" ||
     activeRoleId === "manager" ||
@@ -238,32 +105,56 @@ export default function Finance() {
     activeRoleId === "owner" ||
     activeRoleId === "manager";
 
-  const [expenses, setExpenses] = useState<Expense[]>(INITIAL_EXPENSES);
   const [newExpenseOpen, setNewExpenseOpen] = useState(false);
   const [newExpense, setNewExpense] = useState({
     amount: "",
     category: "Malzeme",
-    projectId: "p1",
+    projectId: "",
     description: "",
   });
 
+  // Dynamic budget computation from real project + expense data
+  const projectBudgets = useMemo(() => {
+    return projects
+      .filter((p) => p.budget && p.budget > 0)
+      .map((p) => ({
+        id: p.id,
+        project: p.title,
+        planned: p.budget!,
+        spent: expenses
+          .filter((e) => e.projectId === p.id && e.status === "Onaylandı")
+          .reduce((s, e) => s + e.amount, 0),
+      }));
+  }, [projects, expenses]);
+
   if (!canView) return <AccessDenied />;
 
-  const totalBudget = BUDGETS.reduce((s, b) => s + b.planned, 0);
-  const totalSpent = BUDGETS.reduce((s, b) => s + b.spent, 0);
+  const totalBudget = projectBudgets.reduce((s, b) => s + b.planned, 0);
+  const totalSpent = projectBudgets.reduce((s, b) => s + b.spent, 0);
   const totalRemaining = totalBudget - totalSpent;
   const pendingExpenses = expenses.filter((e) => e.status === "Bekliyor");
   const pendingTotal = pendingExpenses.reduce((s, e) => s + e.amount, 0);
 
+  // Check if selected project is near/over budget
+  const getProjectBudgetWarning = (projectId: string): string | null => {
+    const pb = projectBudgets.find((b) => b.id === projectId);
+    if (!pb) return null;
+    const pct = pb.planned > 0 ? (pb.spent / pb.planned) * 100 : 0;
+    if (pct >= 100) return `Bu proje bütçesi aşılmış (%${Math.round(pct)})!`;
+    if (pct >= 85)
+      return `Bu proje bütçesinin %${Math.round(pct)}'i kullanılmış, dikkatli olun.`;
+    return null;
+  };
+
   const handleApproveExpense = (id: string) => {
-    setExpenses((prev) =>
-      prev.map((e) => (e.id === id ? { ...e, status: "Onaylandı" } : e)),
+    setExpenses(
+      expenses.map((e) => (e.id === id ? { ...e, status: "Onaylandı" } : e)),
     );
   };
 
   const handleRejectExpense = (id: string) => {
-    setExpenses((prev) =>
-      prev.map((e) => (e.id === id ? { ...e, status: "Reddedildi" } : e)),
+    setExpenses(
+      expenses.map((e) => (e.id === id ? { ...e, status: "Reddedildi" } : e)),
     );
   };
 
@@ -279,18 +170,28 @@ export default function Finance() {
       description: newExpense.description,
       createdBy: "Ben",
     };
-    setExpenses((prev) => [expense, ...prev]);
+    setExpenses([expense, ...expenses]);
     setNewExpense({
       amount: "",
       category: "Malzeme",
-      projectId: "p1",
+      projectId: "",
       description: "",
     });
     setNewExpenseOpen(false);
   };
 
+  const handleMarkInvoicePaid = (invoiceId: string) => {
+    setInvoices(
+      invoices.map((i) =>
+        i.id === invoiceId ? { ...i, status: "Ödendi" as InvoiceStatus } : i,
+      ),
+    );
+  };
+
   const getProjectName = (id: string) =>
-    PROJECTS.find((p) => p.id === id)?.name || id;
+    projects.find((p) => p.id === id)?.title || id;
+
+  const budgetWarning = getProjectBudgetWarning(newExpense.projectId);
 
   return (
     <div className="p-6 space-y-6">
@@ -399,84 +300,171 @@ export default function Finance() {
             </Card>
           </div>
 
-          <Card className="bg-card border-border">
-            <CardHeader>
-              <CardTitle className="text-sm font-semibold">
-                Proje Bütçe Dağılımı
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="p-0">
-              <Table>
-                <TableHeader>
-                  <TableRow className="border-border hover:bg-transparent">
-                    <TableHead className="text-muted-foreground">
-                      Proje
-                    </TableHead>
-                    <TableHead className="text-muted-foreground text-right">
-                      Planlanan Bütçe
-                    </TableHead>
-                    <TableHead className="text-muted-foreground text-right">
-                      Harcanan
-                    </TableHead>
-                    <TableHead className="text-muted-foreground text-right">
-                      Kalan
-                    </TableHead>
-                    <TableHead className="text-muted-foreground">
-                      Durum
-                    </TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {BUDGETS.map((b, i) => {
-                    const pct = Math.round((b.spent / b.planned) * 100);
-                    const remaining = b.planned - b.spent;
-                    const isOver = pct >= 90;
-                    return (
-                      <TableRow
-                        key={b.id}
-                        data-ocid={`finance.budget.row.${i + 1}`}
-                        className="border-border hover:bg-white/5"
-                      >
-                        <TableCell className="font-medium">
-                          {b.project}
-                        </TableCell>
-                        <TableCell className="text-right text-muted-foreground">
-                          {fmt(b.planned)}
-                        </TableCell>
-                        <TableCell className="text-right text-rose-400">
-                          {fmt(b.spent)}
-                        </TableCell>
-                        <TableCell
-                          className={`text-right font-semibold ${remaining < 0 ? "text-rose-400" : "text-emerald-400"}`}
+          {projectBudgets.filter(
+            (b) => Math.round((b.spent / b.planned) * 100) >= 100,
+          ).length > 0 && (
+            <div className="flex items-start gap-3 p-4 rounded-xl border border-rose-500/30 bg-rose-500/10">
+              <AlertCircle className="h-4 w-4 text-rose-400 flex-shrink-0 mt-0.5" />
+              <div>
+                <p className="text-sm font-semibold text-rose-400">
+                  Bütçe Aşımı Uyarısı
+                </p>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  {projectBudgets
+                    .filter(
+                      (b) => Math.round((b.spent / b.planned) * 100) >= 100,
+                    )
+                    .map((b) => b.project)
+                    .join(", ")}{" "}
+                  projelerinde bütçe aşıldı.
+                </p>
+              </div>
+            </div>
+          )}
+
+          {projectBudgets.length === 0 ? (
+            <div
+              data-ocid="finance.budget.empty_state"
+              className="text-center py-12 text-muted-foreground"
+            >
+              Bütçeli proje bulunamadı. Projelerinize bütçe tanımlayın.
+            </div>
+          ) : (
+            <Card className="bg-card border-border">
+              <CardHeader>
+                <CardTitle className="text-sm font-semibold">
+                  Proje Bütçe Dağılımı
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="p-0">
+                <Table>
+                  <TableHeader>
+                    <TableRow className="border-border hover:bg-transparent">
+                      <TableHead className="text-muted-foreground">
+                        Proje
+                      </TableHead>
+                      <TableHead className="text-muted-foreground text-right">
+                        Planlanan Bütçe
+                      </TableHead>
+                      <TableHead className="text-muted-foreground text-right">
+                        Harcanan
+                      </TableHead>
+                      <TableHead className="text-muted-foreground text-right">
+                        Kalan
+                      </TableHead>
+                      <TableHead className="text-muted-foreground">
+                        Durum
+                      </TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {projectBudgets.map((b, i) => {
+                      const pct =
+                        b.planned > 0
+                          ? Math.round((b.spent / b.planned) * 100)
+                          : 0;
+                      const remaining = b.planned - b.spent;
+                      const isExceeded = pct >= 100;
+                      const isNear = pct >= 85 && pct < 100;
+                      return (
+                        <TableRow
+                          key={b.id}
+                          data-ocid={`finance.budget.row.${i + 1}`}
+                          className="border-border hover:bg-white/5"
                         >
-                          {fmt(remaining)}
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex items-center gap-2 min-w-[120px]">
-                            <Progress
-                              value={Math.min(pct, 100)}
-                              className="h-1.5 flex-1"
-                              style={{
-                                // @ts-ignore
-                                "--progress-fill": isOver
-                                  ? "oklch(0.65 0.22 25)"
-                                  : "oklch(0.62 0.22 280)",
-                              }}
-                            />
-                            <span
-                              className={`text-xs font-semibold ${isOver ? "text-rose-400" : "text-muted-foreground"}`}
-                            >
-                              %{pct}
-                            </span>
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })}
-                </TableBody>
-              </Table>
-            </CardContent>
-          </Card>
+                          <TableCell className="font-medium">
+                            <div>
+                              <div className="flex items-center gap-2">
+                                {b.project}
+                                {isExceeded && (
+                                  <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-rose-500/20 text-rose-400 border border-rose-500/30 font-medium">
+                                    Bütçe Aşıldı
+                                  </span>
+                                )}
+                                {isNear && (
+                                  <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-amber-500/20 text-amber-400 border border-amber-500/30 font-medium">
+                                    Bütçe Sınırına Yakın
+                                  </span>
+                                )}
+                              </div>
+                              {(() => {
+                                const utilization =
+                                  b.planned > 0
+                                    ? Math.min((b.spent / b.planned) * 100, 100)
+                                    : 0;
+                                const barColor =
+                                  utilization < 60
+                                    ? "bg-green-500"
+                                    : utilization < 85
+                                      ? "bg-yellow-500"
+                                      : "bg-red-500";
+                                return (
+                                  <div className="mt-1.5">
+                                    <div className="flex justify-between text-[10px] text-muted-foreground mb-1">
+                                      <span>Bütçe Kullanımı</span>
+                                      <span>{utilization.toFixed(0)}%</span>
+                                    </div>
+                                    <div className="w-full h-1.5 bg-muted rounded-full overflow-hidden">
+                                      <div
+                                        className={`h-full rounded-full ${barColor}`}
+                                        style={{ width: `${utilization}%` }}
+                                      />
+                                    </div>
+                                  </div>
+                                );
+                              })()}
+                            </div>
+                          </TableCell>
+                          <TableCell className="text-right text-muted-foreground">
+                            {fmt(b.planned)}
+                          </TableCell>
+                          <TableCell className="text-right text-rose-400">
+                            {fmt(b.spent)}
+                          </TableCell>
+                          <TableCell
+                            className={`text-right font-semibold ${
+                              remaining < 0
+                                ? "text-rose-400"
+                                : "text-emerald-400"
+                            }`}
+                          >
+                            {fmt(remaining)}
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex items-center gap-2 min-w-[120px]">
+                              <Progress
+                                value={Math.min(pct, 100)}
+                                className="h-1.5 flex-1"
+                                style={{
+                                  // @ts-ignore
+                                  "--progress-fill": isExceeded
+                                    ? "oklch(0.58 0.22 25)"
+                                    : isNear
+                                      ? "oklch(0.72 0.18 50)"
+                                      : "oklch(0.62 0.22 280)",
+                                }}
+                              />
+                              <span
+                                className={`text-xs font-semibold ${
+                                  isExceeded
+                                    ? "text-rose-400"
+                                    : isNear
+                                      ? "text-amber-400"
+                                      : "text-muted-foreground"
+                                }`}
+                              >
+                                %{pct}
+                              </span>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              </CardContent>
+            </Card>
+          )}
         </TabsContent>
 
         {/* EXPENSES TAB */}
@@ -548,16 +536,25 @@ export default function Finance() {
                       }
                     >
                       <SelectTrigger className="bg-background border-border mt-1">
-                        <SelectValue />
+                        <SelectValue placeholder="Proje seçin..." />
                       </SelectTrigger>
                       <SelectContent className="bg-card border-border">
-                        {PROJECTS.map((p) => (
+                        {projects.map((p) => (
                           <SelectItem key={p.id} value={p.id}>
-                            {p.name}
+                            {p.title}
                           </SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
+                    {/* Budget warning */}
+                    {budgetWarning && (
+                      <div className="flex items-start gap-2 mt-2 p-2 rounded-lg border border-amber-500/30 bg-amber-500/10">
+                        <AlertCircle className="h-3.5 w-3.5 text-amber-400 flex-shrink-0 mt-0.5" />
+                        <p className="text-xs text-amber-400">
+                          {budgetWarning}
+                        </p>
+                      </div>
+                    )}
                   </div>
                   <div>
                     <Label>Açıklama</Label>
@@ -717,7 +714,7 @@ export default function Finance() {
         <TabsContent value="invoices" className="space-y-4">
           <div className="flex items-center justify-between">
             <p className="text-sm text-muted-foreground">
-              {INITIAL_INVOICES.length} fatura
+              {invoices.length} fatura
             </p>
           </div>
           <Card className="bg-card border-border">
@@ -740,10 +737,15 @@ export default function Finance() {
                     <TableHead className="text-muted-foreground">
                       Durum
                     </TableHead>
+                    {canEdit && (
+                      <TableHead className="text-muted-foreground">
+                        İşlem
+                      </TableHead>
+                    )}
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {INITIAL_INVOICES.map((inv, i) => (
+                  {invoices.map((inv, i) => (
                     <TableRow
                       key={inv.id}
                       data-ocid={`finance.invoice.row.${i + 1}`}
@@ -764,7 +766,11 @@ export default function Finance() {
                             <AlertCircle className="h-3.5 w-3.5 text-rose-400" />
                           )}
                           <span
-                            className={`text-xs ${inv.status === "Gecikmiş" ? "text-rose-400" : "text-muted-foreground"}`}
+                            className={`text-xs ${
+                              inv.status === "Gecikmiş"
+                                ? "text-rose-400"
+                                : "text-muted-foreground"
+                            }`}
                           >
                             {inv.dueDate}
                           </span>
@@ -777,6 +783,22 @@ export default function Finance() {
                           {inv.status}
                         </Badge>
                       </TableCell>
+                      {canEdit && (
+                        <TableCell>
+                          {(inv.status === "Bekliyor" ||
+                            inv.status === "Gecikmiş") && (
+                            <Button
+                              size="sm"
+                              data-ocid={`finance.invoice.confirm_button.${i + 1}`}
+                              className="bg-emerald-600 hover:bg-emerald-700 text-white h-7 px-3 text-xs gap-1"
+                              onClick={() => handleMarkInvoicePaid(inv.id)}
+                            >
+                              <CheckCircle2 className="h-3 w-3" />
+                              Ödendi
+                            </Button>
+                          )}
+                        </TableCell>
+                      )}
                     </TableRow>
                   ))}
                 </TableBody>

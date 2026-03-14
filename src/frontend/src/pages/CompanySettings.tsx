@@ -578,6 +578,10 @@ function PersonnelTab({ companyId }: { companyId: string }) {
     rejectInvite,
   } = useApp();
   const [confirmRemove, setConfirmRemove] = useState<string | null>(null);
+  const [approvedCodeInfo, setApprovedCodeInfo] = useState<{
+    name: string;
+    code: string;
+  } | null>(null);
 
   const members = (currentCompany?.members || []).filter(
     (m) => !m.roleIds.includes("owner"),
@@ -697,10 +701,13 @@ function PersonnelTab({ companyId }: { companyId: string }) {
                       color: "white",
                     }}
                     onClick={() => {
-                      approveInvite(invite.id);
+                      const code = approveInvite(invite.id);
                       toast.success(
                         `${invite.name} onaylandı ve personele eklendi.`,
                       );
+                      if (code) {
+                        setApprovedCodeInfo({ name: invite.name, code });
+                      }
                     }}
                   >
                     <CheckCircle2 className="w-3 h-3 mr-1" />
@@ -724,6 +731,107 @@ function PersonnelTab({ companyId }: { companyId: string }) {
             );
           })}
         </div>
+      )}
+
+      {/* Approved Login Code Dialog */}
+      {approvedCodeInfo && (
+        <dialog
+          open
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm m-0 w-full h-full p-0 border-0"
+          aria-labelledby="login-code-title"
+        >
+          <div
+            className="w-full max-w-md mx-4 p-6 rounded-2xl space-y-4"
+            style={{
+              background: "oklch(0.18 0.015 264)",
+              border: "1px solid oklch(0.45 0.14 160 / 0.5)",
+            }}
+            data-ocid="personnel.dialog"
+          >
+            <div className="flex items-center gap-3">
+              <div
+                className="w-10 h-10 rounded-full flex items-center justify-center"
+                style={{ background: "oklch(0.45 0.14 160 / 0.2)" }}
+              >
+                <svg
+                  className="w-5 h-5"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                  style={{ color: "oklch(0.72 0.18 160)" }}
+                  aria-hidden="true"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
+                  />
+                </svg>
+              </div>
+              <div>
+                <h3 className="font-semibold text-foreground">
+                  {approvedCodeInfo.name} Onaylandı
+                </h3>
+                <p className="text-xs text-muted-foreground">
+                  Giriş kodunu bu kişiyle paylaşın
+                </p>
+              </div>
+            </div>
+            <div
+              className="p-4 rounded-xl text-center space-y-2"
+              style={{
+                background: "oklch(0.14 0.01 264)",
+                border: "1px solid oklch(0.28 0.01 264)",
+              }}
+            >
+              <p className="text-xs text-muted-foreground">
+                16 Karakterli Giriş Kodu
+              </p>
+              <code
+                className="text-2xl font-mono font-bold tracking-widest block"
+                style={{
+                  color: "oklch(0.72 0.18 280)",
+                  letterSpacing: "0.2em",
+                }}
+                data-ocid="personnel.success_state"
+              >
+                {approvedCodeInfo.code}
+              </code>
+            </div>
+            <p className="text-xs text-muted-foreground text-center">
+              Bu kodu kullanıcıya iletin. Giriş ekranında bu kod ile sisteme
+              girebilirler.
+            </p>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                data-ocid="personnel.secondary_button"
+                className="flex-1 py-2 px-4 rounded-lg text-sm font-medium transition-colors"
+                style={{
+                  background: "oklch(0.22 0.015 264)",
+                  color: "oklch(0.75 0.02 264)",
+                  border: "1px solid oklch(0.28 0.01 264)",
+                }}
+                onClick={() => {
+                  navigator.clipboard.writeText(approvedCodeInfo.code);
+                  toast.success("Kod kopyalandı!");
+                }}
+              >
+                Kodu Kopyala
+              </button>
+              <button
+                data-ocid="personnel.close_button"
+                type="button"
+                className="flex-1 py-2 px-4 rounded-lg text-sm font-medium transition-colors"
+                style={{ background: "oklch(0.45 0.14 160)", color: "white" }}
+                onClick={() => setApprovedCodeInfo(null)}
+              >
+                Tamam
+              </button>
+            </div>
+          </div>
+        </dialog>
       )}
 
       {/* Active invite codes */}

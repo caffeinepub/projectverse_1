@@ -34,6 +34,7 @@ export default function Projects({
 }: { onOpenProject: (id: string) => void }) {
   const { checkPermission, t, projects, addProject, currentCompany } = useApp();
   const [filter, setFilter] = useState("all");
+  const [viewMode, setViewMode] = useState<"list" | "kanban">("list");
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState({
     title: "",
@@ -89,100 +90,122 @@ export default function Projects({
             {companyProjects.length} proje
           </p>
         </div>
-        <Dialog open={open} onOpenChange={setOpen}>
-          <DialogTrigger asChild>
-            <Button
-              data-ocid="projects.primary_button"
-              className="gradient-bg text-white"
+        <div className="flex items-center gap-2">
+          <div className="flex gap-1 p-0.5 bg-muted rounded-lg">
+            <button
+              type="button"
+              data-ocid="projects.list.toggle"
+              onClick={() => setViewMode("list")}
+              className={`px-2 py-1 text-xs rounded ${viewMode === "list" ? "bg-card shadow text-foreground" : "text-muted-foreground"}`}
             >
-              <Plus className="w-4 h-4 mr-2" />
-              {t.newProject}
-            </Button>
-          </DialogTrigger>
-          <DialogContent data-ocid="new_project.dialog" className="bg-card">
-            <DialogHeader>
-              <DialogTitle>{t.newProject}</DialogTitle>
-            </DialogHeader>
-            <div className="space-y-4">
-              <div>
-                <Label>Proje Adı</Label>
-                <Input
-                  data-ocid="new_project.title_input"
-                  value={form.title}
-                  onChange={(e) => setForm({ ...form, title: e.target.value })}
-                  placeholder="Proje adı..."
-                  className="mt-1"
-                />
-              </div>
-              <div>
-                <Label>Açıklama</Label>
-                <Textarea
-                  data-ocid="new_project.desc_textarea"
-                  value={form.description}
-                  onChange={(e) =>
-                    setForm({ ...form, description: e.target.value })
-                  }
-                  className="mt-1"
-                  rows={2}
-                />
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <Label>Başlangıç</Label>
-                  <Input
-                    data-ocid="new_project.start_input"
-                    type="date"
-                    value={form.startDate}
-                    onChange={(e) =>
-                      setForm({ ...form, startDate: e.target.value })
-                    }
-                    className="mt-1"
-                  />
-                </div>
-                <div>
-                  <Label>Bitiş</Label>
-                  <Input
-                    data-ocid="new_project.end_input"
-                    type="date"
-                    value={form.endDate}
-                    onChange={(e) =>
-                      setForm({ ...form, endDate: e.target.value })
-                    }
-                    className="mt-1"
-                  />
-                </div>
-              </div>
-              <div>
-                <Label>Durum</Label>
-                <Select
-                  value={form.status}
-                  onValueChange={(v) =>
-                    setForm({ ...form, status: v as Project["status"] })
-                  }
-                >
-                  <SelectTrigger
-                    data-ocid="new_project.status_select"
-                    className="mt-1"
-                  >
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent className="bg-card">
-                    <SelectItem value="planning">Planlama</SelectItem>
-                    <SelectItem value="active">Aktif</SelectItem>
-                    <SelectItem value="on_hold">Beklemede</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
+              Liste
+            </button>
+            <button
+              type="button"
+              data-ocid="projects.kanban.toggle"
+              onClick={() => setViewMode("kanban")}
+              className={`px-2 py-1 text-xs rounded ${viewMode === "kanban" ? "bg-card shadow text-foreground" : "text-muted-foreground"}`}
+            >
+              Kanban
+            </button>
+          </div>
+          <Dialog open={open} onOpenChange={setOpen}>
+            <DialogTrigger asChild>
               <Button
-                data-ocid="new_project.submit_button"
-                onClick={handleCreate}
-                className="w-full gradient-bg text-white"
+                data-ocid="projects.primary_button"
+                className="gradient-bg text-white"
               >
-                {t.create}
+                <Plus className="w-4 h-4 mr-2" />
+                {t.newProject}
               </Button>
-            </div>
-          </DialogContent>
-        </Dialog>
+            </DialogTrigger>
+            <DialogContent data-ocid="new_project.dialog" className="bg-card">
+              <DialogHeader>
+                <DialogTitle>{t.newProject}</DialogTitle>
+              </DialogHeader>
+              <div className="space-y-4">
+                <div>
+                  <Label>Proje Adı</Label>
+                  <Input
+                    data-ocid="new_project.title_input"
+                    value={form.title}
+                    onChange={(e) =>
+                      setForm({ ...form, title: e.target.value })
+                    }
+                    placeholder="Proje adı..."
+                    className="mt-1"
+                  />
+                </div>
+                <div>
+                  <Label>Açıklama</Label>
+                  <Textarea
+                    data-ocid="new_project.desc_textarea"
+                    value={form.description}
+                    onChange={(e) =>
+                      setForm({ ...form, description: e.target.value })
+                    }
+                    className="mt-1"
+                    rows={2}
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <Label>Başlangıç</Label>
+                    <Input
+                      data-ocid="new_project.start_input"
+                      type="date"
+                      value={form.startDate}
+                      onChange={(e) =>
+                        setForm({ ...form, startDate: e.target.value })
+                      }
+                      className="mt-1"
+                    />
+                  </div>
+                  <div>
+                    <Label>Bitiş</Label>
+                    <Input
+                      data-ocid="new_project.end_input"
+                      type="date"
+                      value={form.endDate}
+                      onChange={(e) =>
+                        setForm({ ...form, endDate: e.target.value })
+                      }
+                      className="mt-1"
+                    />
+                  </div>
+                </div>
+                <div>
+                  <Label>Durum</Label>
+                  <Select
+                    value={form.status}
+                    onValueChange={(v) =>
+                      setForm({ ...form, status: v as Project["status"] })
+                    }
+                  >
+                    <SelectTrigger
+                      data-ocid="new_project.status_select"
+                      className="mt-1"
+                    >
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent className="bg-card">
+                      <SelectItem value="planning">Planlama</SelectItem>
+                      <SelectItem value="active">Aktif</SelectItem>
+                      <SelectItem value="on_hold">Beklemede</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <Button
+                  data-ocid="new_project.submit_button"
+                  onClick={handleCreate}
+                  className="w-full gradient-bg text-white"
+                >
+                  {t.create}
+                </Button>
+              </div>
+            </DialogContent>
+          </Dialog>
+        </div>
       </div>
 
       {/* Filter tabs */}
@@ -211,7 +234,7 @@ export default function Projects({
         >
           {t.noProjects}
         </div>
-      ) : (
+      ) : viewMode === "list" ? (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
           {filtered.map((project, i) => (
             <button
@@ -252,6 +275,74 @@ export default function Projects({
               </div>
             </button>
           ))}
+        </div>
+      ) : (
+        /* Kanban view */
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 items-start">
+          {(["planning", "active", "on_hold", "completed"] as const).map(
+            (status) => {
+              const colProjects = companyProjects.filter(
+                (p) => p.status === status,
+              );
+              const cfg = STATUS_CONFIG[status];
+              return (
+                <div
+                  key={status}
+                  className="rounded-xl border border-border bg-card/50 overflow-hidden"
+                >
+                  <div
+                    className="px-3 py-2.5 border-b border-border flex items-center justify-between"
+                    style={{ background: `${cfg.color}11` }}
+                  >
+                    <span
+                      className="text-xs font-semibold"
+                      style={{ color: cfg.color }}
+                    >
+                      {cfg.label}
+                    </span>
+                    <span className="text-xs text-muted-foreground bg-muted rounded-full px-1.5 py-0.5">
+                      {colProjects.length}
+                    </span>
+                  </div>
+                  <div className="p-2 space-y-2 min-h-[120px]">
+                    {colProjects.length === 0 ? (
+                      <p className="text-xs text-muted-foreground text-center py-4">
+                        Proje yok
+                      </p>
+                    ) : (
+                      colProjects.map((project, i) => (
+                        <button
+                          type="button"
+                          key={project.id}
+                          data-ocid={`projects.kanban.item.${i + 1}`}
+                          className="w-full text-left p-3 rounded-lg bg-card border border-border hover:border-primary/30 transition-all cursor-pointer group"
+                          onClick={() => onOpenProject(project.id)}
+                        >
+                          <p className="text-sm font-medium text-foreground group-hover:text-primary transition-colors line-clamp-2 mb-2">
+                            {project.title}
+                          </p>
+                          <Progress
+                            value={project.progress}
+                            className="h-1 mb-2"
+                          />
+                          <div className="flex items-center justify-between">
+                            <span className="text-xs text-muted-foreground">
+                              {project.progress}%
+                            </span>
+                            {project.endDate && (
+                              <span className="text-xs text-muted-foreground">
+                                {project.endDate}
+                              </span>
+                            )}
+                          </div>
+                        </button>
+                      ))
+                    )}
+                  </div>
+                </div>
+              );
+            },
+          )}
         </div>
       )}
     </div>

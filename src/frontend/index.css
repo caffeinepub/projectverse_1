@@ -93,6 +93,7 @@
   background: linear-gradient(135deg, oklch(0.62 0.22 280 / 0.2), oklch(0.62 0.2 200 / 0.2));
   color: oklch(0.82 0.18 280);
   border: 1px solid oklch(0.62 0.22 280 / 0.3);
+  border-left: 2px solid oklch(0.62 0.22 280);
 }
 
 ::-webkit-scrollbar { width: 6px; }

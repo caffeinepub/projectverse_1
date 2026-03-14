@@ -12,6 +12,8 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Progress } from "@/components/ui/progress";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   Select,
   SelectContent,
@@ -30,198 +32,217 @@ import { Textarea } from "@/components/ui/textarea";
 import {
   CalendarDays,
   Check,
+  ChevronLeft,
+  ChevronRight,
   Clock,
   FileText,
+  Paperclip,
+  Pencil,
   Plus,
   Search,
+  Trash2,
   UploadCloud,
   UserPlus,
+  Users,
   X,
 } from "lucide-react";
-import { useState } from "react";
+import { useRef, useState } from "react";
+import type {
+  LeaveRequest,
+  LeaveStatus,
+  LeaveType,
+  Personnel,
+  ShiftAssignment,
+} from "../contexts/AppContext";
 import { useApp } from "../contexts/AppContext";
 
-type LeaveStatus = "Bekliyor" | "Onaylandı" | "Reddedildi";
-type LeaveType = "Yıllık" | "Hastalık" | "Mazeret";
-
-interface Personnel {
-  id: string;
-  name: string;
-  role: string;
-  department: string;
-  phone: string;
-  email: string;
-  status: "Aktif" | "Pasif";
-  initials: string;
-  color: string;
-}
-
-interface LeaveRequest {
-  id: string;
-  name: string;
-  type: LeaveType;
-  startDate: string;
-  endDate: string;
-  status: LeaveStatus;
-  note: string;
-}
-
-interface ShiftAssignment {
-  day: string;
-  shift: string;
-  personnel: string[];
-}
-
-const INITIAL_PERSONNEL: Personnel[] = [
-  {
-    id: "1",
-    name: "Ahmet Yılmaz",
-    role: "Teknik Yönetici",
-    department: "Teknik",
-    phone: "0532 111 2233",
-    email: "ahmet@sirket.com",
-    status: "Aktif",
-    initials: "AY",
-    color: "#7c3aed",
-  },
-  {
-    id: "2",
-    name: "Fatma Kaya",
-    role: "İdari Yönetici",
-    department: "İdari",
-    phone: "0535 222 3344",
-    email: "fatma@sirket.com",
-    status: "Aktif",
-    initials: "FK",
-    color: "#0891b2",
-  },
-  {
-    id: "3",
-    name: "Mehmet Demir",
-    role: "Saha Personeli",
-    department: "Teknik",
-    phone: "0537 333 4455",
-    email: "mehmet@sirket.com",
-    status: "Aktif",
-    initials: "MD",
-    color: "#059669",
-  },
-  {
-    id: "4",
-    name: "Zeynep Arslan",
-    role: "Muhasebe Personeli",
-    department: "İdari",
-    phone: "0538 444 5566",
-    email: "zeynep@sirket.com",
-    status: "Aktif",
-    initials: "ZA",
-    color: "#d97706",
-  },
-  {
-    id: "5",
-    name: "Ali Çelik",
-    role: "Proje Yöneticisi",
-    department: "Teknik",
-    phone: "0539 555 6677",
-    email: "ali@sirket.com",
-    status: "Pasif",
-    initials: "AÇ",
-    color: "#dc2626",
-  },
-  {
-    id: "6",
-    name: "Selin Öztürk",
-    role: "İnsan Kaynakları",
-    department: "İdari",
-    phone: "0541 666 7788",
-    email: "selin@sirket.com",
-    status: "Aktif",
-    initials: "SÖ",
-    color: "#be185d",
-  },
-];
-
-const INITIAL_LEAVES: LeaveRequest[] = [
-  {
-    id: "1",
-    name: "Mehmet Demir",
-    type: "Yıllık",
-    startDate: "2026-03-20",
-    endDate: "2026-03-25",
-    status: "Bekliyor",
-    note: "Aile ziyareti",
-  },
-  {
-    id: "2",
-    name: "Zeynep Arslan",
-    type: "Hastalık",
-    startDate: "2026-03-14",
-    endDate: "2026-03-15",
-    status: "Onaylandı",
-    note: "Doktor raporu mevcut",
-  },
-  {
-    id: "3",
-    name: "Ali Çelik",
-    type: "Mazeret",
-    startDate: "2026-03-16",
-    endDate: "2026-03-16",
-    status: "Bekliyor",
-    note: "Resmi işlem",
-  },
-  {
-    id: "4",
-    name: "Ahmet Yılmaz",
-    type: "Yıllık",
-    startDate: "2026-04-01",
-    endDate: "2026-04-07",
-    status: "Onaylandı",
-    note: "Tatil",
-  },
-  {
-    id: "5",
-    name: "Selin Öztürk",
-    type: "Hastalık",
-    startDate: "2026-03-13",
-    endDate: "2026-03-13",
-    status: "Reddedildi",
-    note: "",
-  },
-];
-
 const DAYS = ["Pzt", "Sal", "Çar", "Per", "Cum", "Cmt", "Paz"];
-const SHIFTS = [
-  { key: "sabah", label: "Sabah", time: "08:00-16:00" },
-  { key: "ogleden", label: "Öğleden Sonra", time: "16:00-00:00" },
-  { key: "gece", label: "Gece", time: "00:00-08:00" },
-];
+const SHIFT_KEYS = ["sabah", "ogleden", "gece", "izin", ""] as const;
+type ShiftKey = (typeof SHIFT_KEYS)[number];
 
-const INITIAL_SHIFTS: ShiftAssignment[] = [
-  { day: "Pzt", shift: "sabah", personnel: ["Ahmet Y.", "Mehmet D."] },
-  { day: "Pzt", shift: "ogleden", personnel: ["Fatma K."] },
-  { day: "Pzt", shift: "gece", personnel: ["Ali Ç."] },
-  { day: "Sal", shift: "sabah", personnel: ["Zeynep A.", "Selin Ö."] },
-  { day: "Sal", shift: "ogleden", personnel: ["Mehmet D."] },
-  { day: "Çar", shift: "sabah", personnel: ["Ahmet Y."] },
-  { day: "Per", shift: "sabah", personnel: ["Fatma K.", "Ali Ç."] },
-  { day: "Per", shift: "gece", personnel: ["Zeynep A."] },
-  { day: "Cum", shift: "sabah", personnel: ["Ahmet Y.", "Selin Ö."] },
-  { day: "Cum", shift: "ogleden", personnel: ["Mehmet D."] },
+const SHIFT_LABELS: Record<
+  string,
+  { label: string; time: string; color: string }
+> = {
+  sabah: {
+    label: "Sabah",
+    time: "08:00-16:00",
+    color: "bg-blue-500/20 text-blue-300 border-blue-500/30",
+  },
+  ogleden: {
+    label: "Öğleden",
+    time: "16:00-00:00",
+    color: "bg-amber-500/20 text-amber-300 border-amber-500/30",
+  },
+  gece: {
+    label: "Gece",
+    time: "00:00-08:00",
+    color: "bg-violet-500/20 text-violet-300 border-violet-500/30",
+  },
+  izin: {
+    label: "İzin",
+    time: "",
+    color: "bg-emerald-500/20 text-emerald-300 border-emerald-500/30",
+  },
+  "": {
+    label: "-",
+    time: "",
+    color: "bg-muted/30 text-muted-foreground border-border",
+  },
+};
+
+const LEAVE_STATUS_COLORS: Record<LeaveStatus, string> = {
+  Bekliyor: "bg-amber-500/20 text-amber-300 border-amber-500/30",
+  Onaylandı: "bg-emerald-500/20 text-emerald-300 border-emerald-500/30",
+  Reddedildi: "bg-rose-500/20 text-rose-300 border-rose-500/30",
+};
+
+const DEPT_COLORS: Record<string, string> = {
+  Teknik: "bg-blue-500/15 text-blue-400 border-blue-500/30",
+  İdari: "bg-violet-500/15 text-violet-400 border-violet-500/30",
+  Saha: "bg-amber-500/15 text-amber-400 border-amber-500/30",
+  Muhasebe: "bg-emerald-500/15 text-emerald-400 border-emerald-500/30",
+  Proje: "bg-cyan-500/15 text-cyan-400 border-cyan-500/30",
+};
+
+function getDeptColor(dept: string) {
+  return DEPT_COLORS[dept] || "bg-muted/20 text-muted-foreground border-border";
+}
+
+interface PersonnelDoc {
+  id: string;
+  name: string;
+  type: string;
+  date: string;
+  size: string;
+}
+
+const DOCS_STORAGE_KEY = (companyId: string | null) =>
+  `${companyId}_hr_personnel_docs`;
+
+function loadPersonnelDocs(
+  companyId: string | null,
+): Record<string, PersonnelDoc[]> {
+  try {
+    const raw = localStorage.getItem(DOCS_STORAGE_KEY(companyId));
+    return raw ? JSON.parse(raw) : {};
+  } catch {
+    return {};
+  }
+}
+
+function savePersonnelDocs(
+  companyId: string | null,
+  docs: Record<string, PersonnelDoc[]>,
+) {
+  localStorage.setItem(DOCS_STORAGE_KEY(companyId), JSON.stringify(docs));
+}
+
+// Build shift lookup: shiftMap[personnelName][day] = shiftKey
+function buildShiftMap(
+  shifts: ShiftAssignment[],
+): Record<string, Record<string, string>> {
+  const map: Record<string, Record<string, string>> = {};
+  for (const s of shifts) {
+    for (const person of s.personnel) {
+      if (!map[person]) map[person] = {};
+      map[person][s.day] = s.shift;
+    }
+  }
+  return map;
+}
+
+function setShiftInArray(
+  shifts: ShiftAssignment[],
+  day: string,
+  shiftKey: string,
+  personnelName: string,
+): ShiftAssignment[] {
+  // Remove person from any shift on this day
+  let updated = shifts.map((s) => {
+    if (s.day === day) {
+      return {
+        ...s,
+        personnel: s.personnel.filter((p) => p !== personnelName),
+      };
+    }
+    return s;
+  });
+  // Remove empty assignments
+  updated = updated.filter((s) => s.personnel.length > 0);
+  // Add to new shift if not empty
+  if (shiftKey) {
+    const existing = updated.find((s) => s.day === day && s.shift === shiftKey);
+    if (existing) {
+      updated = updated.map((s) =>
+        s.day === day && s.shift === shiftKey
+          ? { ...s, personnel: [...s.personnel, personnelName] }
+          : s,
+      );
+    } else {
+      updated.push({ day, shift: shiftKey, personnel: [personnelName] });
+    }
+  }
+  return updated;
+}
+
+// Calendar helpers
+const TR_MONTHS = [
+  "Ocak",
+  "Şubat",
+  "Mart",
+  "Nisan",
+  "Mayıs",
+  "Haziran",
+  "Temmuz",
+  "Ağustos",
+  "Eylül",
+  "Ekim",
+  "Kasım",
+  "Aralık",
 ];
+const CAL_DAYS = ["Pzt", "Sal", "Çar", "Per", "Cum", "Cmt", "Paz"];
+
+function getCalendarDays(year: number, month: number) {
+  // month is 0-based
+  const firstDay = new Date(year, month, 1);
+  let startDow = firstDay.getDay(); // 0=Sun
+  startDow = startDow === 0 ? 6 : startDow - 1; // Mon=0
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const cells: (number | null)[] = [];
+  for (let i = 0; i < startDow; i++) cells.push(null);
+  for (let d = 1; d <= daysInMonth; d++) cells.push(d);
+  while (cells.length % 7 !== 0) cells.push(null);
+  return cells;
+}
+
+function dateStr(year: number, month: number, day: number) {
+  return `${year}-${String(month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+}
 
 export default function HumanResources() {
-  const { activeRoleId } = useApp();
+  const {
+    activeRoleId,
+    activeCompanyId,
+    hrPersonnel: personnel,
+    setHrPersonnel: setPersonnel,
+    hrLeaves: leaves,
+    setHrLeaves: setLeaves,
+    hrShifts: shifts,
+    setHrShifts: setShifts,
+    user,
+  } = useApp();
+
   const isManager =
     activeRoleId === "owner" ||
     activeRoleId === "manager" ||
     activeRoleId === "manager_teknik" ||
     activeRoleId === "manager_idari";
 
-  const [personnel, setPersonnel] = useState<Personnel[]>(INITIAL_PERSONNEL);
-  const [leaves, setLeaves] = useState<LeaveRequest[]>(INITIAL_LEAVES);
-  const [shifts, setShifts] = useState<ShiftAssignment[]>(INITIAL_SHIFTS);
+  // Personnel state
   const [search, setSearch] = useState("");
   const [deptFilter, setDeptFilter] = useState("Tümü");
+  const [addPersonnelOpen, setAddPersonnelOpen] = useState(false);
   const [newPersonnel, setNewPersonnel] = useState({
     name: "",
     role: "",
@@ -229,50 +250,39 @@ export default function HumanResources() {
     phone: "",
     email: "",
   });
+  const [selectedPersonnel, setSelectedPersonnel] = useState<Personnel | null>(
+    null,
+  );
+
+  // Personnel docs
+  const [personnelDocs, setPersonnelDocs] = useState<
+    Record<string, PersonnelDoc[]>
+  >(() => loadPersonnelDocs(activeCompanyId));
+  const [isUploadingDoc, setIsUploadingDoc] = useState(false);
+  const [docUploadProgress, setDocUploadProgress] = useState(0);
+  const docFileInputRef = useRef<HTMLInputElement>(null);
+
+  // Leave state
+  const [addLeaveOpen, setAddLeaveOpen] = useState(false);
   const [newLeave, setNewLeave] = useState({
     type: "Yıllık" as LeaveType,
     startDate: "",
     endDate: "",
     note: "",
   });
-  const [addPersonnelOpen, setAddPersonnelOpen] = useState(false);
-  const [addLeaveOpen, setAddLeaveOpen] = useState(false);
-  const [shiftModal, setShiftModal] = useState<{
+
+  // Shift state
+  const [shiftEditModal, setShiftEditModal] = useState<{
+    personnelName: string;
     day: string;
-    shift: string;
+    currentShift: string;
   } | null>(null);
-  const [shiftInput, setShiftInput] = useState("");
-  const [selectedPersonnel, setSelectedPersonnel] = useState<Personnel | null>(
-    null,
-  );
-  const [personnelDocs] = useState<
-    Record<string, { id: string; name: string; type: string; date: string }[]>
-  >({
-    "1": [
-      { id: "d1", name: "İş Sözleşmesi.pdf", type: "PDF", date: "2024-01-10" },
-      {
-        id: "d2",
-        name: "Kimlik Fotokopisi.pdf",
-        type: "PDF",
-        date: "2024-01-10",
-      },
-      {
-        id: "d3",
-        name: "İSG Sertifikası.pdf",
-        type: "PDF",
-        date: "2024-03-15",
-      },
-    ],
-    "2": [
-      { id: "d4", name: "İş Sözleşmesi.pdf", type: "PDF", date: "2024-02-01" },
-      { id: "d5", name: "Diploma.pdf", type: "PDF", date: "2024-02-01" },
-    ],
-    "3": [
-      { id: "d6", name: "İş Sözleşmesi.pdf", type: "PDF", date: "2024-06-01" },
-      { id: "d7", name: "Sağlık Raporu.pdf", type: "PDF", date: "2025-01-20" },
-    ],
-  });
-  const [calendarView, setCalendarView] = useState(false);
+  const [pendingShift, setPendingShift] = useState<ShiftKey>("");
+
+  // Calendar state
+  const today = new Date();
+  const [calYear, setCalYear] = useState(today.getFullYear());
+  const [calMonth, setCalMonth] = useState(today.getMonth());
 
   const pendingCount = leaves.filter((l) => l.status === "Bekliyor").length;
 
@@ -284,20 +294,26 @@ export default function HumanResources() {
     return matchSearch && matchDept;
   });
 
+  const departments = Array.from(new Set(personnel.map((p) => p.department)));
+
   const handleApprove = (id: string) => {
     setLeaves(
-      leaves.map((l) => (l.id === id ? { ...l, status: "Onaylandı" } : l)),
+      leaves.map((l) =>
+        l.id === id ? { ...l, status: "Onaylandı" as LeaveStatus } : l,
+      ),
     );
   };
 
   const handleReject = (id: string) => {
     setLeaves(
-      leaves.map((l) => (l.id === id ? { ...l, status: "Reddedildi" } : l)),
+      leaves.map((l) =>
+        l.id === id ? { ...l, status: "Reddedildi" as LeaveStatus } : l,
+      ),
     );
   };
 
   const handleAddPersonnel = () => {
-    if (!newPersonnel.name) return;
+    if (!newPersonnel.name.trim() || !newPersonnel.role.trim()) return;
     const initials = newPersonnel.name
       .split(" ")
       .map((w) => w[0])
@@ -313,16 +329,18 @@ export default function HumanResources() {
       "#be185d",
     ];
     const color = colors[personnel.length % colors.length];
-    setPersonnel([
-      ...personnel,
-      {
-        ...newPersonnel,
-        id: String(Date.now()),
-        status: "Aktif",
-        initials,
-        color,
-      },
-    ]);
+    const newPerson: Personnel = {
+      id: String(Date.now()),
+      name: newPersonnel.name.trim(),
+      role: newPersonnel.role.trim(),
+      department: newPersonnel.department,
+      phone: newPersonnel.phone.trim(),
+      email: newPersonnel.email.trim(),
+      status: "Aktif",
+      initials,
+      color,
+    };
+    setPersonnel([...personnel, newPerson]);
     setNewPersonnel({
       name: "",
       role: "",
@@ -335,127 +353,158 @@ export default function HumanResources() {
 
   const handleAddLeave = () => {
     if (!newLeave.startDate || !newLeave.endDate) return;
-    setLeaves([
-      ...leaves,
-      { ...newLeave, id: String(Date.now()), name: "Ben", status: "Bekliyor" },
-    ]);
+    const senderName = user?.name || selectedPersonnel?.name || "Ben";
+    const newReq: LeaveRequest = {
+      id: String(Date.now()),
+      name: senderName,
+      type: newLeave.type,
+      startDate: newLeave.startDate,
+      endDate: newLeave.endDate,
+      status: "Bekliyor",
+      note: newLeave.note,
+    };
+    setLeaves([...leaves, newReq]);
     setNewLeave({ type: "Yıllık", startDate: "", endDate: "", note: "" });
     setAddLeaveOpen(false);
   };
 
-  const getShiftPersonnel = (day: string, shift: string) => {
-    return (
-      shifts.find((s) => s.day === day && s.shift === shift)?.personnel || []
+  const handleShiftSave = () => {
+    if (!shiftEditModal) return;
+    const updated = setShiftInArray(
+      shifts,
+      shiftEditModal.day,
+      pendingShift,
+      shiftEditModal.personnelName,
     );
+    setShifts(updated);
+    setShiftEditModal(null);
   };
 
-  const handleAddToShift = () => {
-    if (!shiftModal || !shiftInput.trim()) return;
-    setShifts((prev) => {
-      const exists = prev.find(
-        (s) => s.day === shiftModal.day && s.shift === shiftModal.shift,
-      );
-      if (exists) {
-        return prev.map((s) =>
-          s.day === shiftModal.day && s.shift === shiftModal.shift
-            ? { ...s, personnel: [...s.personnel, shiftInput.trim()] }
-            : s,
-        );
-      }
-      return [
-        ...prev,
-        {
-          day: shiftModal.day,
-          shift: shiftModal.shift,
-          personnel: [shiftInput.trim()],
-        },
-      ];
-    });
-    setShiftInput("");
+  const handleDocUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !selectedPersonnel) return;
+    setIsUploadingDoc(true);
+    setDocUploadProgress(0);
+    const reader = new FileReader();
+    reader.onload = () => {
+      let progress = 0;
+      const interval = setInterval(() => {
+        progress += Math.random() * 30;
+        if (progress >= 100) {
+          clearInterval(interval);
+          const newDoc: PersonnelDoc = {
+            id: String(Date.now()),
+            name: file.name,
+            type: file.name.split(".").pop()?.toUpperCase() || "DOC",
+            date: new Date().toISOString().split("T")[0],
+            size: `${(file.size / 1024).toFixed(1)} KB`,
+          };
+          const updated = {
+            ...personnelDocs,
+            [selectedPersonnel.id]: [
+              ...(personnelDocs[selectedPersonnel.id] || []),
+              newDoc,
+            ],
+          };
+          setPersonnelDocs(updated);
+          savePersonnelDocs(activeCompanyId, updated);
+          setIsUploadingDoc(false);
+          setDocUploadProgress(0);
+        } else {
+          setDocUploadProgress(Math.min(progress, 99));
+        }
+      }, 100);
+    };
+    reader.readAsDataURL(file);
+    if (docFileInputRef.current) docFileInputRef.current.value = "";
   };
 
-  const handleRemoveFromShift = (day: string, shift: string, name: string) => {
-    setShifts((prev) =>
-      prev.map((s) =>
-        s.day === day && s.shift === shift
-          ? { ...s, personnel: s.personnel.filter((p) => p !== name) }
-          : s,
+  const handleDeleteDoc = (personnelId: string, docId: string) => {
+    const updated = {
+      ...personnelDocs,
+      [personnelId]: (personnelDocs[personnelId] || []).filter(
+        (d) => d.id !== docId,
       ),
-    );
+    };
+    setPersonnelDocs(updated);
+    savePersonnelDocs(activeCompanyId, updated);
   };
 
-  const statusColor: Record<LeaveStatus, string> = {
-    Bekliyor: "bg-yellow-500/20 text-yellow-400 border-yellow-500/30",
-    Onaylandı: "bg-emerald-500/20 text-emerald-400 border-emerald-500/30",
-    Reddedildi: "bg-red-500/20 text-red-400 border-red-500/30",
-  };
+  const shiftMap = buildShiftMap(shifts);
+
+  // Calendar: leaves for current month
+  const calCells = getCalendarDays(calYear, calMonth);
+  const monthLeaves = leaves.filter((l) => {
+    const start = new Date(l.startDate);
+    const end = new Date(l.endDate);
+    const monthStart = new Date(calYear, calMonth, 1);
+    const monthEnd = new Date(calYear, calMonth + 1, 0);
+    return start <= monthEnd && end >= monthStart;
+  });
+
+  function getLeavesForDay(day: number) {
+    const ds = dateStr(calYear, calMonth, day);
+    return monthLeaves.filter((l) => l.startDate <= ds && l.endDate >= ds);
+  }
 
   return (
-    <div className="p-6 space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold gradient-text">İnsan Kaynakları</h1>
-          <p className="text-muted-foreground text-sm mt-1">
-            Personel yönetimi, izinler ve vardiya planlaması
-          </p>
-        </div>
+    <div className="p-6 space-y-4">
+      <div>
+        <h1 className="text-2xl font-bold gradient-text">İnsan Kaynakları</h1>
+        <p className="text-muted-foreground text-sm mt-1">
+          Personel yönetimi, izinler ve vardiya planlaması
+        </p>
       </div>
 
-      <Tabs defaultValue="personnel" className="space-y-4">
+      <Tabs defaultValue="personnel" className="w-full">
         <TabsList className="bg-card border border-border">
-          <TabsTrigger
-            value="personnel"
-            data-ocid="hr.personnel.tab"
-            className="data-[state=active]:gradient-bg data-[state=active]:text-white"
-          >
-            Personel Kartları
+          <TabsTrigger data-ocid="hr.personnel.tab" value="personnel">
+            Personel
           </TabsTrigger>
-          <TabsTrigger
-            value="leaves"
-            data-ocid="hr.leaves.tab"
-            className="data-[state=active]:gradient-bg data-[state=active]:text-white"
-          >
+          <TabsTrigger data-ocid="hr.leaves.tab" value="leaves">
             İzin Yönetimi
             {pendingCount > 0 && (
-              <span className="ml-2 bg-yellow-500 text-black text-xs font-bold rounded-full px-1.5 py-0.5">
+              <Badge className="ml-1.5 h-4 px-1.5 text-xs bg-amber-500 text-white">
                 {pendingCount}
-              </span>
+              </Badge>
             )}
           </TabsTrigger>
-          <TabsTrigger
-            value="shifts"
-            data-ocid="hr.shifts.tab"
-            className="data-[state=active]:gradient-bg data-[state=active]:text-white"
-          >
+          <TabsTrigger data-ocid="hr.shifts.tab" value="shifts">
             Vardiya Planı
+          </TabsTrigger>
+          <TabsTrigger data-ocid="hr.calendar.tab" value="calendar">
+            İzin Takvimi
           </TabsTrigger>
         </TabsList>
 
-        {/* PERSONNEL TAB */}
-        <TabsContent value="personnel" className="space-y-4">
-          <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center justify-between">
-            <div className="flex gap-2 flex-1">
-              <div className="relative flex-1 max-w-xs">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+        {/* ─── PERSONNEL TAB ─── */}
+        <TabsContent value="personnel" className="mt-4 space-y-4">
+          <div className="flex items-center justify-between gap-3 flex-wrap">
+            <div className="flex items-center gap-2 flex-1 flex-wrap">
+              <div className="relative">
+                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
                 <Input
                   data-ocid="hr.personnel.search_input"
-                  placeholder="Personel ara..."
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
-                  className="pl-9 bg-card border-border"
+                  placeholder="Ara..."
+                  className="pl-8 h-8 bg-card border-border text-sm w-48"
                 />
               </div>
               <Select value={deptFilter} onValueChange={setDeptFilter}>
                 <SelectTrigger
-                  data-ocid="hr.personnel.select"
-                  className="w-36 bg-card border-border"
+                  data-ocid="hr.department.select"
+                  className="h-8 w-36 bg-card border-border text-sm"
                 >
                   <SelectValue />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className="bg-card border-border">
                   <SelectItem value="Tümü">Tüm Departmanlar</SelectItem>
-                  <SelectItem value="Teknik">Teknik</SelectItem>
-                  <SelectItem value="İdari">İdari</SelectItem>
+                  {departments.map((d) => (
+                    <SelectItem key={d} value={d}>
+                      {d}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
@@ -466,46 +515,49 @@ export default function HumanResources() {
               >
                 <DialogTrigger asChild>
                   <Button
-                    data-ocid="hr.personnel.primary_button"
+                    data-ocid="hr.add_personnel_button"
                     className="gradient-bg text-white"
                   >
                     <UserPlus className="h-4 w-4 mr-2" />
-                    Yeni Personel
+                    Personel Ekle
                   </Button>
                 </DialogTrigger>
                 <DialogContent
-                  data-ocid="hr.personnel.dialog"
+                  data-ocid="hr.add_personnel.dialog"
                   className="bg-card border-border"
                 >
                   <DialogHeader>
-                    <DialogTitle>Yeni Personel Ekle</DialogTitle>
+                    <DialogTitle>Yeni Personel</DialogTitle>
                   </DialogHeader>
                   <div className="space-y-3">
                     <div>
                       <Label>Ad Soyad</Label>
                       <Input
-                        data-ocid="hr.personnel.input"
+                        data-ocid="hr.personnel_name.input"
                         value={newPersonnel.name}
                         onChange={(e) =>
-                          setNewPersonnel({
-                            ...newPersonnel,
+                          setNewPersonnel((p) => ({
+                            ...p,
                             name: e.target.value,
-                          })
+                          }))
                         }
-                        className="bg-background border-border mt-1"
+                        className="mt-1 bg-background border-border"
+                        placeholder="Örn: Ahmet Yılmaz"
                       />
                     </div>
                     <div>
                       <Label>Unvan / Rol</Label>
                       <Input
+                        data-ocid="hr.personnel_role.input"
                         value={newPersonnel.role}
                         onChange={(e) =>
-                          setNewPersonnel({
-                            ...newPersonnel,
+                          setNewPersonnel((p) => ({
+                            ...p,
                             role: e.target.value,
-                          })
+                          }))
                         }
-                        className="bg-background border-border mt-1"
+                        className="mt-1 bg-background border-border"
+                        placeholder="Örn: Saha Mühendisi"
                       />
                     </div>
                     <div>
@@ -513,59 +565,72 @@ export default function HumanResources() {
                       <Select
                         value={newPersonnel.department}
                         onValueChange={(v) =>
-                          setNewPersonnel({ ...newPersonnel, department: v })
+                          setNewPersonnel((p) => ({ ...p, department: v }))
                         }
                       >
-                        <SelectTrigger className="bg-background border-border mt-1">
+                        <SelectTrigger
+                          data-ocid="hr.personnel_dept.select"
+                          className="mt-1 bg-background border-border"
+                        >
                           <SelectValue />
                         </SelectTrigger>
-                        <SelectContent>
+                        <SelectContent className="bg-card border-border">
                           <SelectItem value="Teknik">Teknik</SelectItem>
                           <SelectItem value="İdari">İdari</SelectItem>
+                          <SelectItem value="Saha">Saha</SelectItem>
+                          <SelectItem value="Muhasebe">Muhasebe</SelectItem>
+                          <SelectItem value="Proje">Proje</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
-                    <div>
-                      <Label>Telefon</Label>
-                      <Input
-                        value={newPersonnel.phone}
-                        onChange={(e) =>
-                          setNewPersonnel({
-                            ...newPersonnel,
-                            phone: e.target.value,
-                          })
-                        }
-                        className="bg-background border-border mt-1"
-                        placeholder="0500 000 0000"
-                      />
-                    </div>
-                    <div>
-                      <Label>E-posta</Label>
-                      <Input
-                        value={newPersonnel.email}
-                        onChange={(e) =>
-                          setNewPersonnel({
-                            ...newPersonnel,
-                            email: e.target.value,
-                          })
-                        }
-                        className="bg-background border-border mt-1"
-                        placeholder="ad@sirket.com"
-                      />
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <Label>Telefon</Label>
+                        <Input
+                          data-ocid="hr.personnel_phone.input"
+                          value={newPersonnel.phone}
+                          onChange={(e) =>
+                            setNewPersonnel((p) => ({
+                              ...p,
+                              phone: e.target.value,
+                            }))
+                          }
+                          className="mt-1 bg-background border-border"
+                          placeholder="0532 000 0000"
+                        />
+                      </div>
+                      <div>
+                        <Label>E-posta</Label>
+                        <Input
+                          data-ocid="hr.personnel_email.input"
+                          value={newPersonnel.email}
+                          onChange={(e) =>
+                            setNewPersonnel((p) => ({
+                              ...p,
+                              email: e.target.value,
+                            }))
+                          }
+                          className="mt-1 bg-background border-border"
+                          placeholder="ornek@sirket.com"
+                        />
+                      </div>
                     </div>
                   </div>
                   <DialogFooter>
                     <Button
                       variant="outline"
-                      data-ocid="hr.personnel.cancel_button"
+                      data-ocid="hr.add_personnel.cancel_button"
                       onClick={() => setAddPersonnelOpen(false)}
                     >
                       İptal
                     </Button>
                     <Button
-                      data-ocid="hr.personnel.submit_button"
+                      data-ocid="hr.add_personnel.confirm_button"
                       className="gradient-bg text-white"
                       onClick={handleAddPersonnel}
+                      disabled={
+                        !newPersonnel.name.trim() || !newPersonnel.role.trim()
+                      }
                     >
                       Ekle
                     </Button>
@@ -580,59 +645,103 @@ export default function HumanResources() {
               data-ocid="hr.personnel.empty_state"
               className="text-center py-16 text-muted-foreground"
             >
-              <p>Personel bulunamadı.</p>
+              <Users className="h-10 w-10 mx-auto mb-3 opacity-20" />
+              <p className="text-sm">Personel bulunamadı.</p>
             </div>
           ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-              {filteredPersonnel.map((p, i) => (
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+              {filteredPersonnel.map((person, idx) => (
                 <Card
-                  key={p.id}
-                  data-ocid={`hr.personnel.card.${i + 1}`}
-                  className="bg-card border-border hover:border-primary/40 transition-colors cursor-pointer"
-                  onClick={() => setSelectedPersonnel(p)}
+                  key={person.id}
+                  data-ocid={`hr.personnel.item.${idx + 1}`}
+                  className="bg-card border-border hover:border-primary/30 transition-colors cursor-pointer"
+                  onClick={() => setSelectedPersonnel(person)}
                 >
-                  <CardContent className="p-4">
+                  <CardHeader className="pb-3">
                     <div className="flex items-start gap-3">
-                      <Avatar className="h-12 w-12 flex-shrink-0">
+                      <Avatar className="h-10 w-10">
                         <AvatarFallback
                           style={{
-                            backgroundColor: `${p.color}33`,
-                            color: p.color,
+                            backgroundColor: `${person.color}22`,
+                            color: person.color,
                           }}
                           className="text-sm font-bold"
                         >
-                          {p.initials}
+                          {person.initials}
                         </AvatarFallback>
                       </Avatar>
                       <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <h3 className="font-semibold text-foreground text-sm truncate">
-                            {p.name}
-                          </h3>
+                        <div className="flex items-center justify-between gap-2">
+                          <CardTitle className="text-sm font-semibold">
+                            {person.name}
+                          </CardTitle>
                           <Badge
-                            className={
-                              p.status === "Aktif"
-                                ? "bg-emerald-500/20 text-emerald-400 border-emerald-500/30 text-xs"
-                                : "bg-zinc-500/20 text-zinc-400 border-zinc-500/30 text-xs"
-                            }
+                            variant="outline"
+                            className={`text-xs ${
+                              person.status === "Aktif"
+                                ? "bg-emerald-500/15 text-emerald-400 border-emerald-500/30"
+                                : "bg-muted/20 text-muted-foreground border-border"
+                            }`}
                           >
-                            {p.status}
+                            {person.status}
                           </Badge>
                         </div>
-                        <p className="text-xs text-primary mt-0.5">{p.role}</p>
-                        <p className="text-xs text-muted-foreground">
-                          {p.department}
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                          {person.role}
                         </p>
-                        <div className="mt-2 space-y-0.5">
-                          <p className="text-xs text-muted-foreground">
-                            {p.phone}
-                          </p>
-                          <p className="text-xs text-muted-foreground truncate">
-                            {p.email}
-                          </p>
-                        </div>
                       </div>
                     </div>
+                  </CardHeader>
+                  <CardContent className="space-y-2">
+                    <Badge
+                      variant="outline"
+                      className={`text-xs ${getDeptColor(person.department)}`}
+                    >
+                      {person.department}
+                    </Badge>
+                    {person.phone && (
+                      <p className="text-xs text-muted-foreground">
+                        {person.phone}
+                      </p>
+                    )}
+                    {person.email && (
+                      <p className="text-xs text-muted-foreground truncate">
+                        {person.email}
+                      </p>
+                    )}
+                    <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                      <Paperclip className="h-3 w-3" />
+                      <span>
+                        {(personnelDocs[person.id] || []).length} belge
+                      </span>
+                    </div>
+                    {(() => {
+                      const usedLeaveDays = leaves
+                        .filter(
+                          (l) =>
+                            l.name === person.name && l.status === "Onaylandı",
+                        )
+                        .reduce((sum, l) => {
+                          if (!l.startDate || !l.endDate) return sum + 1;
+                          const s = new Date(l.startDate);
+                          const e = new Date(l.endDate);
+                          return (
+                            sum +
+                            Math.max(
+                              1,
+                              Math.ceil(
+                                (e.getTime() - s.getTime()) / 86400000,
+                              ) + 1,
+                            )
+                          );
+                        }, 0);
+                      const remainingLeave = Math.max(0, 14 - usedLeaveDays);
+                      return (
+                        <span className="text-xs text-muted-foreground">
+                          İzin: {remainingLeave} gün kaldı
+                        </span>
+                      );
+                    })()}
                   </CardContent>
                 </Card>
               ))}
@@ -640,27 +749,14 @@ export default function HumanResources() {
           )}
         </TabsContent>
 
-        {/* LEAVES TAB */}
-        <TabsContent value="leaves" className="space-y-4">
-          <div className="flex items-center justify-between gap-3">
-            <div className="flex items-center gap-3">
-              <p className="text-sm text-muted-foreground">
-                {pendingCount} bekleyen talep
-              </p>
-              <button
-                type="button"
-                data-ocid="hr.leave.toggle"
-                onClick={() => setCalendarView((v) => !v)}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border transition-all ${calendarView ? "gradient-bg text-white border-transparent" : "border-border text-muted-foreground hover:text-foreground"}`}
-              >
-                <CalendarDays className="h-3.5 w-3.5" />
-                Takvim
-              </button>
-            </div>
+        {/* ─── LEAVES TAB ─── */}
+        <TabsContent value="leaves" className="mt-4 space-y-4">
+          <div className="flex items-center justify-between">
+            <h2 className="text-base font-semibold">İzin Talepleri</h2>
             <Dialog open={addLeaveOpen} onOpenChange={setAddLeaveOpen}>
               <DialogTrigger asChild>
                 <Button
-                  data-ocid="hr.leave.primary_button"
+                  data-ocid="hr.add_leave_button"
                   className="gradient-bg text-white"
                 >
                   <Plus className="h-4 w-4 mr-2" />
@@ -668,7 +764,7 @@ export default function HumanResources() {
                 </Button>
               </DialogTrigger>
               <DialogContent
-                data-ocid="hr.leave.dialog"
+                data-ocid="hr.add_leave.dialog"
                 className="bg-card border-border"
               >
                 <DialogHeader>
@@ -680,59 +776,63 @@ export default function HumanResources() {
                     <Select
                       value={newLeave.type}
                       onValueChange={(v) =>
-                        setNewLeave({ ...newLeave, type: v as LeaveType })
+                        setNewLeave((l) => ({ ...l, type: v as LeaveType }))
                       }
                     >
                       <SelectTrigger
-                        data-ocid="hr.leave.select"
-                        className="bg-background border-border mt-1"
+                        data-ocid="hr.leave_type.select"
+                        className="mt-1 bg-background border-border"
                       >
                         <SelectValue />
                       </SelectTrigger>
-                      <SelectContent>
+                      <SelectContent className="bg-card border-border">
                         <SelectItem value="Yıllık">Yıllık İzin</SelectItem>
                         <SelectItem value="Hastalık">Hastalık İzni</SelectItem>
                         <SelectItem value="Mazeret">Mazeret İzni</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
-                  <div className="grid grid-cols-2 gap-2">
+                  <div className="grid grid-cols-2 gap-3">
                     <div>
                       <Label>Başlangıç</Label>
                       <Input
-                        data-ocid="hr.leave.input"
+                        data-ocid="hr.leave_start.input"
                         type="date"
                         value={newLeave.startDate}
                         onChange={(e) =>
-                          setNewLeave({
-                            ...newLeave,
+                          setNewLeave((l) => ({
+                            ...l,
                             startDate: e.target.value,
-                          })
+                          }))
                         }
-                        className="bg-background border-border mt-1"
+                        className="mt-1 bg-background border-border"
                       />
                     </div>
                     <div>
                       <Label>Bitiş</Label>
                       <Input
+                        data-ocid="hr.leave_end.input"
                         type="date"
                         value={newLeave.endDate}
                         onChange={(e) =>
-                          setNewLeave({ ...newLeave, endDate: e.target.value })
+                          setNewLeave((l) => ({
+                            ...l,
+                            endDate: e.target.value,
+                          }))
                         }
-                        className="bg-background border-border mt-1"
+                        className="mt-1 bg-background border-border"
                       />
                     </div>
                   </div>
                   <div>
-                    <Label>Not</Label>
+                    <Label>Açıklama</Label>
                     <Textarea
-                      data-ocid="hr.leave.textarea"
+                      data-ocid="hr.leave_note.textarea"
                       value={newLeave.note}
                       onChange={(e) =>
-                        setNewLeave({ ...newLeave, note: e.target.value })
+                        setNewLeave((l) => ({ ...l, note: e.target.value }))
                       }
-                      className="bg-background border-border mt-1"
+                      className="mt-1 bg-background border-border resize-none"
                       rows={3}
                     />
                   </div>
@@ -740,15 +840,16 @@ export default function HumanResources() {
                 <DialogFooter>
                   <Button
                     variant="outline"
-                    data-ocid="hr.leave.cancel_button"
+                    data-ocid="hr.add_leave.cancel_button"
                     onClick={() => setAddLeaveOpen(false)}
                   >
                     İptal
                   </Button>
                   <Button
-                    data-ocid="hr.leave.submit_button"
+                    data-ocid="hr.add_leave.confirm_button"
                     className="gradient-bg text-white"
                     onClick={handleAddLeave}
+                    disabled={!newLeave.startDate || !newLeave.endDate}
                   >
                     Gönder
                   </Button>
@@ -757,386 +858,616 @@ export default function HumanResources() {
             </Dialog>
           </div>
 
-          <div className="space-y-3">
-            {leaves.length === 0 ? (
-              <div
-                data-ocid="hr.leave.empty_state"
-                className="text-center py-16 text-muted-foreground"
-              >
-                İzin talebi yok.
-              </div>
-            ) : (
-              leaves.map((l, i) => (
-                <Card
-                  key={l.id}
-                  data-ocid={`hr.leave.item.${i + 1}`}
-                  className="bg-card border-border"
+          {leaves.length === 0 ? (
+            <div
+              data-ocid="hr.leaves.empty_state"
+              className="text-center py-16 text-muted-foreground"
+            >
+              <CalendarDays className="h-10 w-10 mx-auto mb-3 opacity-20" />
+              <p className="text-sm">Henüz izin talebi yok.</p>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {leaves.map((leave, idx) => (
+                <div
+                  key={leave.id}
+                  data-ocid={`hr.leave.item.${idx + 1}`}
+                  className="bg-card border border-border rounded-xl p-4 flex items-center justify-between gap-4"
                 >
-                  <CardContent className="p-4">
-                    <div className="flex items-center justify-between gap-3 flex-wrap">
-                      <div className="flex items-center gap-3">
-                        <div className="h-9 w-9 rounded-full gradient-bg flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
-                          {l.name
-                            .split(" ")
-                            .map((w) => w[0])
-                            .join("")
-                            .slice(0, 2)}
-                        </div>
-                        <div>
-                          <p className="font-medium text-sm">{l.name}</p>
-                          <p className="text-xs text-muted-foreground">
-                            {l.type} • {l.startDate} – {l.endDate}
-                          </p>
-                          {l.note && (
-                            <p className="text-xs text-muted-foreground mt-0.5 italic">
-                              "{l.note}"
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
+                      <CalendarDays className="h-4 w-4 text-primary" />
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-semibold">
+                          {leave.name}
+                        </span>
+                        <Badge variant="outline" className="text-xs">
+                          {leave.type}
+                        </Badge>
+                      </div>
+                      <p className="text-xs text-muted-foreground mt-0.5">
+                        {leave.startDate} — {leave.endDate}
+                      </p>
+                      {leave.note && (
+                        <p className="text-xs text-muted-foreground/70 mt-0.5">
+                          {leave.note}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Badge
+                      variant="outline"
+                      className={`text-xs ${LEAVE_STATUS_COLORS[leave.status]}`}
+                    >
+                      {leave.status}
+                    </Badge>
+                    {isManager && leave.status === "Bekliyor" && (
+                      <div className="flex gap-1">
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          data-ocid={`hr.leave.approve_button.${idx + 1}`}
+                          className="h-7 w-7 p-0 text-emerald-400 hover:bg-emerald-500/10"
+                          onClick={() => handleApprove(leave.id)}
+                        >
+                          <Check className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          data-ocid={`hr.leave.reject_button.${idx + 1}`}
+                          className="h-7 w-7 p-0 text-rose-400 hover:bg-rose-500/10"
+                          onClick={() => handleReject(leave.id)}
+                        >
+                          <X className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </TabsContent>
+
+        {/* ─── SHIFT TAB ─── */}
+        <TabsContent value="shifts" className="mt-4">
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <h2 className="text-base font-semibold">
+                Haftalık Vardiya Planı
+              </h2>
+              <div className="flex items-center gap-3 flex-wrap">
+                {Object.entries(SHIFT_LABELS)
+                  .filter(([k]) => k !== "")
+                  .map(([key, val]) => (
+                    <div key={key} className="flex items-center gap-1.5">
+                      <div
+                        className={`w-2.5 h-2.5 rounded-sm border ${val.color}`}
+                      />
+                      <span className="text-xs text-muted-foreground">
+                        {val.label}
+                        {val.time ? ` (${val.time})` : ""}
+                      </span>
+                    </div>
+                  ))}
+              </div>
+            </div>
+
+            <div
+              data-ocid="hr.shifts.panel"
+              className="bg-card border border-border rounded-xl overflow-hidden"
+            >
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-border">
+                      <th className="text-left px-4 py-3 text-muted-foreground font-medium w-40">
+                        Personel
+                      </th>
+                      {DAYS.map((d) => (
+                        <th
+                          key={d}
+                          className="text-center px-2 py-3 text-muted-foreground font-medium min-w-[90px]"
+                        >
+                          {d}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {personnel.map((person, pIdx) => (
+                      <tr
+                        key={person.id}
+                        data-ocid={`hr.shift.row.${pIdx + 1}`}
+                        className="border-b border-border/50 hover:bg-white/3"
+                      >
+                        <td className="px-4 py-2">
+                          <div className="flex items-center gap-2">
+                            <Avatar className="h-6 w-6">
+                              <AvatarFallback
+                                style={{
+                                  backgroundColor: `${person.color}22`,
+                                  color: person.color,
+                                }}
+                                className="text-xs font-bold"
+                              >
+                                {person.initials}
+                              </AvatarFallback>
+                            </Avatar>
+                            <span className="text-xs font-medium truncate max-w-[90px]">
+                              {person.name.split(" ")[0]}
+                            </span>
+                          </div>
+                        </td>
+                        {DAYS.map((day) => {
+                          const shiftKey = shiftMap[person.name]?.[day] || "";
+                          const shiftInfo =
+                            SHIFT_LABELS[shiftKey] || SHIFT_LABELS[""];
+                          return (
+                            <td key={day} className="px-1 py-2 text-center">
+                              <button
+                                type="button"
+                                data-ocid={`hr.shift.cell.${pIdx + 1}`}
+                                onClick={() => {
+                                  setShiftEditModal({
+                                    personnelName: person.name,
+                                    day,
+                                    currentShift: shiftKey,
+                                  });
+                                  setPendingShift(shiftKey as ShiftKey);
+                                }}
+                                className={`w-full px-2 py-1 rounded border text-xs transition-all hover:opacity-80 ${shiftInfo.color}`}
+                              >
+                                {shiftInfo.label}
+                              </button>
+                            </td>
+                          );
+                        })}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                {personnel.length === 0 && (
+                  <div
+                    data-ocid="hr.shifts.empty_state"
+                    className="text-center py-12 text-muted-foreground text-sm"
+                  >
+                    Personel eklendikten sonra vardiya planlayabilirsiniz.
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Shift Edit Modal */}
+            <Dialog
+              open={!!shiftEditModal}
+              onOpenChange={(open) => !open && setShiftEditModal(null)}
+            >
+              <DialogContent
+                data-ocid="hr.shift_edit.dialog"
+                className="bg-card border-border"
+              >
+                <DialogHeader>
+                  <DialogTitle>
+                    Vardiya Düzenle:{" "}
+                    <span className="text-primary">
+                      {shiftEditModal?.personnelName}
+                    </span>{" "}
+                    — {shiftEditModal?.day}
+                  </DialogTitle>
+                </DialogHeader>
+                <div className="grid grid-cols-2 gap-3">
+                  {(["sabah", "ogleden", "gece", "izin", ""] as ShiftKey[]).map(
+                    (key) => {
+                      const info = SHIFT_LABELS[key];
+                      return (
+                        <button
+                          type="button"
+                          key={key}
+                          onClick={() => setPendingShift(key)}
+                          className={`p-3 rounded-lg border text-left transition-all ${
+                            pendingShift === key
+                              ? "border-primary bg-primary/10"
+                              : "border-border hover:bg-white/5"
+                          }`}
+                        >
+                          <p className="text-sm font-medium">{info.label}</p>
+                          {info.time && (
+                            <p className="text-xs text-muted-foreground mt-0.5">
+                              {info.time}
                             </p>
                           )}
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <Badge
-                          className={`text-xs border ${statusColor[l.status]}`}
-                        >
-                          {l.status === "Bekliyor" && (
-                            <Clock className="h-3 w-3 mr-1" />
-                          )}
-                          {l.status === "Onaylandı" && (
-                            <Check className="h-3 w-3 mr-1" />
-                          )}
-                          {l.status === "Reddedildi" && (
-                            <X className="h-3 w-3 mr-1" />
-                          )}
-                          {l.status}
-                        </Badge>
-                        {isManager && l.status === "Bekliyor" && (
-                          <>
-                            <Button
-                              size="sm"
-                              data-ocid={`hr.leave.confirm_button.${i + 1}`}
-                              className="bg-emerald-600 hover:bg-emerald-700 text-white h-7 px-2 text-xs"
-                              onClick={() => handleApprove(l.id)}
-                            >
-                              <Check className="h-3 w-3 mr-1" />
-                              Onayla
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="destructive"
-                              data-ocid={`hr.leave.delete_button.${i + 1}`}
-                              className="h-7 px-2 text-xs"
-                              onClick={() => handleReject(l.id)}
-                            >
-                              <X className="h-3 w-3 mr-1" />
-                              Reddet
-                            </Button>
-                          </>
-                        )}
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))
-            )}
+                        </button>
+                      );
+                    },
+                  )}
+                </div>
+                <DialogFooter>
+                  <Button
+                    variant="outline"
+                    data-ocid="hr.shift_edit.cancel_button"
+                    onClick={() => setShiftEditModal(null)}
+                  >
+                    İptal
+                  </Button>
+                  <Button
+                    data-ocid="hr.shift_edit.save_button"
+                    className="gradient-bg text-white"
+                    onClick={handleShiftSave}
+                  >
+                    Kaydet
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
           </div>
+        </TabsContent>
 
-          {/* Calendar view */}
-          {calendarView && (
-            <div className="bg-card border border-border rounded-xl p-4 space-y-3">
-              <p className="text-sm font-semibold">Mart 2026 — İzin Takvimi</p>
-              <div className="grid grid-cols-7 gap-1 text-center text-xs text-muted-foreground mb-1">
-                {["Pzt", "Sal", "Çar", "Per", "Cum", "Cmt", "Paz"].map((d) => (
-                  <div key={d} className="font-semibold py-1">
+        {/* ─── CALENDAR TAB ─── */}
+        <TabsContent value="calendar" className="mt-4">
+          <div className="space-y-4">
+            {/* Header */}
+            <div className="flex items-center justify-between">
+              <h2 className="text-base font-semibold">İzin Takvimi</h2>
+              <div className="flex items-center gap-4">
+                <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-1.5">
+                    <div className="w-3 h-3 rounded-sm bg-emerald-500/30 border border-emerald-500/50" />
+                    <span className="text-xs text-muted-foreground">
+                      Onaylandı
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <div className="w-3 h-3 rounded-sm bg-amber-500/30 border border-amber-500/50" />
+                    <span className="text-xs text-muted-foreground">
+                      Bekliyor
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <div className="w-3 h-3 rounded-sm bg-rose-500/30 border border-rose-500/50" />
+                    <span className="text-xs text-muted-foreground">
+                      Reddedildi
+                    </span>
+                  </div>
+                </div>
+                <div className="flex items-center gap-1">
+                  <Button
+                    data-ocid="hr.calendar.pagination_prev"
+                    size="icon"
+                    variant="ghost"
+                    className="h-7 w-7"
+                    onClick={() => {
+                      if (calMonth === 0) {
+                        setCalMonth(11);
+                        setCalYear((y) => y - 1);
+                      } else {
+                        setCalMonth((m) => m - 1);
+                      }
+                    }}
+                  >
+                    <ChevronLeft className="h-4 w-4" />
+                  </Button>
+                  <span className="text-sm font-medium w-32 text-center">
+                    {TR_MONTHS[calMonth]} {calYear}
+                  </span>
+                  <Button
+                    data-ocid="hr.calendar.pagination_next"
+                    size="icon"
+                    variant="ghost"
+                    className="h-7 w-7"
+                    onClick={() => {
+                      if (calMonth === 11) {
+                        setCalMonth(0);
+                        setCalYear((y) => y + 1);
+                      } else {
+                        setCalMonth((m) => m + 1);
+                      }
+                    }}
+                  >
+                    <ChevronRight className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+            </div>
+
+            <div
+              data-ocid="hr.calendar.panel"
+              className="bg-card border border-border rounded-xl overflow-hidden"
+            >
+              {/* Day headers */}
+              <div className="grid grid-cols-7 border-b border-border">
+                {CAL_DAYS.map((d) => (
+                  <div
+                    key={d}
+                    className="text-center py-2 text-xs font-medium text-muted-foreground"
+                  >
                     {d}
                   </div>
                 ))}
               </div>
-              <div className="grid grid-cols-7 gap-1">
-                {/* March 2026 starts on Sunday => offset 6 */}
-                {["e0", "e1", "e2", "e3", "e4", "e5"].map((k) => (
-                  <div key={k} />
-                ))}
-                {Array.from({ length: 31 }).map((_, i) => {
-                  const day = i + 1;
-                  const dateStr = `2026-03-${String(day).padStart(2, "0")}`;
-                  const approved = leaves.filter(
-                    (l) =>
-                      l.status === "Onaylandı" &&
-                      l.startDate <= dateStr &&
-                      l.endDate >= dateStr,
-                  );
+              {/* Calendar cells */}
+              <div className="grid grid-cols-7">
+                {calCells.map((day, i) => {
+                  const cellKey =
+                    day !== null
+                      ? `day-${calYear}-${calMonth}-${day}`
+                      : `null-${calYear}-${calMonth}-slot${i}`;
+                  if (day === null) {
+                    return (
+                      <div
+                        key={cellKey}
+                        className="h-20 border-b border-r border-border/30"
+                      />
+                    );
+                  }
+                  const dayLeaves = getLeavesForDay(day);
+                  const isToday =
+                    calYear === today.getFullYear() &&
+                    calMonth === today.getMonth() &&
+                    day === today.getDate();
                   return (
                     <div
-                      key={day}
-                      className={`rounded p-1 min-h-[2.5rem] text-xs relative ${
-                        approved.length > 0
-                          ? "bg-primary/15 border border-primary/30"
-                          : "bg-background hover:bg-white/5"
+                      key={cellKey}
+                      className={`h-20 border-b border-r border-border/30 p-1 ${
+                        isToday ? "bg-primary/5" : ""
                       }`}
-                      title={approved.map((l) => l.name).join(", ")}
                     >
-                      <span
-                        className={`font-medium ${approved.length > 0 ? "text-primary" : "text-muted-foreground"}`}
+                      <div
+                        className={`text-xs font-medium mb-1 w-5 h-5 flex items-center justify-center rounded-full ${
+                          isToday
+                            ? "bg-primary text-white"
+                            : "text-foreground/70"
+                        }`}
                       >
                         {day}
-                      </span>
-                      {approved.length > 0 && (
-                        <div className="mt-0.5 space-y-0.5">
-                          {approved.slice(0, 2).map((l) => (
-                            <div
-                              key={l.id}
-                              className="truncate text-[10px] text-primary/80 leading-none"
-                            >
-                              {l.name.split(" ")[0]}
-                            </div>
-                          ))}
-                          {approved.length > 2 && (
-                            <div className="text-[10px] text-muted-foreground">
-                              +{approved.length - 2}
-                            </div>
-                          )}
-                        </div>
-                      )}
+                      </div>
+                      <div className="space-y-0.5">
+                        {dayLeaves.slice(0, 2).map((leave) => (
+                          <div
+                            key={leave.id}
+                            className={`text-[10px] px-1 py-0.5 rounded truncate border ${
+                              leave.status === "Onaylandı"
+                                ? "bg-emerald-500/20 text-emerald-300 border-emerald-500/30"
+                                : leave.status === "Bekliyor"
+                                  ? "bg-amber-500/20 text-amber-300 border-amber-500/30"
+                                  : "bg-rose-500/20 text-rose-300 border-rose-500/30"
+                            }`}
+                          >
+                            {leave.name.split(" ")[0]}
+                          </div>
+                        ))}
+                        {dayLeaves.length > 2 && (
+                          <div className="text-[10px] text-muted-foreground px-1">
+                            +{dayLeaves.length - 2}
+                          </div>
+                        )}
+                      </div>
                     </div>
                   );
                 })}
               </div>
             </div>
-          )}
-        </TabsContent>
-
-        {/* SHIFTS TAB */}
-        <TabsContent value="shifts" className="space-y-4">
-          <div className="flex justify-between items-center">
-            <p className="text-sm text-muted-foreground">
-              Haftalık vardiya planı
-            </p>
-            <Button
-              data-ocid="hr.shifts.save_button"
-              className="gradient-bg text-white"
-            >
-              Bu Haftayı Kaydet
-            </Button>
           </div>
-
-          <div className="overflow-x-auto">
-            <div className="min-w-[700px]">
-              <div className="grid grid-cols-8 gap-1.5 mb-1.5">
-                <div className="text-xs text-muted-foreground font-medium px-2 py-1">
-                  Vardiya
-                </div>
-                {DAYS.map((d) => (
-                  <div
-                    key={d}
-                    className="text-xs text-muted-foreground font-medium text-center px-2 py-1"
-                  >
-                    {d}
-                  </div>
-                ))}
-              </div>
-              {SHIFTS.map((shift) => (
-                <div
-                  key={shift.key}
-                  className="grid grid-cols-8 gap-1.5 mb-1.5"
-                >
-                  <div className="bg-card border border-border rounded-lg p-2">
-                    <p className="text-xs font-semibold text-foreground">
-                      {shift.label}
-                    </p>
-                    <p className="text-xs text-muted-foreground">
-                      {shift.time}
-                    </p>
-                  </div>
-                  {DAYS.map((day) => {
-                    const cellPersonnel = getShiftPersonnel(day, shift.key);
-                    return (
-                      <button
-                        type="button"
-                        key={day}
-                        data-ocid="hr.shifts.canvas_target"
-                        onClick={() => setShiftModal({ day, shift: shift.key })}
-                        className="bg-card border border-border rounded-lg p-2 min-h-[64px] text-left hover:border-primary/50 transition-colors cursor-pointer"
-                      >
-                        <div className="flex flex-wrap gap-1">
-                          {cellPersonnel.map((name) => (
-                            <span
-                              key={name}
-                              className="inline-flex items-center gap-0.5 bg-primary/20 text-primary text-xs rounded px-1.5 py-0.5"
-                            >
-                              {name}
-                              <X
-                                className="h-2.5 w-2.5 cursor-pointer hover:text-red-400"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleRemoveFromShift(day, shift.key, name);
-                                }}
-                              />
-                            </span>
-                          ))}
-                          {cellPersonnel.length === 0 && (
-                            <span className="text-xs text-muted-foreground/50">
-                              +
-                            </span>
-                          )}
-                        </div>
-                      </button>
-                    );
-                  })}
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Shift assign modal */}
-          <Dialog
-            open={!!shiftModal}
-            onOpenChange={(o) => !o && setShiftModal(null)}
-          >
-            <DialogContent
-              data-ocid="hr.shifts.dialog"
-              className="bg-card border-border"
-            >
-              <DialogHeader>
-                <DialogTitle>
-                  {shiftModal?.day} —{" "}
-                  {SHIFTS.find((s) => s.key === shiftModal?.shift)?.label}
-                </DialogTitle>
-              </DialogHeader>
-              <div className="space-y-3">
-                <div className="flex flex-wrap gap-1">
-                  {shiftModal &&
-                    getShiftPersonnel(shiftModal.day, shiftModal.shift).map(
-                      (name) => (
-                        <Badge
-                          key={name}
-                          className="bg-primary/20 text-primary border-primary/30"
-                        >
-                          {name}
-                          <X
-                            className="h-3 w-3 ml-1 cursor-pointer"
-                            onClick={() =>
-                              handleRemoveFromShift(
-                                shiftModal.day,
-                                shiftModal.shift,
-                                name,
-                              )
-                            }
-                          />
-                        </Badge>
-                      ),
-                    )}
-                </div>
-                <div className="flex gap-2">
-                  <Input
-                    data-ocid="hr.shifts.input"
-                    value={shiftInput}
-                    onChange={(e) => setShiftInput(e.target.value)}
-                    placeholder="Personel adı..."
-                    className="bg-background border-border"
-                    onKeyDown={(e) => e.key === "Enter" && handleAddToShift()}
-                  />
-                  <Button
-                    data-ocid="hr.shifts.primary_button"
-                    className="gradient-bg text-white"
-                    onClick={handleAddToShift}
-                  >
-                    <Plus className="h-4 w-4" />
-                  </Button>
-                </div>
-              </div>
-              <DialogFooter>
-                <Button
-                  data-ocid="hr.shifts.close_button"
-                  variant="outline"
-                  onClick={() => setShiftModal(null)}
-                >
-                  Kapat
-                </Button>
-              </DialogFooter>
-            </DialogContent>
-          </Dialog>
         </TabsContent>
       </Tabs>
 
-      {/* Personnel Detail Sheet */}
+      {/* ─── Personnel Detail Sheet ─── */}
       <Sheet
         open={!!selectedPersonnel}
         onOpenChange={(open) => !open && setSelectedPersonnel(null)}
       >
-        <SheetContent className="bg-card border-border w-80 sm:max-w-sm">
-          <SheetHeader>
-            <SheetTitle className="flex items-center gap-3">
-              <div
-                className="h-10 w-10 rounded-full flex items-center justify-center text-sm font-bold flex-shrink-0"
-                style={{
-                  backgroundColor: `${selectedPersonnel?.color}33`,
-                  color: selectedPersonnel?.color,
-                }}
-              >
-                {selectedPersonnel?.initials}
-              </div>
-              <div>
-                <p className="font-semibold">{selectedPersonnel?.name}</p>
-                <p className="text-xs text-primary font-normal">
-                  {selectedPersonnel?.role}
-                </p>
-              </div>
-            </SheetTitle>
-          </SheetHeader>
+        <SheetContent
+          data-ocid="hr.personnel.sheet"
+          className="bg-card border-border w-[420px] sm:max-w-[420px]"
+        >
           {selectedPersonnel && (
-            <div className="mt-6 space-y-5">
-              <div className="space-y-1.5">
-                <p className="text-xs text-muted-foreground">
-                  {selectedPersonnel.phone}
-                </p>
-                <p className="text-xs text-muted-foreground">
-                  {selectedPersonnel.email}
-                </p>
-                <p className="text-xs text-muted-foreground">
-                  {selectedPersonnel.department} Departmanı
-                </p>
-              </div>
-              <div>
-                <div className="flex items-center justify-between mb-2">
-                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                    Belgeler
-                  </p>
-                  <button
-                    type="button"
-                    data-ocid="hr.personnel.upload_button"
-                    className="flex items-center gap-1 text-xs text-primary hover:text-primary/80 transition-colors"
-                  >
-                    <UploadCloud className="h-3.5 w-3.5" />
-                    Yükle
-                  </button>
+            <>
+              <SheetHeader>
+                <div className="flex items-center gap-3">
+                  <Avatar className="h-12 w-12">
+                    <AvatarFallback
+                      style={{
+                        backgroundColor: `${selectedPersonnel.color}22`,
+                        color: selectedPersonnel.color,
+                      }}
+                      className="text-lg font-bold"
+                    >
+                      {selectedPersonnel.initials}
+                    </AvatarFallback>
+                  </Avatar>
+                  <div>
+                    <SheetTitle>{selectedPersonnel.name}</SheetTitle>
+                    <p className="text-sm text-muted-foreground">
+                      {selectedPersonnel.role}
+                    </p>
+                  </div>
                 </div>
+              </SheetHeader>
+
+              <div className="mt-6 space-y-5">
+                {/* Info */}
                 <div className="space-y-2">
-                  {(personnelDocs[selectedPersonnel.id] || []).length === 0 ? (
-                    <p className="text-xs text-muted-foreground">Belge yok.</p>
-                  ) : (
-                    (personnelDocs[selectedPersonnel.id] || []).map(
-                      (doc, i) => (
-                        <div
-                          key={doc.id}
-                          data-ocid={`hr.personnel.documents.item.${i + 1}`}
-                          className="flex items-center gap-2 p-2 rounded-lg bg-background hover:bg-white/5 transition-colors"
-                        >
-                          <FileText className="h-4 w-4 text-rose-400 flex-shrink-0" />
-                          <div className="flex-1 min-w-0">
-                            <p className="text-xs font-medium truncate">
-                              {doc.name}
-                            </p>
-                            <p className="text-xs text-muted-foreground">
-                              {doc.date}
-                            </p>
-                          </div>
-                        </div>
-                      ),
-                    )
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-muted-foreground">Departman</span>
+                    <Badge
+                      variant="outline"
+                      className={`text-xs ${getDeptColor(selectedPersonnel.department)}`}
+                    >
+                      {selectedPersonnel.department}
+                    </Badge>
+                  </div>
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-muted-foreground">Durum</span>
+                    <Badge
+                      variant="outline"
+                      className={`text-xs ${
+                        selectedPersonnel.status === "Aktif"
+                          ? "bg-emerald-500/15 text-emerald-400 border-emerald-500/30"
+                          : "bg-muted/20 text-muted-foreground"
+                      }`}
+                    >
+                      {selectedPersonnel.status}
+                    </Badge>
+                  </div>
+                  {selectedPersonnel.phone && (
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-muted-foreground">Telefon</span>
+                      <span>{selectedPersonnel.phone}</span>
+                    </div>
+                  )}
+                  {selectedPersonnel.email && (
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-muted-foreground">E-posta</span>
+                      <span className="truncate max-w-[200px]">
+                        {selectedPersonnel.email}
+                      </span>
+                    </div>
                   )}
                 </div>
+
+                {/* Documents */}
+                <div>
+                  <div className="flex items-center justify-between mb-3">
+                    <h3 className="text-sm font-semibold flex items-center gap-2">
+                      <FileText className="h-4 w-4 text-primary" />
+                      Belgeler
+                    </h3>
+                    <div>
+                      <input
+                        ref={docFileInputRef}
+                        type="file"
+                        accept=".pdf,.doc,.docx,.xls,.xlsx,image/*"
+                        className="hidden"
+                        onChange={handleDocUpload}
+                      />
+                      <Button
+                        data-ocid="hr.personnel_doc.upload_button"
+                        size="sm"
+                        variant="outline"
+                        className="h-7 text-xs border-border"
+                        onClick={() => docFileInputRef.current?.click()}
+                        disabled={isUploadingDoc}
+                      >
+                        <UploadCloud className="h-3 w-3 mr-1" />
+                        Belge Ekle
+                      </Button>
+                    </div>
+                  </div>
+
+                  {isUploadingDoc && (
+                    <div className="mb-3 space-y-1">
+                      <div className="flex items-center justify-between text-xs text-muted-foreground">
+                        <span>Yükleniyor...</span>
+                        <span>{Math.round(docUploadProgress)}%</span>
+                      </div>
+                      <Progress value={docUploadProgress} className="h-1.5" />
+                    </div>
+                  )}
+
+                  <ScrollArea className="h-[200px]">
+                    <div className="space-y-2 pr-2">
+                      {(personnelDocs[selectedPersonnel.id] || []).length ===
+                      0 ? (
+                        <div
+                          data-ocid="hr.personnel_docs.empty_state"
+                          className="text-center py-6 text-muted-foreground"
+                        >
+                          <Paperclip className="h-6 w-6 mx-auto mb-2 opacity-20" />
+                          <p className="text-xs">Henüz belge eklenmemiş.</p>
+                        </div>
+                      ) : (
+                        (personnelDocs[selectedPersonnel.id] || []).map(
+                          (doc, dIdx) => (
+                            <div
+                              key={doc.id}
+                              data-ocid={`hr.personnel_doc.item.${dIdx + 1}`}
+                              className="flex items-center gap-2 bg-background/50 border border-border rounded-lg px-3 py-2"
+                            >
+                              <FileText className="h-3.5 w-3.5 text-primary flex-shrink-0" />
+                              <div className="flex-1 min-w-0">
+                                <p className="text-xs font-medium truncate">
+                                  {doc.name}
+                                </p>
+                                <p className="text-xs text-muted-foreground">
+                                  {doc.date} • {doc.size}
+                                </p>
+                              </div>
+                              <Button
+                                size="icon"
+                                variant="ghost"
+                                data-ocid={`hr.personnel_doc.delete_button.${dIdx + 1}`}
+                                className="h-6 w-6 text-muted-foreground hover:text-rose-400"
+                                onClick={() =>
+                                  handleDeleteDoc(selectedPersonnel.id, doc.id)
+                                }
+                              >
+                                <Trash2 className="h-3 w-3" />
+                              </Button>
+                            </div>
+                          ),
+                        )
+                      )}
+                    </div>
+                  </ScrollArea>
+                </div>
+
+                {/* Personnel Leave History */}
+                <div>
+                  <h3 className="text-sm font-semibold flex items-center gap-2 mb-3">
+                    <Clock className="h-4 w-4 text-primary" />
+                    İzin Geçmişi
+                  </h3>
+                  <div className="space-y-2">
+                    {leaves
+                      .filter((l) => l.name === selectedPersonnel.name)
+                      .slice(0, 5)
+                      .map((leave, lIdx) => (
+                        <div
+                          key={leave.id}
+                          data-ocid={`hr.leave_history.item.${lIdx + 1}`}
+                          className="flex items-center justify-between text-xs bg-background/50 border border-border rounded-lg px-3 py-2"
+                        >
+                          <div>
+                            <span className="font-medium">{leave.type}</span>
+                            <span className="text-muted-foreground ml-2">
+                              {leave.startDate} – {leave.endDate}
+                            </span>
+                          </div>
+                          <Badge
+                            variant="outline"
+                            className={`text-xs ${
+                              LEAVE_STATUS_COLORS[leave.status]
+                            }`}
+                          >
+                            {leave.status}
+                          </Badge>
+                        </div>
+                      ))}
+                    {leaves.filter((l) => l.name === selectedPersonnel.name)
+                      .length === 0 && (
+                      <p className="text-xs text-muted-foreground text-center py-4">
+                        İzin geçmişi bulunmuyor.
+                      </p>
+                    )}
+                  </div>
+                </div>
+
+                <div className="pt-2 border-t border-border">
+                  <Button
+                    data-ocid="hr.personnel.close_button"
+                    variant="outline"
+                    className="w-full border-border"
+                    onClick={() => setSelectedPersonnel(null)}
+                  >
+                    Kapat
+                  </Button>
+                </div>
               </div>
-            </div>
+            </>
           )}
         </SheetContent>
       </Sheet>

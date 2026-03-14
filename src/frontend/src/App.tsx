@@ -9,6 +9,7 @@ import {
   useApp,
 } from "./contexts/AppContext";
 import AccountTypeSelect from "./pages/AccountTypeSelect";
+import CRM from "./pages/CRM";
 import Communication from "./pages/Communication";
 import CompanySelect from "./pages/CompanySelect";
 import CompanySettings from "./pages/CompanySettings";
@@ -17,6 +18,7 @@ import Documents from "./pages/Documents";
 import FieldOps from "./pages/FieldOps";
 import Finance from "./pages/Finance";
 import HumanResources from "./pages/HumanResources";
+import Inventory from "./pages/Inventory";
 import InviteJoin from "./pages/InviteJoin";
 import LanguageSelect from "./pages/LanguageSelect";
 import Login from "./pages/Login";
@@ -24,6 +26,9 @@ import PendingApproval from "./pages/PendingApproval";
 import Profile from "./pages/Profile";
 import ProjectDetail from "./pages/ProjectDetail";
 import Projects from "./pages/Projects";
+import Purchasing from "./pages/Purchasing";
+import QualitySafety from "./pages/QualitySafety";
+import Reporting from "./pages/Reporting";
 import RoleSelect from "./pages/RoleSelect";
 import RoleSettings from "./pages/RoleSettings";
 
@@ -47,7 +52,12 @@ type AppPage =
   | "hr"
   | "communication"
   | "finance"
-  | "documents";
+  | "documents"
+  | "purchasing"
+  | "inventory"
+  | "reporting"
+  | "qualitySafety"
+  | "crm";
 
 function Inner() {
   const {
@@ -90,13 +100,11 @@ function Inner() {
     if (type === "owner") {
       setScreen("login");
     } else {
-      // Show invite join page for non-owners
       setScreen("inviteJoin");
     }
   };
 
   const handleLogin = () => {
-    // After login set active company/role if user has companies
     const companiesStr = localStorage.getItem("pv_companies");
     const companiesList = companiesStr ? JSON.parse(companiesStr) : [];
     const userStr = localStorage.getItem("pv_user");
@@ -119,7 +127,6 @@ function Inner() {
   };
 
   const handleInviteLogin = () => {
-    // Existing account login for non-owner
     setScreen("login");
   };
 
@@ -136,7 +143,6 @@ function Inner() {
     setCurrentCompany(company);
     setPendingCompany(company);
     setActiveCompany(company.id);
-    // Check if owner
     const userStr = localStorage.getItem("pv_user");
     const u = userStr ? JSON.parse(userStr) : null;
     if (u) {
@@ -150,7 +156,6 @@ function Inner() {
 
   const handleRoleSelect = (role: Role) => {
     setCurrentRole(role);
-    // Map role id to activeRole
     const roleId =
       role.id === "owner"
         ? "owner"
@@ -176,7 +181,6 @@ function Inner() {
   };
 
   const handlePendingCheck = () => {
-    // Check if invite has been approved
     const invitesStr = localStorage.getItem("pv_pending_invites");
     const invites = invitesStr ? JSON.parse(invitesStr) : pendingInvites;
     const lastInvite = invites
@@ -188,7 +192,6 @@ function Inner() {
     if (lastInvite?.status === "approved") {
       setScreen("login");
     }
-    // else stay on pending
   };
 
   const handleNavigate = (p: string) => {
@@ -200,6 +203,11 @@ function Inner() {
     else if (p === "communication") setPage("communication");
     else if (p === "finance") setPage("finance");
     else if (p === "documents") setPage("documents");
+    else if (p === "purchasing") setPage("purchasing");
+    else if (p === "inventory") setPage("inventory");
+    else if (p === "reporting") setPage("reporting");
+    else if (p === "qualitySafety") setPage("qualitySafety");
+    else if (p === "crm") setPage("crm");
     else setPage(p as AppPage);
   };
 
@@ -208,7 +216,6 @@ function Inner() {
     setPage("project-detail");
   };
 
-  // Silence unused var warning
   void inviteCodes;
   void user;
 
@@ -262,6 +269,11 @@ function Inner() {
       {page === "communication" && <Communication />}
       {page === "finance" && <Finance />}
       {page === "documents" && <Documents />}
+      {page === "purchasing" && <Purchasing />}
+      {page === "inventory" && <Inventory />}
+      {page === "reporting" && <Reporting />}
+      {page === "qualitySafety" && <QualitySafety />}
+      {page === "crm" && <CRM />}
     </Layout>
   );
 }

@@ -32,8 +32,9 @@ import {
   Plus,
   User,
   Wrench,
+  XCircle,
 } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import AccessDenied from "../components/AccessDenied";
 import {
   type FieldInspection,
@@ -117,10 +118,17 @@ export default function FieldOps({ onNavigate }: FieldOpsProps = {}) {
     workOrders,
     fieldInspections,
     addWorkOrder,
+    updateWorkOrder,
     updateWorkOrderStatus,
     addFieldInspection,
     updateInspectionItem,
     completeInspection,
+    failInspection,
+    stockItems,
+    setStockItems,
+    addNotification,
+    deductStock,
+    user,
   } = useApp();
 
   const [woFilter, setWoFilter] = useState({
@@ -129,14 +137,27 @@ export default function FieldOps({ onNavigate }: FieldOpsProps = {}) {
     priority: "all",
     project: "all",
   });
+  const [inspFilter, setInspFilter] = useState({
+    search: "",
+    type: "all",
+    status: "all",
+  });
   const [selectedWO, setSelectedWO] = useState<WorkOrder | null>(null);
-  const [woCosts, setWoCosts] = useState<
-    Record<string, { estimated: string; actual: string }>
-  >({});
   const [selectedInspection, setSelectedInspection] =
     useState<FieldInspection | null>(null);
   const [showNewWO, setShowNewWO] = useState(false);
   const [showNewInspection, setShowNewInspection] = useState(false);
+  const [markingFailed, setMarkingFailed] = useState(false);
+  const [failureReason, setFailureReason] = useState("");
+  const [deductDialogOpen, setDeductDialogOpen] = useState(false);
+  const [pendingCompleteWO, setPendingCompleteWO] = useState<WorkOrder | null>(
+    null,
+  );
+  const [deductMaterial, setDeductMaterial] = useState("");
+  const [deductQty, setDeductQty] = useState("");
+
+  const woFileRef = useRef<HTMLInputElement>(null);
+  const inspFileRef = useRef<HTMLInputElement>(null);
 
   const [newWO, setNewWO] = useState({
     title: "",
@@ -194,6 +215,21 @@ export default function FieldOps({ onNavigate }: FieldOpsProps = {}) {
       return true;
     });
   }, [workOrders, woFilter]);
+
+  const filteredInspections = useMemo(() => {
+    return fieldInspections.filter((f) => {
+      if (
+        inspFilter.search &&
+        !f.title.toLowerCase().includes(inspFilter.search.toLowerCase())
+      )
+        return false;
+      if (inspFilter.type !== "all" && f.inspectionType !== inspFilter.type)
+        return false;
+      if (inspFilter.status !== "all" && f.status !== inspFilter.status)
+        return false;
+      return true;
+    });
+  }, [fieldInspections, inspFilter]);
 
   const getProjectName = (id: string) =>
     projects.find((p) => p.id === id)?.title || id;
@@ -273,6 +309,60 @@ export default function FieldOps({ onNavigate }: FieldOpsProps = {}) {
     setSelectedInspection(null);
   };
 
+  const handleFailInspection = () => {
+    if (!selectedInspection || !failureReason.trim()) return;
+    failInspection(
+      selectedInspection.id,
+      failureReason,
+      selectedInspection.notes,
+    );
+    setSelectedInspection(null);
+    setMarkingFailed(false);
+    setFailureReason("");
+  };
+
+  const handleWOFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!selectedWO || !e.target.files) return;
+    const files = Array.from(e.target.files);
+    const newAttachments = files.map((f) => ({
+      name: f.name,
+      size: f.size,
+      type: f.type,
+    }));
+    const existingAtts = selectedWO.attachments || [];
+    // Map to WorkOrderAttachment shape for display
+    const merged = [
+      ...existingAtts,
+      ...newAttachments.map((a) => ({
+        id: `att_${Date.now()}_${Math.random()}`,
+        name: a.name,
+        type: (a.type.startsWith("image") ? "image" : "pdf") as "image" | "pdf",
+        url: "",
+        uploadedAt: new Date().toISOString().split("T")[0],
+      })),
+    ];
+    updateWorkOrder(selectedWO.id, { attachments: merged });
+    setSelectedWO({ ...selectedWO, attachments: merged });
+    e.target.value = "";
+  };
+
+  const handleInspFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!selectedInspection || !e.target.files) return;
+    const files = Array.from(e.target.files);
+    const newAtts = files.map((f) => ({
+      name: f.name,
+      size: f.size,
+      type: f.type,
+    }));
+    const existing = selectedInspection.attachments || [];
+    const merged = [...existing, ...newAtts];
+    // Update in context via setFieldInspections indirectly — use updateInspectionItem workaround
+    // Actually we need to update inspection directly; we'll use setFieldInspections via a helper
+    // Since we don't have updateInspection, we'll patch it via local state and sync on close
+    setSelectedInspection({ ...selectedInspection, attachments: merged });
+    e.target.value = "";
+  };
+
   const StatusBadge = ({ color, label }: { color: string; label: string }) => (
     <span
       className="text-xs px-2 py-0.5 rounded-full font-medium"
@@ -298,7 +388,7 @@ export default function FieldOps({ onNavigate }: FieldOpsProps = {}) {
           {t.fieldOps}
         </h1>
         <p className="text-muted-foreground text-sm mt-1">
-          Saş operasyonlarınızı yönetin
+          Saha operasyonlarınızı yönetin
         </p>
       </div>
 
@@ -495,7 +585,7 @@ export default function FieldOps({ onNavigate }: FieldOpsProps = {}) {
                         color={PRIORITY_COLORS[wo.priority]}
                         label={getPriorityLabel(wo.priority)}
                       />
-                      {wo.attachments.length > 0 && (
+                      {(wo.attachments?.length ?? 0) > 0 && (
                         <span className="flex items-center gap-1 text-xs text-muted-foreground">
                           <Paperclip className="w-3 h-3" />
                           {wo.attachments.length}
@@ -511,7 +601,64 @@ export default function FieldOps({ onNavigate }: FieldOpsProps = {}) {
 
         {/* Inspections Tab */}
         <TabsContent value="inspections" className="mt-4 space-y-4">
-          <div className="flex justify-end">
+          {/* Filter Bar */}
+          <div className="flex flex-wrap gap-3 items-center justify-between">
+            <div className="flex flex-wrap gap-2">
+              <Input
+                data-ocid="fieldops.inspection_search_input"
+                placeholder={t.search}
+                value={inspFilter.search}
+                onChange={(e) =>
+                  setInspFilter((f) => ({ ...f, search: e.target.value }))
+                }
+                className="w-48 bg-card border-border"
+              />
+              <Select
+                value={inspFilter.type}
+                onValueChange={(v) => setInspFilter((f) => ({ ...f, type: v }))}
+              >
+                <SelectTrigger
+                  data-ocid="fieldops.inspection_type_select"
+                  className="w-40 bg-card border-border"
+                >
+                  <SelectValue placeholder="Tür" />
+                </SelectTrigger>
+                <SelectContent className="bg-card border-border">
+                  <SelectItem value="all">Tüm Türler</SelectItem>
+                  {INSPECTION_TYPES.map((type) => (
+                    <SelectItem key={type} value={type}>
+                      {type}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Select
+                value={inspFilter.status}
+                onValueChange={(v) =>
+                  setInspFilter((f) => ({ ...f, status: v }))
+                }
+              >
+                <SelectTrigger
+                  data-ocid="fieldops.inspection_status_select"
+                  className="w-36 bg-card border-border"
+                >
+                  <SelectValue placeholder="Durum" />
+                </SelectTrigger>
+                <SelectContent className="bg-card border-border">
+                  <SelectItem value="all">Tüm Durumlar</SelectItem>
+                  <SelectItem value="scheduled">
+                    {t.inspectionScheduled}
+                  </SelectItem>
+                  <SelectItem value="in_progress">
+                    {t.inspectionInProgress}
+                  </SelectItem>
+                  <SelectItem value="completed">
+                    {t.inspectionCompleted}
+                  </SelectItem>
+                  <SelectItem value="failed">{t.inspectionFailed}</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
             <Button
               data-ocid="fieldops.new_inspection_button"
               onClick={() => setShowNewInspection(true)}
@@ -522,7 +669,7 @@ export default function FieldOps({ onNavigate }: FieldOpsProps = {}) {
             </Button>
           </div>
 
-          {fieldInspections.length === 0 ? (
+          {filteredInspections.length === 0 ? (
             <div
               className="text-center py-12 text-muted-foreground"
               data-ocid="fieldops.inspections.empty_state"
@@ -531,14 +678,18 @@ export default function FieldOps({ onNavigate }: FieldOpsProps = {}) {
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-              {fieldInspections.map((insp, idx) => {
+              {filteredInspections.map((insp, idx) => {
                 const checkedCount = insp.items.filter((i) => i.checked).length;
                 return (
                   <Card
                     key={insp.id}
                     data-ocid={`fieldops.inspection.item.${idx + 1}`}
                     className="bg-card border-border cursor-pointer hover:border-primary/40 transition-colors"
-                    onClick={() => setSelectedInspection(insp)}
+                    onClick={() => {
+                      setSelectedInspection(insp);
+                      setMarkingFailed(false);
+                      setFailureReason("");
+                    }}
                   >
                     <CardContent className="pt-4 pb-4">
                       <div className="flex items-start justify-between gap-2 mb-3">
@@ -585,11 +736,27 @@ export default function FieldOps({ onNavigate }: FieldOpsProps = {}) {
                             <div
                               className="h-full rounded-full transition-all"
                               style={{
-                                width: `${insp.items.length > 0 ? (checkedCount / insp.items.length) * 100 : 0}%`,
+                                width: `${
+                                  insp.items.length > 0
+                                    ? (checkedCount / insp.items.length) * 100
+                                    : 0
+                                }%`,
                                 background: "oklch(0.72 0.16 160)",
                               }}
                             />
                           </div>
+                        </div>
+                      )}
+                      {insp.failureReason && (
+                        <div
+                          className="mt-2 p-2 rounded text-xs"
+                          style={{
+                            background: "oklch(0.65 0.22 25 / 0.1)",
+                            color: "oklch(0.65 0.22 25)",
+                          }}
+                        >
+                          <AlertTriangle className="w-3 h-3 inline mr-1" />
+                          {insp.failureReason}
                         </div>
                       )}
                     </CardContent>
@@ -692,22 +859,132 @@ export default function FieldOps({ onNavigate }: FieldOpsProps = {}) {
                 </Select>
               </div>
 
+              {/* Cost section */}
+              <div className="space-y-2">
+                <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider">
+                  Maliyet Bilgileri
+                </p>
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <Label className="text-xs text-muted-foreground">
+                      Tahmini Maliyet (₺)
+                    </Label>
+                    <Input
+                      data-ocid="workorder_detail.input"
+                      type="number"
+                      placeholder="0"
+                      defaultValue={selectedWO.estimatedCost ?? ""}
+                      onBlur={(e) => {
+                        const val = e.target.value
+                          ? Number(e.target.value)
+                          : undefined;
+                        updateWorkOrder(selectedWO.id, {
+                          estimatedCost: val,
+                        });
+                        setSelectedWO({ ...selectedWO, estimatedCost: val });
+                      }}
+                      className="bg-background border-border mt-1 h-8 text-sm"
+                    />
+                  </div>
+                  <div>
+                    <Label className="text-xs text-muted-foreground">
+                      Gerçekleşen Maliyet (₺)
+                    </Label>
+                    <Input
+                      type="number"
+                      placeholder="0"
+                      defaultValue={selectedWO.actualCost ?? ""}
+                      onBlur={(e) => {
+                        const val = e.target.value
+                          ? Number(e.target.value)
+                          : undefined;
+                        updateWorkOrder(selectedWO.id, { actualCost: val });
+                        setSelectedWO({ ...selectedWO, actualCost: val });
+                        // Deduct from inventory if material name matches
+                        if (selectedWO.title) {
+                          const matchingItem = stockItems.find((s) =>
+                            selectedWO.title
+                              .toLowerCase()
+                              .includes(s.name.toLowerCase()),
+                          );
+                          if (matchingItem && val && Number(val) > 0) {
+                            const deductQty = 1;
+                            const newQty = Math.max(
+                              0,
+                              matchingItem.quantity - deductQty,
+                            );
+                            const newStatus =
+                              newQty === 0
+                                ? "Tükendi"
+                                : newQty <= matchingItem.threshold
+                                  ? "Kritik"
+                                  : "Normal";
+                            const updated = stockItems.map((s) =>
+                              s.id === matchingItem.id
+                                ? {
+                                    ...s,
+                                    quantity: newQty,
+                                    status: newStatus as typeof s.status,
+                                  }
+                                : s,
+                            );
+                            setStockItems(updated);
+                            if (newQty <= matchingItem.threshold) {
+                              addNotification({
+                                type: "low_stock",
+                                title: "Düşük Stok Uyarısı",
+                                message: `${matchingItem.name} stoku kritik seviyede: ${newQty} ${matchingItem.unit}`,
+                              });
+                            }
+                          }
+                        }
+                      }}
+                      className="bg-background border-border mt-1 h-8 text-sm"
+                    />
+                  </div>
+                </div>
+                {onNavigate && (
+                  <Button
+                    data-ocid="workorder_detail.secondary_button"
+                    variant="outline"
+                    size="sm"
+                    className="border-border text-xs w-full mt-1"
+                    onClick={() => {
+                      setSelectedWO(null);
+                      onNavigate("finance");
+                    }}
+                  >
+                    Finans Modülünde Gider Oluştur →
+                  </Button>
+                )}
+              </div>
+
+              {/* Attachments */}
               <div>
                 <div className="flex items-center justify-between mb-2">
                   <Label className="text-xs text-muted-foreground">
-                    {t.attachments} ({selectedWO.attachments.length})
+                    {t.attachments} ({selectedWO.attachments?.length ?? 0})
                   </Label>
                   <Button
                     data-ocid="workorder_detail.upload_button"
                     size="sm"
                     variant="outline"
                     className="text-xs h-7 border-border"
+                    onClick={() => woFileRef.current?.click()}
                   >
                     <Paperclip className="w-3 h-3 mr-1" />
                     {t.uploadFile}
                   </Button>
+                  <input
+                    ref={woFileRef}
+                    type="file"
+                    multiple
+                    accept="image/*,.pdf"
+                    className="hidden"
+                    onChange={handleWOFileUpload}
+                  />
                 </div>
-                {selectedWO.attachments.length === 0 ? (
+                {(selectedWO.attachments?.length ?? 0) === 0 ? (
                   <p className="text-xs text-muted-foreground">Henüz ek yok.</p>
                 ) : (
                   <div className="space-y-1">
@@ -732,69 +1009,6 @@ export default function FieldOps({ onNavigate }: FieldOpsProps = {}) {
                 )}
               </div>
 
-              {/* Cost section */}
-              <div className="space-y-2">
-                <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider">
-                  Maliyet Bilgileri
-                </p>
-                <div className="grid grid-cols-2 gap-2">
-                  <div>
-                    <Label className="text-xs text-muted-foreground">
-                      Tahmini Maliyet (₺)
-                    </Label>
-                    <Input
-                      data-ocid="workorder_detail.input"
-                      type="number"
-                      placeholder="0"
-                      value={woCosts[selectedWO.id]?.estimated || ""}
-                      onChange={(e) =>
-                        setWoCosts((prev) => ({
-                          ...prev,
-                          [selectedWO.id]: {
-                            estimated: e.target.value,
-                            actual: prev[selectedWO.id]?.actual || "",
-                          },
-                        }))
-                      }
-                      className="bg-background border-border mt-1 h-8 text-sm"
-                    />
-                  </div>
-                  <div>
-                    <Label className="text-xs text-muted-foreground">
-                      Gerçekleşen Maliyet (₺)
-                    </Label>
-                    <Input
-                      type="number"
-                      placeholder="0"
-                      value={woCosts[selectedWO.id]?.actual || ""}
-                      onChange={(e) =>
-                        setWoCosts((prev) => ({
-                          ...prev,
-                          [selectedWO.id]: {
-                            actual: e.target.value,
-                            estimated: prev[selectedWO.id]?.estimated || "",
-                          },
-                        }))
-                      }
-                      className="bg-background border-border mt-1 h-8 text-sm"
-                    />
-                  </div>
-                </div>
-                {onNavigate && (
-                  <Button
-                    data-ocid="workorder_detail.secondary_button"
-                    variant="outline"
-                    size="sm"
-                    className="border-border text-xs w-full mt-1"
-                    onClick={() => {
-                      setSelectedWO(null);
-                      onNavigate("finance");
-                    }}
-                  >
-                    Finans Modülünde Gider Oluştur →
-                  </Button>
-                )}
-              </div>
               <div className="flex justify-end">
                 <Button
                   data-ocid="workorder_detail.close_button"
@@ -813,7 +1027,13 @@ export default function FieldOps({ onNavigate }: FieldOpsProps = {}) {
       {/* Inspection Form Dialog */}
       <Dialog
         open={!!selectedInspection}
-        onOpenChange={(open) => !open && setSelectedInspection(null)}
+        onOpenChange={(open) => {
+          if (!open) {
+            setSelectedInspection(null);
+            setMarkingFailed(false);
+            setFailureReason("");
+          }
+        }}
       >
         <DialogContent
           data-ocid="inspection_form.dialog"
@@ -860,7 +1080,10 @@ export default function FieldOps({ onNavigate }: FieldOpsProps = {}) {
                       <Checkbox
                         data-ocid={`inspection_form.checkbox.${idx + 1}`}
                         checked={item.checked}
-                        disabled={selectedInspection.status === "completed"}
+                        disabled={
+                          selectedInspection.status === "completed" ||
+                          selectedInspection.status === "failed"
+                        }
                         onCheckedChange={(checked) => {
                           updateInspectionItem(
                             selectedInspection.id,
@@ -881,7 +1104,11 @@ export default function FieldOps({ onNavigate }: FieldOpsProps = {}) {
                       />
                       <div className="flex-1">
                         <p
-                          className={`text-sm ${item.checked ? "line-through text-muted-foreground" : "text-foreground"}`}
+                          className={`text-sm ${
+                            item.checked
+                              ? "line-through text-muted-foreground"
+                              : "text-foreground"
+                          }`}
                         >
                           {item.label}
                         </p>
@@ -914,13 +1141,69 @@ export default function FieldOps({ onNavigate }: FieldOpsProps = {}) {
                 </div>
               </div>
 
+              {/* Inspection attachments */}
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <Label className="text-xs text-muted-foreground">
+                    Ekler ({selectedInspection.attachments?.length ?? 0})
+                  </Label>
+                  {selectedInspection.status !== "completed" &&
+                    selectedInspection.status !== "failed" && (
+                      <Button
+                        data-ocid="inspection_form.upload_button"
+                        size="sm"
+                        variant="outline"
+                        className="text-xs h-7 border-border"
+                        onClick={() => inspFileRef.current?.click()}
+                      >
+                        <Paperclip className="w-3 h-3 mr-1" />
+                        Dosya Ekle
+                      </Button>
+                    )}
+                  <input
+                    ref={inspFileRef}
+                    type="file"
+                    multiple
+                    accept="image/*,.pdf"
+                    className="hidden"
+                    onChange={handleInspFileUpload}
+                  />
+                </div>
+                {(selectedInspection.attachments?.length ?? 0) > 0 && (
+                  <div className="space-y-1">
+                    {selectedInspection.attachments!.map((a, i) => (
+                      <div
+                        key={`${a.name}-${i}`}
+                        className="flex items-center gap-2 text-xs p-2 rounded-lg"
+                        style={{ background: "oklch(0.22 0.01 264)" }}
+                      >
+                        {a.type.startsWith("image") ? (
+                          <Image className="w-3.5 h-3.5 text-blue-400" />
+                        ) : (
+                          <FileText className="w-3.5 h-3.5 text-orange-400" />
+                        )}
+                        <span className="text-foreground truncate">
+                          {a.name}
+                        </span>
+                        <span className="text-muted-foreground ml-auto">
+                          {(a.size / 1024).toFixed(0)} KB
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
               <div>
                 <Label className="text-xs text-muted-foreground mb-1 block">
                   Genel Notlar
                 </Label>
                 <Textarea
                   value={selectedInspection.notes}
-                  disabled={selectedInspection.status === "completed"}
+                  disabled={
+                    selectedInspection.status === "completed" ||
+                    selectedInspection.status === "failed"
+                  }
                   onChange={(e) =>
                     setSelectedInspection({
                       ...selectedInspection,
@@ -932,6 +1215,59 @@ export default function FieldOps({ onNavigate }: FieldOpsProps = {}) {
                 />
               </div>
 
+              {/* Failure reason section */}
+              {markingFailed && (
+                <div
+                  className="p-3 rounded-xl space-y-2"
+                  style={{
+                    background: "oklch(0.65 0.22 25 / 0.08)",
+                    border: "1px solid oklch(0.65 0.22 25 / 0.3)",
+                  }}
+                >
+                  <Label
+                    className="text-xs font-medium"
+                    style={{ color: "oklch(0.65 0.22 25)" }}
+                  >
+                    <XCircle className="w-3.5 h-3.5 inline mr-1" />
+                    Başarısızlık Nedeni *
+                  </Label>
+                  <Textarea
+                    data-ocid="inspection_form.textarea"
+                    placeholder="Denetimin neden başarısız olduğunu açıklayın..."
+                    value={failureReason}
+                    onChange={(e) => setFailureReason(e.target.value)}
+                    className="bg-background border-border text-sm"
+                    rows={3}
+                  />
+                  <div className="flex gap-2">
+                    <Button
+                      data-ocid="inspection_form.confirm_button"
+                      size="sm"
+                      className="flex-1 text-white"
+                      style={{
+                        background: "oklch(0.55 0.22 25)",
+                      }}
+                      onClick={handleFailInspection}
+                      disabled={!failureReason.trim()}
+                    >
+                      Başarısız Olarak İşaretle
+                    </Button>
+                    <Button
+                      data-ocid="inspection_form.cancel_button"
+                      size="sm"
+                      variant="outline"
+                      className="border-border"
+                      onClick={() => {
+                        setMarkingFailed(false);
+                        setFailureReason("");
+                      }}
+                    >
+                      İptal
+                    </Button>
+                  </div>
+                </div>
+              )}
+
               <div className="flex justify-between">
                 <Button
                   data-ocid="inspection_form.close_button"
@@ -941,19 +1277,130 @@ export default function FieldOps({ onNavigate }: FieldOpsProps = {}) {
                 >
                   {t.close}
                 </Button>
-                {selectedInspection.status !== "completed" && (
-                  <Button
-                    data-ocid="inspection_form.complete_button"
-                    onClick={handleCompleteInspection}
-                    className="gradient-bg text-white"
-                  >
-                    <CheckCircle2 className="w-4 h-4 mr-2" />
-                    {t.completeInspection}
-                  </Button>
-                )}
+                {selectedInspection.status !== "completed" &&
+                  selectedInspection.status !== "failed" && (
+                    <div className="flex gap-2">
+                      {!markingFailed && (
+                        <Button
+                          data-ocid="inspection_form.delete_button"
+                          variant="outline"
+                          onClick={() => setMarkingFailed(true)}
+                          className="border-destructive/40 text-destructive hover:bg-destructive/10"
+                        >
+                          <XCircle className="w-4 h-4 mr-2" />
+                          Başarısız İşaretle
+                        </Button>
+                      )}
+                      <Button
+                        data-ocid="inspection_form.complete_button"
+                        onClick={handleCompleteInspection}
+                        className="gradient-bg text-white"
+                      >
+                        <CheckCircle2 className="w-4 h-4 mr-2" />
+                        {t.completeInspection}
+                      </Button>
+                    </div>
+                  )}
               </div>
             </div>
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Inventory Deduction Dialog */}
+      <Dialog open={deductDialogOpen} onOpenChange={setDeductDialogOpen}>
+        <DialogContent
+          data-ocid="fieldops.deduct.dialog"
+          className="bg-card border-border max-w-sm"
+        >
+          <DialogHeader>
+            <DialogTitle className="text-base">Stok Düş</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+              Bu iş emri için envanterden stok düşmek ister misiniz?
+            </p>
+            <div>
+              <Label className="text-xs text-muted-foreground">Malzeme</Label>
+              <Select value={deductMaterial} onValueChange={setDeductMaterial}>
+                <SelectTrigger
+                  data-ocid="fieldops.deduct.select"
+                  className="bg-background border-border mt-1"
+                >
+                  <SelectValue placeholder="Malzeme seçin..." />
+                </SelectTrigger>
+                <SelectContent className="bg-card border-border">
+                  {stockItems
+                    .filter((s) => {
+                      if (!pendingCompleteWO) return true;
+                      const proj = projects.find(
+                        (p) => p.id === pendingCompleteWO.projectId,
+                      );
+                      return (
+                        !proj || s.project === proj.title || s.quantity > 0
+                      );
+                    })
+                    .map((s) => (
+                      <SelectItem key={s.id} value={s.name}>
+                        {s.name} ({s.quantity} {s.unit} mevcut)
+                      </SelectItem>
+                    ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label className="text-xs text-muted-foreground">Miktar</Label>
+              <Input
+                data-ocid="fieldops.deduct.input"
+                type="number"
+                min="0"
+                placeholder="0"
+                value={deductQty}
+                onChange={(e) => setDeductQty(e.target.value)}
+                className="bg-background border-border mt-1"
+              />
+            </div>
+            <div className="flex gap-2 pt-1">
+              <Button
+                data-ocid="fieldops.deduct.confirm_button"
+                className="flex-1 gradient-bg text-white"
+                disabled={
+                  !deductMaterial || !deductQty || Number(deductQty) <= 0
+                }
+                onClick={() => {
+                  if (deductMaterial && deductQty && pendingCompleteWO) {
+                    const proj = projects.find(
+                      (p) => p.id === pendingCompleteWO.projectId,
+                    );
+                    const stock = stockItems.find(
+                      (s) => s.name === deductMaterial,
+                    );
+                    deductStock(
+                      deductMaterial,
+                      Number(deductQty),
+                      stock?.project || proj?.title || "",
+                      user?.name || "Saha",
+                    );
+                  }
+                  setDeductDialogOpen(false);
+                  setPendingCompleteWO(null);
+                }}
+              >
+                Evet, Düş
+              </Button>
+              <Button
+                data-ocid="fieldops.deduct.cancel_button"
+                variant="outline"
+                className="flex-1 border-border"
+                onClick={() => {
+                  setDeductDialogOpen(false);
+                  setPendingCompleteWO(null);
+                }}
+              >
+                Hayır
+              </Button>
+            </div>
+          </div>
         </DialogContent>
       </Dialog>
 

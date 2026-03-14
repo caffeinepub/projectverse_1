@@ -7,6 +7,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { Sheet, SheetContent } from "@/components/ui/sheet";
 import {
   BarChart3,
   Bell,
@@ -32,6 +33,7 @@ import {
 } from "lucide-react";
 import { type ReactNode, useState } from "react";
 import { ROLE_HIERARCHY, useApp } from "../contexts/AppContext";
+import { useIsMobile } from "../hooks/use-mobile";
 import { LANGUAGES, type Lang } from "../i18n/translations";
 
 // Maps nav module key to the module id used in permissions
@@ -59,16 +61,27 @@ const ROLE_DEFAULT_MODULES: Record<string, string[]> = {
     "inventory",
     "qualitySafety",
     "crm",
-    "reports",
+    "reporting",
     "settings",
   ],
-  manager_teknik: ["dashboard", "projects", "fieldOps", "settings"],
+  manager_teknik: [
+    "dashboard",
+    "projects",
+    "fieldOps",
+    "purchasing",
+    "inventory",
+    "reporting",
+    "settings",
+  ],
   manager_idari: [
     "dashboard",
     "projects",
     "hr",
     "finance",
     "documents",
+    "purchasing",
+    "inventory",
+    "reporting",
     "settings",
   ],
   personnel_teknik: ["dashboard", "projects", "fieldOps"],
@@ -76,12 +89,80 @@ const ROLE_DEFAULT_MODULES: Record<string, string[]> = {
   subcontractor: ["fieldOps", "projects"],
 };
 
+const NAV_GROUPS: { label: string; keys: string[] }[] = [
+  {
+    label: "ANA MENÜ",
+    keys: ["dashboard", "projects", "fieldOps", "communication", "documents"],
+  },
+  { label: "OPERASYONLAR", keys: ["hr", "finance", "purchasing", "inventory"] },
+  { label: "ANALİTİK", keys: ["reporting", "qualitySafety", "crm"] },
+];
+
 interface NavItem {
   key: string;
   icon: ReactNode;
   label: string;
   href: string;
   available: boolean;
+}
+
+function NavList({
+  items,
+  currentPage,
+  onNavigate,
+  sidebarOpen,
+  t,
+}: {
+  items: NavItem[];
+  currentPage: string;
+  onNavigate: (page: string) => void;
+  sidebarOpen: boolean;
+  t: Record<string, string>;
+}) {
+  const itemMap = Object.fromEntries(items.map((item) => [item.key, item]));
+  return (
+    <>
+      {NAV_GROUPS.map((group) => {
+        const groupItems = group.keys.map((k) => itemMap[k]).filter(Boolean);
+        if (groupItems.length === 0) return null;
+        return (
+          <div key={group.label}>
+            {sidebarOpen && (
+              <p className="px-3 pt-3 pb-1 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/50">
+                {group.label}
+              </p>
+            )}
+            {groupItems.map((item) => (
+              <button
+                key={item.key}
+                type="button"
+                data-ocid={`sidebar.${item.href}_link`}
+                onClick={() => item.available && onNavigate(item.href)}
+                className={`sidebar-item w-full ${
+                  currentPage === item.href ? "active" : ""
+                } ${!item.available ? "opacity-50 cursor-default" : "cursor-pointer"}`}
+              >
+                <span className="flex-shrink-0">{item.icon}</span>
+                {sidebarOpen && (
+                  <>
+                    <span className="flex-1 text-left">{item.label}</span>
+                    {!item.available && (
+                      <Badge
+                        variant="outline"
+                        className="text-[10px] px-1.5 py-0 border-muted-foreground/30 text-muted-foreground"
+                      >
+                        {t.comingSoon}
+                      </Badge>
+                    )}
+                  </>
+                )}
+              </button>
+            ))}
+          </div>
+        );
+      })}
+    </>
+  );
 }
 
 export default function Layout({
@@ -105,8 +186,14 @@ export default function Layout({
     companies,
     activeRoleId,
     activeSubType,
+    notifications,
+    markNotificationRead,
+    clearAllNotifications,
   } = useApp();
+  const unreadCount = notifications.filter((n) => !n.read).length;
+  const isMobile = useIsMobile();
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [mobileSheetOpen, setMobileSheetOpen] = useState(false);
 
   // Find current user's member entry for permission checks
   const memberEntry = currentCompany?.members?.find(
@@ -135,7 +222,6 @@ export default function Layout({
   const canViewModule = (moduleKey: string): boolean => {
     if (isOwner) return true;
     if (!memberEntry) {
-      // Use role-based defaults if no member entry
       const roleKey = getRoleKey();
       return ROLE_DEFAULT_MODULES[roleKey]?.includes(moduleKey) ?? false;
     }
@@ -199,14 +285,14 @@ export default function Layout({
       icon: <ShoppingCart className="w-4 h-4" />,
       label: t.purchasing,
       href: "purchasing",
-      available: false,
+      available: true,
     },
     {
       key: "inventory",
       icon: <Package className="w-4 h-4" />,
       label: t.inventory,
       href: "inventory",
-      available: false,
+      available: true,
     },
     {
       key: "qualitySafety",
@@ -223,11 +309,11 @@ export default function Layout({
       available: false,
     },
     {
-      key: "reports",
+      key: "reporting",
       icon: <BarChart3 className="w-4 h-4" />,
       label: t.reports,
-      href: "reports",
-      available: false,
+      href: "reporting",
+      available: true,
     },
   ];
 
@@ -257,151 +343,267 @@ export default function Layout({
   );
   const hasMultipleCompanies = userCompanies.length > 1;
 
-  return (
-    <div className="flex h-screen overflow-hidden bg-background">
-      <aside
-        className={`flex-shrink-0 flex flex-col transition-all duration-300 ${sidebarOpen ? "w-64" : "w-16"}`}
-        style={{
-          background: "oklch(0.16 0.01 264)",
-          borderRight: "1px solid oklch(0.26 0.01 264)",
-        }}
+  const sidebarContent = (
+    <>
+      <div
+        className="flex items-center gap-3 px-4 py-5 border-b"
+        style={{ borderColor: "oklch(0.26 0.01 264)" }}
       >
-        <div
-          className="flex items-center gap-3 px-4 py-5 border-b"
-          style={{ borderColor: "oklch(0.26 0.01 264)" }}
-        >
-          <div className="w-8 h-8 rounded-lg gradient-bg flex items-center justify-center flex-shrink-0">
-            <span className="text-white font-bold text-sm">PV</span>
-          </div>
-          {sidebarOpen && (
-            <span className="font-bold text-lg gradient-text">
-              ProjectVerse
-            </span>
-          )}
+        <div className="w-8 h-8 rounded-lg gradient-bg flex items-center justify-center flex-shrink-0">
+          <span className="text-white font-bold text-sm">PV</span>
         </div>
+        <span className="font-bold text-lg gradient-text">ProjectVerse</span>
+      </div>
 
-        {sidebarOpen && (
-          <div
-            className="px-4 py-3 border-b space-y-2"
-            style={{ borderColor: "oklch(0.26 0.01 264)" }}
-          >
-            {currentCompany && (
-              <div className="flex items-center gap-2">
-                <Building2 className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
-                <p className="text-xs text-muted-foreground truncate">
-                  {currentCompany.name}
-                </p>
-              </div>
-            )}
-            {roleName && (
-              <Badge
-                data-ocid="sidebar.role_badge"
-                className="text-xs"
-                style={{
-                  backgroundColor: `${roleBadgeColor}33`,
-                  color: roleBadgeColor,
-                  border: `1px solid ${roleBadgeColor}55`,
-                }}
-              >
-                {roleName}
-              </Badge>
-            )}
-            {activeSubType && (
-              <p className="text-xs" style={{ color: "oklch(0.55 0.04 264)" }}>
-                {activeSubType}
-              </p>
-            )}
-            <div className="flex gap-1 flex-wrap">
-              {hasMultipleCompanies && (
-                <Button
-                  data-ocid="sidebar.change_company_button"
-                  size="sm"
-                  variant="outline"
-                  onClick={onLogout}
-                  className="text-[10px] h-6 px-2 border-border text-muted-foreground hover:text-foreground"
-                >
-                  Şirket Değiştir
-                </Button>
-              )}
-            </div>
+      <div
+        className="px-4 py-3 border-b space-y-2"
+        style={{ borderColor: "oklch(0.26 0.01 264)" }}
+      >
+        {currentCompany && (
+          <div className="flex items-center gap-2">
+            <Building2 className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
+            <p className="text-xs text-muted-foreground truncate">
+              {currentCompany.name}
+            </p>
           </div>
         )}
-
-        <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
-          {visibleNavItems.map((item) => (
-            <button
-              key={item.key}
-              type="button"
-              data-ocid={`sidebar.${item.href}_link`}
-              onClick={() => item.available && onNavigate(item.href)}
-              className={`sidebar-item w-full ${
-                currentPage === item.href ? "active" : ""
-              } ${!item.available ? "opacity-50 cursor-default" : "cursor-pointer"}`}
+        {roleName && (
+          <Badge
+            data-ocid="sidebar.role_badge"
+            className="text-xs"
+            style={{
+              backgroundColor: `${roleBadgeColor}33`,
+              color: roleBadgeColor,
+              border: `1px solid ${roleBadgeColor}55`,
+            }}
+          >
+            {roleName}
+          </Badge>
+        )}
+        {activeSubType && (
+          <p className="text-xs" style={{ color: "oklch(0.55 0.04 264)" }}>
+            {activeSubType}
+          </p>
+        )}
+        <div className="flex gap-1 flex-wrap">
+          {hasMultipleCompanies && (
+            <Button
+              data-ocid="sidebar.change_company_button"
+              size="sm"
+              variant="outline"
+              onClick={onLogout}
+              className="text-[10px] h-6 px-2 border-border text-muted-foreground hover:text-foreground"
             >
-              <span className="flex-shrink-0">{item.icon}</span>
-              {sidebarOpen && (
-                <>
-                  <span className="flex-1 text-left">{item.label}</span>
-                  {!item.available && (
-                    <Badge
-                      variant="outline"
-                      className="text-[10px] px-1.5 py-0 border-muted-foreground/30 text-muted-foreground"
-                    >
-                      {t.comingSoon}
-                    </Badge>
-                  )}
-                </>
-              )}
-            </button>
-          ))}
-        </nav>
-
-        <div
-          className="px-3 py-3 border-t space-y-1"
-          style={{ borderColor: "oklch(0.26 0.01 264)" }}
-        >
-          {canViewModule("settings") && (
-            <button
-              type="button"
-              data-ocid="sidebar.settings_link"
-              onClick={() => onNavigate("settings")}
-              className={`sidebar-item w-full cursor-pointer ${
-                currentPage === "settings" ? "active" : ""
-              }`}
-            >
-              <Settings className="w-4 h-4 flex-shrink-0" />
-              {sidebarOpen && (
-                <span className="flex-1 text-left">{t.settings}</span>
-              )}
-            </button>
+              Şirket Değiştir
+            </Button>
           )}
         </div>
-      </aside>
+      </div>
 
-      <div className="flex-1 flex flex-col overflow-hidden">
+      <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
+        <NavList
+          items={visibleNavItems}
+          currentPage={currentPage}
+          onNavigate={(page) => {
+            onNavigate(page);
+            setMobileSheetOpen(false);
+          }}
+          sidebarOpen={true}
+          t={t as unknown as Record<string, string>}
+        />
+      </nav>
+
+      <div
+        className="px-3 py-3 border-t space-y-1"
+        style={{ borderColor: "oklch(0.26 0.01 264)" }}
+      >
+        {canViewModule("settings") && (
+          <button
+            type="button"
+            data-ocid="sidebar.settings_link"
+            onClick={() => {
+              onNavigate("settings");
+              setMobileSheetOpen(false);
+            }}
+            className={`sidebar-item w-full cursor-pointer ${
+              currentPage === "settings" ? "active" : ""
+            }`}
+          >
+            <Settings className="w-4 h-4 flex-shrink-0" />
+            <span className="flex-1 text-left">{t.settings}</span>
+          </button>
+        )}
+      </div>
+    </>
+  );
+
+  return (
+    <div className="flex h-screen overflow-hidden bg-background">
+      {/* Desktop sidebar */}
+      {!isMobile && (
+        <aside
+          className={`flex-shrink-0 flex flex-col transition-all duration-300 ${
+            sidebarOpen ? "w-64" : "w-16"
+          }`}
+          style={{
+            background: "oklch(0.16 0.01 264)",
+            borderRight: "1px solid oklch(0.26 0.01 264)",
+          }}
+        >
+          <div
+            className="flex items-center gap-3 px-4 py-5 border-b"
+            style={{ borderColor: "oklch(0.26 0.01 264)" }}
+          >
+            <div className="w-8 h-8 rounded-lg gradient-bg flex items-center justify-center flex-shrink-0">
+              <span className="text-white font-bold text-sm">PV</span>
+            </div>
+            {sidebarOpen && (
+              <span className="font-bold text-lg gradient-text">
+                ProjectVerse
+              </span>
+            )}
+          </div>
+
+          {sidebarOpen && (
+            <div
+              className="px-4 py-3 border-b space-y-2"
+              style={{ borderColor: "oklch(0.26 0.01 264)" }}
+            >
+              {currentCompany && (
+                <div className="flex items-center gap-2">
+                  <Building2 className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
+                  <p className="text-xs text-muted-foreground truncate">
+                    {currentCompany.name}
+                  </p>
+                </div>
+              )}
+              {roleName && (
+                <Badge
+                  data-ocid="sidebar.role_badge"
+                  className="text-xs"
+                  style={{
+                    backgroundColor: `${roleBadgeColor}33`,
+                    color: roleBadgeColor,
+                    border: `1px solid ${roleBadgeColor}55`,
+                  }}
+                >
+                  {roleName}
+                </Badge>
+              )}
+              {activeSubType && (
+                <p
+                  className="text-xs"
+                  style={{ color: "oklch(0.55 0.04 264)" }}
+                >
+                  {activeSubType}
+                </p>
+              )}
+              <div className="flex gap-1 flex-wrap">
+                {hasMultipleCompanies && (
+                  <Button
+                    data-ocid="sidebar.change_company_button"
+                    size="sm"
+                    variant="outline"
+                    onClick={onLogout}
+                    className="text-[10px] h-6 px-2 border-border text-muted-foreground hover:text-foreground"
+                  >
+                    Şirket Değiştir
+                  </Button>
+                )}
+              </div>
+            </div>
+          )}
+
+          <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
+            <NavList
+              items={visibleNavItems}
+              currentPage={currentPage}
+              onNavigate={onNavigate}
+              sidebarOpen={sidebarOpen}
+              t={t as unknown as Record<string, string>}
+            />
+          </nav>
+
+          <div
+            className="px-3 py-3 border-t space-y-1"
+            style={{ borderColor: "oklch(0.26 0.01 264)" }}
+          >
+            {canViewModule("settings") && (
+              <button
+                type="button"
+                data-ocid="sidebar.settings_link"
+                onClick={() => onNavigate("settings")}
+                className={`sidebar-item w-full cursor-pointer ${
+                  currentPage === "settings" ? "active" : ""
+                }`}
+              >
+                <Settings className="w-4 h-4 flex-shrink-0" />
+                {sidebarOpen && (
+                  <span className="flex-1 text-left">{t.settings}</span>
+                )}
+              </button>
+            )}
+          </div>
+        </aside>
+      )}
+
+      {/* Mobile Sheet drawer */}
+      {isMobile && (
+        <Sheet open={mobileSheetOpen} onOpenChange={setMobileSheetOpen}>
+          <SheetContent
+            side="left"
+            className="p-0 w-72 flex flex-col"
+            style={{
+              background: "oklch(0.16 0.01 264)",
+              border: "none",
+            }}
+          >
+            {sidebarContent}
+          </SheetContent>
+        </Sheet>
+      )}
+
+      <div className="flex-1 flex flex-col overflow-hidden min-w-0">
         <header
-          className="flex items-center justify-between px-6 py-4 border-b flex-shrink-0"
+          className="flex items-center justify-between px-4 md:px-6 py-4 border-b flex-shrink-0"
           style={{
             background: "oklch(0.16 0.01 264)",
             borderColor: "oklch(0.26 0.01 264)",
           }}
         >
           <div className="flex items-center gap-3">
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => setSidebarOpen(!sidebarOpen)}
-              className="text-muted-foreground hover:text-foreground"
-            >
-              {sidebarOpen ? (
-                <X className="w-4 h-4" />
-              ) : (
+            {isMobile ? (
+              <Button
+                data-ocid="sidebar.mobile_toggle"
+                variant="ghost"
+                size="icon"
+                onClick={() => setMobileSheetOpen(true)}
+                className="text-muted-foreground hover:text-foreground"
+              >
                 <Menu className="w-4 h-4" />
-              )}
-            </Button>
+              </Button>
+            ) : (
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => setSidebarOpen(!sidebarOpen)}
+                className="text-muted-foreground hover:text-foreground"
+              >
+                {sidebarOpen ? (
+                  <X className="w-4 h-4" />
+                ) : (
+                  <Menu className="w-4 h-4" />
+                )}
+              </Button>
+            )}
+            {isMobile && (
+              <span className="font-bold text-base gradient-text">
+                ProjectVerse
+              </span>
+            )}
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 md:gap-3">
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button
@@ -429,14 +631,122 @@ export default function Layout({
               </DropdownMenuContent>
             </DropdownMenu>
 
-            <Button
-              variant="ghost"
-              size="icon"
-              className="text-muted-foreground hover:text-foreground relative"
-            >
-              <Bell className="w-4 h-4" />
-              <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-primary" />
-            </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  data-ocid="layout.notifications_button"
+                  variant="ghost"
+                  size="icon"
+                  className="text-muted-foreground hover:text-foreground relative"
+                >
+                  <Bell className="w-4 h-4" />
+                  {unreadCount > 0 && (
+                    <span className="absolute top-1 right-1 min-w-[16px] h-4 rounded-full bg-primary text-white text-[9px] font-bold flex items-center justify-center px-0.5">
+                      {unreadCount > 9 ? "9+" : unreadCount}
+                    </span>
+                  )}
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent
+                data-ocid="layout.notifications_dropdown"
+                align="end"
+                className="bg-card border-border w-80 max-h-96 overflow-y-auto"
+              >
+                <div className="px-3 py-2 flex items-center justify-between border-b border-border">
+                  <span className="text-sm font-semibold text-foreground">
+                    Bildirimler
+                  </span>
+                  {notifications.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={clearAllNotifications}
+                      className="text-xs text-muted-foreground hover:text-foreground"
+                    >
+                      Tümünü temizle
+                    </button>
+                  )}
+                </div>
+                {notifications.length === 0 ? (
+                  <div className="px-3 py-6 text-center text-sm text-muted-foreground">
+                    Bildirim yok
+                  </div>
+                ) : (
+                  (() => {
+                    const now = new Date();
+                    const startOfToday = new Date(
+                      now.getFullYear(),
+                      now.getMonth(),
+                      now.getDate(),
+                    );
+                    const startOfWeek = new Date(startOfToday);
+                    startOfWeek.setDate(startOfToday.getDate() - 7);
+                    const groups: {
+                      label: string;
+                      items: typeof notifications;
+                    }[] = [
+                      {
+                        label: "Bugün",
+                        items: notifications.filter(
+                          (n) => new Date(n.timestamp) >= startOfToday,
+                        ),
+                      },
+                      {
+                        label: "Bu Hafta",
+                        items: notifications.filter(
+                          (n) =>
+                            new Date(n.timestamp) >= startOfWeek &&
+                            new Date(n.timestamp) < startOfToday,
+                        ),
+                      },
+                      {
+                        label: "Daha Önce",
+                        items: notifications.filter(
+                          (n) => new Date(n.timestamp) < startOfWeek,
+                        ),
+                      },
+                    ].filter((g) => g.items.length > 0);
+                    return groups.map((group) => (
+                      <div key={group.label}>
+                        <div className="px-3 py-1.5 flex items-center gap-2">
+                          <span className="text-[10px] font-semibold text-muted-foreground/60 uppercase tracking-wider">
+                            {group.label}
+                          </span>
+                          <div className="flex-1 h-px bg-border/40" />
+                        </div>
+                        {group.items.slice(0, 5).map((n) => (
+                          <DropdownMenuItem
+                            key={n.id}
+                            onClick={() => markNotificationRead(n.id)}
+                            className={`cursor-pointer flex flex-col items-start gap-0.5 py-2.5 px-3 ${!n.read ? "bg-primary/5" : ""}`}
+                          >
+                            <div className="flex items-center gap-2 w-full">
+                              {!n.read && (
+                                <span className="w-1.5 h-1.5 rounded-full bg-primary flex-shrink-0" />
+                              )}
+                              <span className="text-xs font-semibold text-foreground truncate flex-1">
+                                {n.title}
+                              </span>
+                              <span className="text-[10px] text-muted-foreground flex-shrink-0">
+                                {new Date(n.timestamp).toLocaleDateString(
+                                  "tr-TR",
+                                  {
+                                    day: "2-digit",
+                                    month: "short",
+                                  },
+                                )}
+                              </span>
+                            </div>
+                            <span className="text-xs text-muted-foreground line-clamp-2 pl-3.5">
+                              {n.message}
+                            </span>
+                          </DropdownMenuItem>
+                        ))}
+                      </div>
+                    ));
+                  })()
+                )}
+              </DropdownMenuContent>
+            </DropdownMenu>
 
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
@@ -478,7 +788,7 @@ export default function Layout({
           </div>
         </header>
 
-        <main className="flex-1 overflow-y-auto p-6">{children}</main>
+        <main className="flex-1 overflow-y-auto p-4 md:p-6">{children}</main>
       </div>
     </div>
   );

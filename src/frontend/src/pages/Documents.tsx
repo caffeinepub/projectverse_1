@@ -10,6 +10,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Progress } from "@/components/ui/progress";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   Table,
@@ -20,6 +21,8 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import {
+  ChevronRight,
+  Clock,
   Download,
   File,
   FileImage,
@@ -27,192 +30,18 @@ import {
   FileText,
   Folder,
   FolderOpen,
+  FolderPlus,
   Search,
   Trash2,
   Upload,
+  X,
 } from "lucide-react";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import AccessDenied from "../components/AccessDenied";
+import type { DocFile, DocFolder } from "../contexts/AppContext";
 import { useApp } from "../contexts/AppContext";
 
-interface DocFile {
-  id: string;
-  name: string;
-  type: "PDF" | "DOC" | "IMG" | "XLS";
-  size: string;
-  uploadedBy: string;
-  date: string;
-  folderId: string;
-}
-
-interface DocFolder {
-  id: string;
-  name: string;
-  section: "Genel" | string;
-  fileCount: number;
-}
-
-const FOLDERS: DocFolder[] = [
-  { id: "genel", name: "Genel Belgeler", section: "Genel", fileCount: 4 },
-  { id: "p1", name: "İstanbul Rezidans", section: "Projeler", fileCount: 3 },
-  { id: "p2", name: "Ankara Plaza", section: "Projeler", fileCount: 4 },
-  { id: "p3", name: "İzmir Liman", section: "Projeler", fileCount: 3 },
-  { id: "p4", name: "Bursa Konutları", section: "Projeler", fileCount: 2 },
-];
-
-const ALL_FILES: DocFile[] = [
-  // Genel
-  {
-    id: "f1",
-    name: "Şirket Ana Sözleşmesi.pdf",
-    type: "PDF",
-    size: "2.4 MB",
-    uploadedBy: "Ahmet Yılmaz",
-    date: "2025-12-01",
-    folderId: "genel",
-  },
-  {
-    id: "f2",
-    name: "İSG Prosedürleri.pdf",
-    type: "PDF",
-    size: "1.8 MB",
-    uploadedBy: "Fatma Kaya",
-    date: "2026-01-15",
-    folderId: "genel",
-  },
-  {
-    id: "f3",
-    name: "Personel El Kitabı.doc",
-    type: "DOC",
-    size: "980 KB",
-    uploadedBy: "Selin Öztürk",
-    date: "2026-02-10",
-    folderId: "genel",
-  },
-  {
-    id: "f4",
-    name: "Bütçe Şablonu 2026.xls",
-    type: "XLS",
-    size: "540 KB",
-    uploadedBy: "Zeynep Arslan",
-    date: "2026-01-05",
-    folderId: "genel",
-  },
-  // İstanbul Rezidans
-  {
-    id: "f5",
-    name: "İstanbul Proje Planı.pdf",
-    type: "PDF",
-    size: "5.2 MB",
-    uploadedBy: "Ali Çelik",
-    date: "2026-02-20",
-    folderId: "p1",
-  },
-  {
-    id: "f6",
-    name: "Saha Fotoğrafları.img",
-    type: "IMG",
-    size: "18.4 MB",
-    uploadedBy: "Mehmet Demir",
-    date: "2026-03-05",
-    folderId: "p1",
-  },
-  {
-    id: "f7",
-    name: "Hakediş Raporu Şubat.xls",
-    type: "XLS",
-    size: "320 KB",
-    uploadedBy: "Zeynep Arslan",
-    date: "2026-03-01",
-    folderId: "p1",
-  },
-  // Ankara Plaza
-  {
-    id: "f8",
-    name: "Ankara Mimari Proje.pdf",
-    type: "PDF",
-    size: "8.7 MB",
-    uploadedBy: "Ali Çelik",
-    date: "2025-11-10",
-    folderId: "p2",
-  },
-  {
-    id: "f9",
-    name: "Zemin Etüd Raporu.pdf",
-    type: "PDF",
-    size: "3.1 MB",
-    uploadedBy: "Mehmet Demir",
-    date: "2025-12-20",
-    folderId: "p2",
-  },
-  {
-    id: "f10",
-    name: "Proje Takvimi.xls",
-    type: "XLS",
-    size: "210 KB",
-    uploadedBy: "Ahmet Yılmaz",
-    date: "2026-01-18",
-    folderId: "p2",
-  },
-  {
-    id: "f11",
-    name: "Toplantı Notları.doc",
-    type: "DOC",
-    size: "120 KB",
-    uploadedBy: "Fatma Kaya",
-    date: "2026-02-28",
-    folderId: "p2",
-  },
-  // İzmir Liman
-  {
-    id: "f12",
-    name: "Liman İzin Belgesi.pdf",
-    type: "PDF",
-    size: "1.2 MB",
-    uploadedBy: "Ahmet Yılmaz",
-    date: "2026-01-30",
-    folderId: "p3",
-  },
-  {
-    id: "f13",
-    name: "Deniz Yapısı Teknik Şartname.pdf",
-    type: "PDF",
-    size: "4.8 MB",
-    uploadedBy: "Ali Çelik",
-    date: "2026-02-14",
-    folderId: "p3",
-  },
-  {
-    id: "f14",
-    name: "Konteyner Planı.img",
-    type: "IMG",
-    size: "7.2 MB",
-    uploadedBy: "Mehmet Demir",
-    date: "2026-03-08",
-    folderId: "p3",
-  },
-  // Bursa
-  {
-    id: "f15",
-    name: "Bursa Ruhsat Belgesi.pdf",
-    type: "PDF",
-    size: "890 KB",
-    uploadedBy: "Fatma Kaya",
-    date: "2026-02-05",
-    folderId: "p4",
-  },
-  {
-    id: "f16",
-    name: "Konut Planları.img",
-    type: "IMG",
-    size: "12.1 MB",
-    uploadedBy: "Ali Çelik",
-    date: "2026-03-02",
-    folderId: "p4",
-  },
-];
-
-const TYPE_ICONS = {
+const TYPE_ICONS: Record<string, React.ReactNode> = {
   PDF: <FileText className="h-4 w-4 text-rose-400" />,
   DOC: <File className="h-4 w-4 text-blue-400" />,
   IMG: <FileImage className="h-4 w-4 text-emerald-400" />,
@@ -226,8 +55,44 @@ const TYPE_BADGE: Record<string, string> = {
   XLS: "bg-amber-500/15 text-amber-400 border-amber-500/30",
 };
 
+interface FileVersion {
+  version: number;
+  date: string;
+  uploadedBy: string;
+  size: string;
+}
+
+const STORAGE_KEY = (companyId: string | null) => `${companyId}_doc_versions`;
+
+function loadVersions(companyId: string | null): Record<string, FileVersion[]> {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY(companyId));
+    return raw ? JSON.parse(raw) : {};
+  } catch {
+    return {};
+  }
+}
+
+function saveVersions(
+  companyId: string | null,
+  versions: Record<string, FileVersion[]>,
+) {
+  localStorage.setItem(STORAGE_KEY(companyId), JSON.stringify(versions));
+}
+
 export default function Documents() {
-  const { activeRoleId, checkPermission } = useApp();
+  const {
+    activeRoleId,
+    activeCompanyId,
+    checkPermission,
+    docFolders,
+    docFiles,
+    addDocFile,
+    deleteDocFile,
+    addDocFolder,
+    user,
+  } = useApp();
+
   const canView =
     checkPermission("documents", "view") ||
     activeRoleId === "owner" ||
@@ -237,120 +102,308 @@ export default function Documents() {
     activeRoleId === "owner" ||
     activeRoleId === "manager";
 
-  const [selectedFolder, setSelectedFolder] = useState("genel");
+  const [selectedFolder, setSelectedFolder] = useState(docFolders[0]?.id || "");
   const [search, setSearch] = useState("");
-  const [files, setFiles] = useState<DocFile[]>(ALL_FILES);
   const [uploadOpen, setUploadOpen] = useState(false);
-  const [uploadName, setUploadName] = useState("");
+  const [newFolderOpen, setNewFolderOpen] = useState(false);
+  const [newFolderName, setNewFolderName] = useState("");
+  const [newFolderSection, setNewFolderSection] = useState("Şirket");
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [isUploading, setIsUploading] = useState(false);
+  const [selectedFile, setSelectedFile] = useState<DocFile | null>(null);
+  const [versions, setVersions] = useState<Record<string, FileVersion[]>>(() =>
+    loadVersions(activeCompanyId),
+  );
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [pendingFileData, setPendingFileData] = useState<{
+    name: string;
+    size: string;
+    type: DocFile["type"];
+    dataUrl: string;
+  } | null>(null);
 
   if (!canView) return <AccessDenied />;
 
-  const sections = Array.from(new Set(FOLDERS.map((f) => f.section)));
-
-  const folderFiles = files.filter(
+  const sections = Array.from(new Set(docFolders.map((f) => f.section)));
+  const folderFiles = docFiles.filter(
     (f) =>
       f.folderId === selectedFolder &&
       (search === "" || f.name.toLowerCase().includes(search.toLowerCase())),
   );
+  const selectedFolderObj = docFolders.find((f) => f.id === selectedFolder);
 
-  const selectedFolderObj = FOLDERS.find((f) => f.id === selectedFolder);
-
-  const handleDelete = (id: string) => {
-    setFiles((prev) => prev.filter((f) => f.id !== id));
+  const handleFileInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setIsUploading(true);
+    setUploadProgress(0);
+    const reader = new FileReader();
+    reader.onload = () => {
+      let progress = 0;
+      const interval = setInterval(() => {
+        progress += Math.random() * 25;
+        if (progress >= 100) {
+          progress = 100;
+          clearInterval(interval);
+          const ext = file.name.split(".").pop()?.toUpperCase() || "DOC";
+          const typeMap: Record<string, DocFile["type"]> = {
+            PDF: "PDF",
+            DOC: "DOC",
+            DOCX: "DOC",
+            JPG: "IMG",
+            JPEG: "IMG",
+            PNG: "IMG",
+            GIF: "IMG",
+            XLS: "XLS",
+            XLSX: "XLS",
+          };
+          const docType: DocFile["type"] = typeMap[ext] || "DOC";
+          setPendingFileData({
+            name: file.name,
+            size: `${(file.size / 1024).toFixed(1)} KB`,
+            type: docType,
+            dataUrl: reader.result as string,
+          });
+          setIsUploading(false);
+          setUploadProgress(0);
+        }
+        setUploadProgress(Math.min(progress, 100));
+      }, 100);
+    };
+    reader.readAsDataURL(file);
+    if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
   const handleUpload = () => {
-    if (!uploadName) return;
-    const ext = uploadName.split(".").pop()?.toUpperCase() || "DOC";
-    const type = ["PDF", "DOC", "IMG", "XLS"].includes(ext)
-      ? (ext as DocFile["type"])
-      : "DOC";
+    if (!pendingFileData) return;
+    const uploaderName = user?.name || "Ben";
     const newFile: DocFile = {
       id: `f${Date.now()}`,
-      name: uploadName,
-      type,
-      size: "—",
-      uploadedBy: "Ben",
+      name: pendingFileData.name,
+      type: pendingFileData.type,
+      size: pendingFileData.size,
+      uploadedBy: uploaderName,
       date: new Date().toISOString().split("T")[0],
       folderId: selectedFolder,
     };
-    setFiles((prev) => [newFile, ...prev]);
-    setUploadName("");
+    addDocFile(newFile);
+    // Add version history
+    const newVersions = { ...versions };
+    newVersions[newFile.id] = [
+      {
+        version: 1,
+        date: newFile.date,
+        uploadedBy: uploaderName,
+        size: pendingFileData.size,
+      },
+    ];
+    setVersions(newVersions);
+    saveVersions(activeCompanyId, newVersions);
+    setPendingFileData(null);
     setUploadOpen(false);
   };
 
+  const handleDelete = (id: string) => {
+    deleteDocFile(id);
+    if (selectedFile?.id === id) setSelectedFile(null);
+    const newVersions = { ...versions };
+    delete newVersions[id];
+    setVersions(newVersions);
+    saveVersions(activeCompanyId, newVersions);
+  };
+
+  const handleAddFolder = () => {
+    if (!newFolderName.trim()) return;
+    const newFolder: DocFolder = {
+      id: `folder_${Date.now()}`,
+      name: newFolderName.trim(),
+      section: newFolderSection,
+      fileCount: 0,
+    };
+    addDocFolder(newFolder);
+    setSelectedFolder(newFolder.id);
+    setNewFolderName("");
+    setNewFolderOpen(false);
+  };
+
+  const fileVersions = selectedFile ? versions[selectedFile.id] || [] : [];
+
   return (
     <div className="p-6 space-y-4">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <h1 className="text-2xl font-bold gradient-text">Belgeler</h1>
           <p className="text-muted-foreground text-sm mt-1">
             Şirket ve proje belge arşivi
           </p>
         </div>
-        {canEdit && (
-          <Dialog open={uploadOpen} onOpenChange={setUploadOpen}>
+        <div className="flex items-center gap-2">
+          {/* New Folder */}
+          <Dialog open={newFolderOpen} onOpenChange={setNewFolderOpen}>
             <DialogTrigger asChild>
               <Button
-                data-ocid="documents.upload_button"
-                className="gradient-bg text-white"
+                data-ocid="documents.new_folder_button"
+                variant="outline"
+                className="border-border"
               >
-                <Upload className="h-4 w-4 mr-2" />
-                Dosya Yükle
+                <FolderPlus className="h-4 w-4 mr-2" />
+                Yeni Klasör
               </Button>
             </DialogTrigger>
             <DialogContent
-              data-ocid="documents.dialog"
+              data-ocid="documents.new_folder_dialog"
               className="bg-card border-border"
             >
               <DialogHeader>
-                <DialogTitle>Dosya Yükle</DialogTitle>
+                <DialogTitle>Yeni Klasör Oluştur</DialogTitle>
               </DialogHeader>
               <div className="space-y-3">
                 <div>
-                  <Label>Dosya Adı</Label>
+                  <Label>Klasör Adı</Label>
                   <Input
-                    data-ocid="documents.input"
-                    value={uploadName}
-                    onChange={(e) => setUploadName(e.target.value)}
-                    className="bg-background border-border mt-1"
-                    placeholder="belge.pdf"
+                    data-ocid="documents.folder_name.input"
+                    value={newFolderName}
+                    onChange={(e) => setNewFolderName(e.target.value)}
+                    className="mt-1 bg-background border-border"
+                    placeholder="örn: Sözleşmeler"
                   />
                 </div>
-                <div
-                  data-ocid="documents.dropzone"
-                  className="border-2 border-dashed border-border rounded-lg p-8 text-center text-muted-foreground hover:border-primary/40 transition-colors cursor-pointer"
-                >
-                  <Upload className="h-8 w-8 mx-auto mb-2 opacity-40" />
-                  <p className="text-sm">Dosyayı buraya sürükle veya tıkla</p>
-                  <p className="text-xs mt-1">PDF, DOC, XLS, IMG desteklenir</p>
+                <div>
+                  <Label>Bölüm</Label>
+                  <Input
+                    data-ocid="documents.folder_section.input"
+                    value={newFolderSection}
+                    onChange={(e) => setNewFolderSection(e.target.value)}
+                    className="mt-1 bg-background border-border"
+                    placeholder="örn: Şirket"
+                  />
                 </div>
-                <p className="text-xs text-muted-foreground">
-                  Hedef klasör:{" "}
-                  <span className="text-primary font-medium">
-                    {selectedFolderObj?.name}
-                  </span>
-                </p>
               </div>
               <DialogFooter>
                 <Button
                   variant="outline"
-                  data-ocid="documents.cancel_button"
-                  onClick={() => setUploadOpen(false)}
+                  data-ocid="documents.new_folder.cancel_button"
+                  onClick={() => setNewFolderOpen(false)}
                 >
                   İptal
                 </Button>
                 <Button
-                  data-ocid="documents.submit_button"
+                  data-ocid="documents.new_folder.confirm_button"
                   className="gradient-bg text-white"
-                  onClick={handleUpload}
+                  onClick={handleAddFolder}
+                  disabled={!newFolderName.trim()}
                 >
-                  Yükle
+                  Oluştur
                 </Button>
               </DialogFooter>
             </DialogContent>
           </Dialog>
-        )}
+
+          {/* Upload */}
+          {canEdit && (
+            <Dialog open={uploadOpen} onOpenChange={setUploadOpen}>
+              <DialogTrigger asChild>
+                <Button
+                  data-ocid="documents.upload_button"
+                  className="gradient-bg text-white"
+                >
+                  <Upload className="h-4 w-4 mr-2" />
+                  Dosya Yükle
+                </Button>
+              </DialogTrigger>
+              <DialogContent
+                data-ocid="documents.upload_dialog"
+                className="bg-card border-border"
+              >
+                <DialogHeader>
+                  <DialogTitle>Dosya Yükle</DialogTitle>
+                </DialogHeader>
+                <div className="space-y-3">
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/*,.pdf,.doc,.docx,.xls,.xlsx"
+                    className="hidden"
+                    onChange={handleFileInputChange}
+                  />
+                  {!pendingFileData && !isUploading && (
+                    <button
+                      type="button"
+                      data-ocid="documents.dropzone"
+                      onClick={() => fileInputRef.current?.click()}
+                      className="w-full border-2 border-dashed border-border rounded-lg p-8 text-center text-muted-foreground hover:border-primary/40 transition-colors cursor-pointer"
+                    >
+                      <Upload className="h-8 w-8 mx-auto mb-2 opacity-40" />
+                      <p className="text-sm">
+                        Dosyayı buraya sürükle veya tıkla
+                      </p>
+                      <p className="text-xs mt-1">
+                        PDF, DOC, XLS, IMG desteklenir
+                      </p>
+                    </button>
+                  )}
+                  {isUploading && (
+                    <div className="space-y-2">
+                      <p className="text-sm text-muted-foreground">
+                        Yükleniyor... {Math.round(uploadProgress)}%
+                      </p>
+                      <Progress value={uploadProgress} className="h-2" />
+                    </div>
+                  )}
+                  {pendingFileData && (
+                    <div className="space-y-3">
+                      <div className="flex items-center gap-3 bg-primary/10 border border-primary/20 rounded-lg p-3">
+                        {TYPE_ICONS[pendingFileData.type]}
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium truncate">
+                            {pendingFileData.name}
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            {pendingFileData.size}
+                          </p>
+                        </div>
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          className="h-6 w-6"
+                          onClick={() => setPendingFileData(null)}
+                        >
+                          <X className="h-3 w-3" />
+                        </Button>
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        Hedef klasör:{" "}
+                        <span className="text-primary font-medium">
+                          {selectedFolderObj?.name}
+                        </span>
+                      </p>
+                    </div>
+                  )}
+                </div>
+                <DialogFooter>
+                  <Button
+                    variant="outline"
+                    data-ocid="documents.upload.cancel_button"
+                    onClick={() => {
+                      setUploadOpen(false);
+                      setPendingFileData(null);
+                    }}
+                  >
+                    İptal
+                  </Button>
+                  <Button
+                    data-ocid="documents.upload.submit_button"
+                    className="gradient-bg text-white"
+                    onClick={handleUpload}
+                    disabled={!pendingFileData}
+                  >
+                    Yükle
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+          )}
+        </div>
       </div>
 
       <div className="flex gap-4 h-[calc(100vh-12rem)]">
@@ -368,13 +421,17 @@ export default function Documents() {
                   <p className="text-xs text-muted-foreground font-medium px-2 py-1 uppercase tracking-wider">
                     {section}
                   </p>
-                  {FOLDERS.filter((f) => f.section === section).map(
-                    (folder) => (
+                  {docFolders
+                    .filter((f) => f.section === section)
+                    .map((folder, idx) => (
                       <button
                         type="button"
                         key={folder.id}
-                        data-ocid={`documents.${folder.id}.tab`}
-                        onClick={() => setSelectedFolder(folder.id)}
+                        data-ocid={`documents.folder.item.${idx + 1}`}
+                        onClick={() => {
+                          setSelectedFolder(folder.id);
+                          setSelectedFile(null);
+                        }}
                         className={`w-full flex items-center gap-2 px-2 py-2 rounded-lg text-sm transition-all mb-0.5 ${
                           selectedFolder === folder.id
                             ? "gradient-bg text-white"
@@ -393,8 +450,7 @@ export default function Documents() {
                           {folder.fileCount}
                         </span>
                       </button>
-                    ),
-                  )}
+                    ))}
                 </div>
               ))}
             </div>
@@ -402,12 +458,19 @@ export default function Documents() {
         </div>
 
         {/* File List */}
-        <div className="flex-1 bg-card border border-border rounded-xl overflow-hidden flex flex-col">
+        <div
+          className={`flex-1 bg-card border border-border rounded-xl overflow-hidden flex flex-col transition-all ${
+            selectedFile ? "mr-0" : ""
+          }`}
+        >
           <div className="px-4 py-3 border-b border-border flex items-center gap-3">
             <div className="flex items-center gap-2 flex-1">
               <FolderOpen className="h-4 w-4 text-primary" />
               <span className="font-semibold text-sm">
                 {selectedFolderObj?.name}
+              </span>
+              <span className="text-xs text-muted-foreground">
+                ({folderFiles.length} dosya)
               </span>
             </div>
             <div className="relative">
@@ -436,7 +499,7 @@ export default function Documents() {
                 </p>
               </div>
             ) : (
-              <Table>
+              <Table data-ocid="documents.file.table">
                 <TableHeader>
                   <TableRow className="border-border hover:bg-transparent">
                     <TableHead className="text-muted-foreground">Ad</TableHead>
@@ -451,7 +514,10 @@ export default function Documents() {
                       Tarih
                     </TableHead>
                     <TableHead className="text-muted-foreground">
-                      Aksiyonlar
+                      Versiyon
+                    </TableHead>
+                    <TableHead className="text-muted-foreground">
+                      İşlemler
                     </TableHead>
                   </TableRow>
                 </TableHeader>
@@ -460,7 +526,14 @@ export default function Documents() {
                     <TableRow
                       key={file.id}
                       data-ocid={`documents.file.row.${i + 1}`}
-                      className="border-border hover:bg-white/5"
+                      className={`border-border hover:bg-white/5 cursor-pointer ${
+                        selectedFile?.id === file.id ? "bg-primary/5" : ""
+                      }`}
+                      onClick={() =>
+                        setSelectedFile(
+                          selectedFile?.id === file.id ? null : file,
+                        )
+                      }
                     >
                       <TableCell>
                         <div className="flex items-center gap-2">
@@ -488,12 +561,20 @@ export default function Documents() {
                         {file.date}
                       </TableCell>
                       <TableCell>
+                        <Badge variant="outline" className="text-xs">
+                          v{versions[file.id]?.length || 1}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
                         <div className="flex items-center gap-1">
                           <Button
                             size="sm"
                             variant="ghost"
                             data-ocid={`documents.file.secondary_button.${i + 1}`}
                             className="h-7 w-7 p-0 text-muted-foreground hover:text-primary"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                            }}
                           >
                             <Download className="h-3.5 w-3.5" />
                           </Button>
@@ -503,7 +584,10 @@ export default function Documents() {
                               variant="ghost"
                               data-ocid={`documents.file.delete_button.${i + 1}`}
                               className="h-7 w-7 p-0 text-muted-foreground hover:text-rose-400"
-                              onClick={() => handleDelete(file.id)}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleDelete(file.id);
+                              }}
                             >
                               <Trash2 className="h-3.5 w-3.5" />
                             </Button>
@@ -517,6 +601,80 @@ export default function Documents() {
             )}
           </ScrollArea>
         </div>
+
+        {/* Version History Panel */}
+        {selectedFile && (
+          <div
+            data-ocid="documents.version_panel"
+            className="w-64 flex-shrink-0 bg-card border border-border rounded-xl flex flex-col"
+          >
+            <div className="px-4 py-3 border-b border-border flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Clock className="h-4 w-4 text-primary" />
+                <span className="text-sm font-semibold">Versiyon Geçmişi</span>
+              </div>
+              <Button
+                size="icon"
+                variant="ghost"
+                className="h-6 w-6"
+                onClick={() => setSelectedFile(null)}
+              >
+                <X className="h-3.5 w-3.5" />
+              </Button>
+            </div>
+            <div className="px-4 py-3 border-b border-border/50">
+              <div className="flex items-center gap-2">
+                {TYPE_ICONS[selectedFile.type]}
+                <span className="text-sm font-medium truncate">
+                  {selectedFile.name}
+                </span>
+              </div>
+            </div>
+            <ScrollArea className="flex-1">
+              <div className="p-3 space-y-2">
+                {fileVersions.length === 0 ? (
+                  <div className="text-center py-8 text-muted-foreground">
+                    <p className="text-xs">Versiyon geçmişi bulunamadı.</p>
+                  </div>
+                ) : (
+                  fileVersions
+                    .slice()
+                    .reverse()
+                    .map((ver) => (
+                      <div
+                        key={ver.version}
+                        className="bg-background/50 border border-border rounded-lg p-3 space-y-1"
+                      >
+                        <div className="flex items-center justify-between">
+                          <Badge
+                            variant="outline"
+                            className="text-xs bg-primary/10 text-primary border-primary/20"
+                          >
+                            v{ver.version}
+                          </Badge>
+                          <span className="text-xs text-muted-foreground">
+                            {ver.size}
+                          </span>
+                        </div>
+                        <p className="text-xs text-muted-foreground">
+                          {ver.date}
+                        </p>
+                        <p className="text-xs text-foreground/80">
+                          {ver.uploadedBy}
+                        </p>
+                      </div>
+                    ))
+                )}
+              </div>
+            </ScrollArea>
+            <div className="p-3 border-t border-border">
+              <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                <ChevronRight className="h-3 w-3" />
+                <span>Toplam {fileVersions.length || 1} versiyon</span>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

@@ -10,6 +10,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Progress } from "@/components/ui/progress";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   Select,
   SelectContent,
@@ -17,6 +18,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
 import {
   Table,
   TableBody,
@@ -27,9 +34,17 @@ import {
 } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
-import { ArrowLeft, Calendar, Plus } from "lucide-react";
+import {
+  ArrowLeft,
+  Calendar,
+  Clock,
+  MessageSquare,
+  Plus,
+  Send,
+} from "lucide-react";
 import { useState } from "react";
 import {
+  type Task,
   type TaskPriority,
   type TaskStatus,
   useApp,
@@ -46,8 +61,21 @@ export default function ProjectDetail({
   projectId,
   onBack,
 }: { projectId: string; onBack: () => void }) {
-  const { t, projects, tasks, addTask, updateTaskStatus } = useApp();
+  const {
+    t,
+    projects,
+    tasks,
+    addTask,
+    updateTaskStatus,
+    hrPersonnel,
+    addNotification,
+    taskComments,
+    addTaskComment,
+    user,
+  } = useApp();
   const [newTaskOpen, setNewTaskOpen] = useState(false);
+  const [selectedTask, setSelectedTask] = useState<Task | null>(null);
+  const [commentText, setCommentText] = useState("");
   const [form, setForm] = useState({
     title: "",
     description: "",
@@ -65,9 +93,20 @@ export default function ProjectDetail({
   const byStatus = (s: TaskStatus) =>
     projectTasks.filter((t2) => t2.status === s);
 
+  const selectedTaskComments = selectedTask
+    ? taskComments.filter((c) => c.taskId === selectedTask.id)
+    : [];
+
   const handleAddTask = () => {
     if (!form.title.trim()) return;
     addTask({ ...form, projectId });
+    if (form.assignee) {
+      addNotification({
+        type: "task_assigned",
+        title: "Görev Atandı",
+        message: `"${form.title}" görevi ${form.assignee} kişisine atandı.`,
+      });
+    }
     setNewTaskOpen(false);
     setForm({
       title: "",
@@ -82,6 +121,16 @@ export default function ProjectDetail({
   const openAddTask = (col: TaskStatus) => {
     setForm((f) => ({ ...f, status: col }));
     setNewTaskOpen(true);
+  };
+
+  const handleAddComment = () => {
+    if (!commentText.trim() || !selectedTask) return;
+    addTaskComment(
+      selectedTask.id,
+      commentText.trim(),
+      user?.name || "Kullanıcı",
+    );
+    setCommentText("");
   };
 
   return (
@@ -184,57 +233,80 @@ export default function ProjectDetail({
                     <TableHead className="text-muted-foreground">
                       Durum
                     </TableHead>
+                    <TableHead className="text-muted-foreground">
+                      Yorumlar
+                    </TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {projectTasks.map((task, i) => (
-                    <TableRow
-                      key={task.id}
-                      data-ocid={`task.item.${i + 1}`}
-                      className="border-border"
-                    >
-                      <TableCell className="font-medium text-foreground">
-                        {task.title}
-                      </TableCell>
-                      <TableCell>
-                        <PriorityBadge priority={task.priority} />
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-2">
-                          <Avatar className="w-6 h-6">
-                            <AvatarFallback className="text-xs gradient-bg text-white">
-                              {task.assignee?.[0] || "?"}
-                            </AvatarFallback>
-                          </Avatar>
-                          <span className="text-sm text-muted-foreground">
-                            {task.assignee || "-"}
-                          </span>
-                        </div>
-                      </TableCell>
-                      <TableCell className="text-muted-foreground text-sm">
-                        {task.dueDate || "-"}
-                      </TableCell>
-                      <TableCell>
-                        <Select
-                          value={task.status}
-                          onValueChange={(v) =>
-                            updateTaskStatus(task.id, v as TaskStatus)
-                          }
-                        >
-                          <SelectTrigger className="w-32 h-7 text-xs border-border">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent className="bg-card">
-                            <SelectItem value="todo">Yapılacak</SelectItem>
-                            <SelectItem value="in_progress">
-                              Devam Ediyor
-                            </SelectItem>
-                            <SelectItem value="done">Tamamlandı</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </TableCell>
-                    </TableRow>
-                  ))}
+                  {projectTasks.map((task, i) => {
+                    const commentCount = taskComments.filter(
+                      (c) => c.taskId === task.id && !c.isStatusLog,
+                    ).length;
+                    return (
+                      <TableRow
+                        key={task.id}
+                        data-ocid={`task.item.${i + 1}`}
+                        className="border-border cursor-pointer hover:bg-white/5"
+                        onClick={() => setSelectedTask(task)}
+                      >
+                        <TableCell className="font-medium text-foreground">
+                          {task.title}
+                        </TableCell>
+                        <TableCell>
+                          <PriorityBadge priority={task.priority} />
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex items-center gap-2">
+                            <Avatar className="w-6 h-6">
+                              <AvatarFallback className="text-xs gradient-bg text-white">
+                                {task.assignee?.[0] || "?"}
+                              </AvatarFallback>
+                            </Avatar>
+                            <span className="text-sm text-muted-foreground">
+                              {task.assignee || "-"}
+                            </span>
+                          </div>
+                        </TableCell>
+                        <TableCell className="text-muted-foreground text-sm">
+                          {task.dueDate || "-"}
+                        </TableCell>
+                        <TableCell onClick={(e) => e.stopPropagation()}>
+                          <Select
+                            value={task.status}
+                            onValueChange={(v) =>
+                              updateTaskStatus(task.id, v as TaskStatus)
+                            }
+                          >
+                            <SelectTrigger className="w-32 h-7 text-xs border-border">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent className="bg-card">
+                              <SelectItem value="todo">Yapılacak</SelectItem>
+                              <SelectItem value="in_progress">
+                                Devam Ediyor
+                              </SelectItem>
+                              <SelectItem value="done">Tamamlandı</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </TableCell>
+                        <TableCell>
+                          <button
+                            type="button"
+                            data-ocid={`task.secondary_button.${i + 1}`}
+                            className="flex items-center gap-1 text-xs text-muted-foreground hover:text-primary transition-colors"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setSelectedTask(task);
+                            }}
+                          >
+                            <MessageSquare className="w-3.5 h-3.5" />
+                            {commentCount > 0 && <span>{commentCount}</span>}
+                          </button>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
                 </TableBody>
               </Table>
             </div>
@@ -308,11 +380,15 @@ export default function ProjectDetail({
                           <div
                             key={task.id}
                             data-ocid={`task.item.${ti + 1}`}
-                            className="rounded-lg p-3"
+                            className="rounded-lg p-3 cursor-pointer hover:border-primary/40 transition-colors"
                             style={{
                               background: "oklch(0.22 0.01 264)",
                               border: "1px solid oklch(0.3 0.012 264)",
                             }}
+                            onClick={() => setSelectedTask(task)}
+                            onKeyDown={(e) =>
+                              e.key === "Enter" && setSelectedTask(task)
+                            }
                           >
                             <div className="flex items-start justify-between gap-2 mb-2">
                               <p className="text-sm font-medium text-foreground leading-tight">
@@ -351,6 +427,127 @@ export default function ProjectDetail({
           </div>
         </TabsContent>
       </Tabs>
+
+      {/* Task Comments Sheet */}
+      <Sheet
+        open={!!selectedTask}
+        onOpenChange={(open) => !open && setSelectedTask(null)}
+      >
+        <SheetContent
+          data-ocid="task_comments.sheet"
+          className="bg-card border-border w-full sm:max-w-md flex flex-col"
+        >
+          <SheetHeader className="pb-3 border-b border-border">
+            <SheetTitle className="text-left">{selectedTask?.title}</SheetTitle>
+            {selectedTask && (
+              <div className="flex items-center gap-2 mt-1">
+                <PriorityBadge priority={selectedTask.priority} />
+                <StatusBadge status={selectedTask.status} />
+              </div>
+            )}
+          </SheetHeader>
+
+          <ScrollArea className="flex-1 mt-4 pr-1">
+            {selectedTaskComments.length === 0 ? (
+              <div
+                data-ocid="task_comments.empty_state"
+                className="text-center py-10 text-muted-foreground text-sm"
+              >
+                <MessageSquare className="w-8 h-8 mx-auto mb-2 opacity-30" />
+                Henüz yorum yok. İlk yorumu siz yazın.
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {[...selectedTaskComments].reverse().map((comment) => (
+                  <div
+                    key={comment.id}
+                    className={`rounded-lg p-3 ${
+                      comment.isStatusLog
+                        ? "border border-border/50"
+                        : "border border-border"
+                    }`}
+                    style={{
+                      background: comment.isStatusLog
+                        ? "oklch(0.19 0.005 264)"
+                        : "oklch(0.22 0.01 264)",
+                    }}
+                  >
+                    {comment.isStatusLog ? (
+                      <div className="flex items-center gap-2">
+                        <Clock className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
+                        <p className="text-xs text-muted-foreground italic">
+                          {comment.text}
+                        </p>
+                        <span className="ml-auto text-[10px] text-muted-foreground/60">
+                          {new Date(comment.timestamp).toLocaleDateString(
+                            "tr-TR",
+                          )}
+                        </span>
+                      </div>
+                    ) : (
+                      <div>
+                        <div className="flex items-center gap-2 mb-1.5">
+                          <Avatar className="w-5 h-5">
+                            <AvatarFallback className="text-[10px] gradient-bg text-white">
+                              {comment.author[0]}
+                            </AvatarFallback>
+                          </Avatar>
+                          <span className="text-xs font-semibold text-foreground">
+                            {comment.author}
+                          </span>
+                          <span className="ml-auto text-[10px] text-muted-foreground">
+                            {new Date(comment.timestamp).toLocaleString(
+                              "tr-TR",
+                              {
+                                day: "2-digit",
+                                month: "2-digit",
+                                hour: "2-digit",
+                                minute: "2-digit",
+                              },
+                            )}
+                          </span>
+                        </div>
+                        <p className="text-sm text-foreground">
+                          {comment.text}
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </ScrollArea>
+
+          {/* Comment input */}
+          <div className="mt-4 pt-3 border-t border-border">
+            <div className="flex gap-2">
+              <Textarea
+                data-ocid="task_comments.textarea"
+                placeholder="Yorum yazın..."
+                value={commentText}
+                onChange={(e) => setCommentText(e.target.value)}
+                className="bg-background border-border resize-none text-sm"
+                rows={2}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && !e.shiftKey) {
+                    e.preventDefault();
+                    handleAddComment();
+                  }
+                }}
+              />
+              <Button
+                data-ocid="task_comments.submit_button"
+                size="icon"
+                className="gradient-bg text-white self-end"
+                onClick={handleAddComment}
+                disabled={!commentText.trim()}
+              >
+                <Send className="w-4 h-4" />
+              </Button>
+            </div>
+          </div>
+        </SheetContent>
+      </Sheet>
 
       <Dialog open={newTaskOpen} onOpenChange={setNewTaskOpen}>
         <DialogContent data-ocid="new_task.dialog" className="bg-card">
@@ -405,15 +602,24 @@ export default function ProjectDetail({
               </div>
               <div>
                 <Label>Atanan Kişi</Label>
-                <Input
-                  data-ocid="new_task.assignee_input"
+                <Select
                   value={form.assignee}
-                  onChange={(e) =>
-                    setForm({ ...form, assignee: e.target.value })
-                  }
-                  placeholder="İsim..."
-                  className="mt-1"
-                />
+                  onValueChange={(v) => setForm({ ...form, assignee: v })}
+                >
+                  <SelectTrigger
+                    data-ocid="new_task.assignee_input"
+                    className="mt-1"
+                  >
+                    <SelectValue placeholder="Kişi seçin..." />
+                  </SelectTrigger>
+                  <SelectContent className="bg-card">
+                    {hrPersonnel.map((p) => (
+                      <SelectItem key={p.id} value={p.name}>
+                        {p.name} ({p.role})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
             </div>
             <div>
@@ -454,6 +660,23 @@ function PriorityBadge({ priority }: { priority: string }) {
   return (
     <span
       className="text-[10px] px-1.5 py-0.5 rounded font-medium flex-shrink-0"
+      style={{ background: `${c.color}22`, color: c.color }}
+    >
+      {c.label}
+    </span>
+  );
+}
+
+function StatusBadge({ status }: { status: TaskStatus }) {
+  const config: Record<TaskStatus, { label: string; color: string }> = {
+    todo: { label: "Yapılacak", color: "oklch(0.68 0.18 200)" },
+    in_progress: { label: "Devam Ediyor", color: "oklch(0.72 0.18 50)" },
+    done: { label: "Tamamlandı", color: "oklch(0.72 0.16 160)" },
+  };
+  const c = config[status];
+  return (
+    <span
+      className="text-[10px] px-1.5 py-0.5 rounded font-medium"
       style={{ background: `${c.color}22`, color: c.color }}
     >
       {c.label}

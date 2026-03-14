@@ -1,13 +1,19 @@
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
+import { useNavigate } from "@tanstack/react-router";
 import {
   AlertTriangle,
   CheckCircle2,
+  CheckSquare,
   ClipboardList,
   FolderKanban,
+  Hammer,
   HardHat,
+  Plus,
   TrendingUp,
+  UserPlus,
   Users,
   Wrench,
 } from "lucide-react";
@@ -26,60 +32,6 @@ import {
 import AccessDenied from "../components/AccessDenied";
 import { useApp } from "../contexts/AppContext";
 
-const recentActivities = [
-  {
-    text: 'Ahmet Yılmaz "Temel hazırlık" görevini tamamladı',
-    time: "2 saat önce",
-    color: "oklch(0.72 0.16 160)",
-  },
-  {
-    text: "Mehmet Kaya Konya Lojistik Merkezi projesine eklendi",
-    time: "4 saat önce",
-    color: "oklch(0.62 0.22 280)",
-  },
-  {
-    text: 'Yeni iş emri oluşturuldu: "A Blok Çatı Su Yalıtımı"',
-    time: "5 saat önce",
-    color: "oklch(0.72 0.18 50)",
-  },
-  {
-    text: "İstanbul Ofis Renovasyonu planlama aşamasına geçti",
-    time: "2 gün önce",
-    color: "oklch(0.68 0.18 200)",
-  },
-];
-
-const upcomingDeadlines = [
-  {
-    project: "Konya Lojistik",
-    task: "Elektrik altyapısı",
-    date: "15 Nis",
-    daysLeft: 12,
-  },
-  {
-    project: "Ankara Rezidans",
-    task: "Zemin etüdü raporu",
-    date: "10 Mar",
-    daysLeft: 3,
-  },
-  {
-    project: "Konya Lojistik",
-    task: "A Blok Çatı Su Yalıtımı",
-    date: "10 Nis",
-    daysLeft: 7,
-  },
-];
-
-const barData = [
-  { day: "Pts", completed: 5 },
-  { day: "Sal", completed: 8 },
-  { day: "Çar", completed: 3 },
-  { day: "Per", completed: 12 },
-  { day: "Cum", completed: 7 },
-  { day: "Cmt", completed: 2 },
-  { day: "Paz", completed: 1 },
-];
-
 export default function Dashboard() {
   const {
     checkPermission,
@@ -89,7 +41,10 @@ export default function Dashboard() {
     workOrders,
     fieldInspections,
     currentCompany,
+    activeCompanyId,
   } = useApp();
+
+  const navigate = useNavigate();
 
   const stats = useMemo(() => {
     const companyProjects = projects.filter(
@@ -110,15 +65,147 @@ export default function Dashboard() {
     const openInspections = fieldInspections.filter(
       (f) => f.status === "scheduled" || f.status === "in_progress",
     ).length;
+
+    // Team members from localStorage
+    let teamMembers = 0;
+    try {
+      const raw = localStorage.getItem(
+        `hr_personnel_${activeCompanyId || "c1"}`,
+      );
+      if (raw) {
+        const arr = JSON.parse(raw);
+        teamMembers = Array.isArray(arr) ? arr.length : 0;
+      }
+    } catch (_) {
+      teamMembers = 0;
+    }
+
     return {
       activeProjects,
       completedTasks,
       overdueTasks,
-      teamMembers: 24,
+      teamMembers,
       activeWorkOrders,
       openInspections,
     };
-  }, [projects, tasks, workOrders, fieldInspections, currentCompany]);
+  }, [
+    projects,
+    tasks,
+    workOrders,
+    fieldInspections,
+    currentCompany,
+    activeCompanyId,
+  ]);
+
+  // Bar chart: completed tasks per day for last 7 days
+  const barData = useMemo(() => {
+    const dayLabels = ["Pts", "Sal", "Çar", "Per", "Cum", "Cmt", "Paz"];
+    const today = new Date();
+    return Array.from({ length: 7 }, (_, i) => {
+      const d = new Date(today);
+      d.setDate(today.getDate() - (6 - i));
+      const dateStr = d.toISOString().split("T")[0];
+      const completed = tasks.filter(
+        (task) =>
+          task.status === "done" &&
+          task.dueDate &&
+          task.dueDate.startsWith(dateStr),
+      ).length;
+      return {
+        day: dayLabels[d.getDay() === 0 ? 6 : d.getDay() - 1],
+        completed,
+      };
+    });
+  }, [tasks]);
+
+  // Recent activity: last 5 items from tasks (done) + recent workOrders
+  const recentActivities = useMemo(() => {
+    const COLORS = [
+      "oklch(0.72 0.16 160)",
+      "oklch(0.62 0.22 280)",
+      "oklch(0.72 0.18 50)",
+      "oklch(0.68 0.18 200)",
+      "oklch(0.65 0.22 25)",
+    ];
+    const doneTasks = tasks
+      .filter((t2) => t2.status === "done")
+      .slice(-5)
+      .reverse()
+      .map((task, i) => ({
+        text: `"${task.title}" görevi tamamlandı`,
+        time: task.dueDate || "Yakın zamanda",
+        color: COLORS[i % COLORS.length],
+      }));
+
+    const recentWOs = workOrders
+      .slice(-3)
+      .reverse()
+      .map((wo, i) => ({
+        text: `Yeni iş emri oluşturuldu: "${wo.title}"`,
+        time: wo.createdAt || "Yakın zamanda",
+        color: COLORS[(doneTasks.length + i) % COLORS.length],
+      }));
+
+    return [...doneTasks, ...recentWOs].slice(0, 5);
+  }, [tasks, workOrders]);
+
+  // Upcoming deadlines: tasks not done with dueDate in next 14 days + open workOrders
+  const upcomingDeadlines = useMemo(() => {
+    const today = new Date();
+    const in14 = new Date(today);
+    in14.setDate(today.getDate() + 14);
+
+    const taskDeadlines = tasks
+      .filter((t2) => {
+        if (t2.status === "done" || !t2.dueDate) return false;
+        const d = new Date(t2.dueDate);
+        return d >= today && d <= in14;
+      })
+      .map((t2) => {
+        const due = new Date(t2.dueDate!);
+        const daysLeft = Math.ceil(
+          (due.getTime() - today.getTime()) / (1000 * 60 * 60 * 24),
+        );
+        return {
+          task: t2.title,
+          project:
+            projects.find((p) => p.id === t2.projectId)?.title || "Proje",
+          date: due.toLocaleDateString("tr-TR", {
+            day: "numeric",
+            month: "short",
+          }),
+          daysLeft,
+        };
+      });
+
+    const woDeadlines = workOrders
+      .filter(
+        (w) =>
+          w.status !== "completed" && w.status !== "cancelled" && w.dueDate,
+      )
+      .map((w) => {
+        const due = new Date(w.dueDate);
+        const daysLeft = Math.max(
+          0,
+          Math.ceil((due.getTime() - today.getTime()) / (1000 * 60 * 60 * 24)),
+        );
+        return {
+          task: w.title,
+          project:
+            projects.find((p) => p.id === w.projectId)?.title || "İş Emri",
+          date: due.toLocaleDateString("tr-TR", {
+            day: "numeric",
+            month: "short",
+          }),
+          daysLeft,
+        };
+      })
+      .filter((w) => w.daysLeft <= 14);
+
+    return [...taskDeadlines, ...woDeadlines]
+      .sort((a, b) => a.daysLeft - b.daysLeft)
+      .slice(0, 5);
+  }, [tasks, workOrders, projects]);
 
   const pieData = [
     {
@@ -154,10 +241,46 @@ export default function Dashboard() {
         </p>
       </div>
 
+      {/* Quick Actions */}
+      <div className="flex gap-2 flex-wrap mb-2">
+        <Button
+          size="sm"
+          className="gap-2 gradient-bg text-white"
+          data-ocid="dashboard.new_project.button"
+        >
+          <Plus className="w-4 h-4" /> Yeni Proje
+        </Button>
+        <Button
+          size="sm"
+          variant="outline"
+          className="gap-2"
+          data-ocid="dashboard.new_task.button"
+        >
+          <CheckSquare className="w-4 h-4" /> Yeni Görev
+        </Button>
+        <Button
+          size="sm"
+          variant="outline"
+          className="gap-2"
+          data-ocid="dashboard.new_workorder.button"
+        >
+          <Hammer className="w-4 h-4" /> Yeni İş Emri
+        </Button>
+        <Button
+          size="sm"
+          variant="outline"
+          className="gap-2"
+          data-ocid="dashboard.invite_personnel.button"
+        >
+          <UserPlus className="w-4 h-4" /> Personel Davet
+        </Button>
+      </div>
+
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <Card
           data-ocid="dashboard.active_projects_card"
-          className="bg-card border-border"
+          className="bg-card border-border cursor-pointer hover:border-primary/40 transition-colors"
+          onClick={() => navigate({ to: "/projects" })}
         >
           <CardContent className="pt-6">
             <div className="flex items-center justify-between">
@@ -194,10 +317,14 @@ export default function Dashboard() {
                 +2 bu ay
               </span>
             </div>
+            <p className="text-xs text-green-400 mt-1">↑ +2 bu hafta</p>
           </CardContent>
         </Card>
 
-        <Card className="bg-card border-border">
+        <Card
+          className="bg-card border-border cursor-pointer hover:border-primary/40 transition-colors"
+          onClick={() => navigate({ to: "/projects" })}
+        >
           <CardContent className="pt-6">
             <div className="flex items-center justify-between">
               <div>
@@ -233,12 +360,14 @@ export default function Dashboard() {
                 +12 bu hafta
               </span>
             </div>
+            <p className="text-xs text-green-400 mt-1">↑ +5 bu hafta</p>
           </CardContent>
         </Card>
 
         <Card
           data-ocid="dashboard.overdue_tasks_card"
-          className="bg-card border-border"
+          className="bg-card border-border cursor-pointer hover:border-primary/40 transition-colors"
+          onClick={() => navigate({ to: "/projects" })}
         >
           <CardContent className="pt-6">
             <div className="flex items-center justify-between">
@@ -272,7 +401,11 @@ export default function Dashboard() {
           </CardContent>
         </Card>
 
-        <Card className="bg-card border-border">
+        <Card
+          data-ocid="dashboard.team_members_card"
+          className="bg-card border-border cursor-pointer hover:border-primary/40 transition-colors"
+          onClick={() => navigate({ to: "/hr" })}
+        >
           <CardContent className="pt-6">
             <div className="flex items-center justify-between">
               <div>
@@ -294,7 +427,8 @@ export default function Dashboard() {
                 />
               </div>
             </div>
-            <p className="text-xs text-muted-foreground mt-3">3 yeni bu ay</p>
+            <p className="text-xs text-muted-foreground mt-3">İK modülünden</p>
+            <p className="text-xs text-green-400 mt-1">↑ +1 bu hafta</p>
           </CardContent>
         </Card>
       </div>
@@ -302,7 +436,8 @@ export default function Dashboard() {
       {/* Field Ops Summary */}
       <Card
         data-ocid="dashboard.field_summary_card"
-        className="bg-card border-border"
+        className="bg-card border-border cursor-pointer hover:border-primary/40 transition-colors"
+        onClick={() => navigate({ to: "/field" })}
       >
         <CardHeader className="pb-3">
           <CardTitle className="text-base flex items-center gap-2">
@@ -468,22 +603,31 @@ export default function Dashboard() {
             <CardTitle className="text-base">{t.recentActivity}</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
-            {recentActivities.map((a) => (
-              <div key={a.text} className="flex items-start gap-3">
-                <div
-                  className="w-2 h-2 rounded-full mt-2 flex-shrink-0"
-                  style={{ background: a.color }}
-                />
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm text-foreground leading-relaxed">
-                    {a.text}
-                  </p>
-                  <p className="text-xs text-muted-foreground mt-0.5">
-                    {a.time}
-                  </p>
+            {recentActivities.length === 0 ? (
+              <p
+                className="text-sm text-muted-foreground"
+                data-ocid="dashboard.activity.empty_state"
+              >
+                Henüz aktivite yok.
+              </p>
+            ) : (
+              recentActivities.map((a, i) => (
+                <div key={`${a.text}-${i}`} className="flex items-start gap-3">
+                  <div
+                    className="w-2 h-2 rounded-full mt-2 flex-shrink-0"
+                    style={{ background: a.color }}
+                  />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm text-foreground leading-relaxed">
+                      {a.text}
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      {a.time}
+                    </p>
+                  </div>
                 </div>
-              </div>
-            ))}
+              ))
+            )}
           </CardContent>
         </Card>
 
@@ -492,31 +636,44 @@ export default function Dashboard() {
             <CardTitle className="text-base">{t.upcomingDeadlines}</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
-            {upcomingDeadlines.map((d) => (
-              <div
-                key={d.task}
-                className="flex items-center justify-between p-3 rounded-lg"
-                style={{ background: "oklch(0.22 0.01 264)" }}
+            {upcomingDeadlines.length === 0 ? (
+              <p
+                className="text-sm text-muted-foreground"
+                data-ocid="dashboard.deadlines.empty_state"
               >
-                <div>
-                  <p className="text-sm font-medium text-foreground">
-                    {d.task}
-                  </p>
-                  <p className="text-xs text-muted-foreground">{d.project}</p>
+                Yaklaşan son tarih yok.
+              </p>
+            ) : (
+              upcomingDeadlines.map((d, i) => (
+                <div
+                  key={`${d.task}-${i}`}
+                  className="flex items-center justify-between p-3 rounded-lg"
+                  style={{ background: "oklch(0.22 0.01 264)" }}
+                >
+                  <div>
+                    <p className="text-sm font-medium text-foreground">
+                      {d.task}
+                    </p>
+                    <p className="text-xs text-muted-foreground">{d.project}</p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-sm font-semibold text-foreground">
+                      {d.date}
+                    </p>
+                    <Badge
+                      variant="outline"
+                      className={`text-xs ${
+                        d.daysLeft <= 3
+                          ? "border-destructive/50 text-destructive"
+                          : "border-primary/50 text-primary"
+                      }`}
+                    >
+                      {d.daysLeft} {t.days}
+                    </Badge>
+                  </div>
                 </div>
-                <div className="text-right">
-                  <p className="text-sm font-semibold text-foreground">
-                    {d.date}
-                  </p>
-                  <Badge
-                    variant="outline"
-                    className={`text-xs ${d.daysLeft <= 3 ? "border-destructive/50 text-destructive" : "border-primary/50 text-primary"}`}
-                  >
-                    {d.daysLeft} {t.days}
-                  </Badge>
-                </div>
-              </div>
-            ))}
+              ))
+            )}
           </CardContent>
         </Card>
       </div>
