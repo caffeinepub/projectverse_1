@@ -299,14 +299,14 @@ export default function Layout({
       icon: <Shield className="w-4 h-4" />,
       label: t.qualitySafety,
       href: "qualitySafety",
-      available: false,
+      available: true,
     },
     {
       key: "crm",
       icon: <Handshake className="w-4 h-4" />,
       label: t.crm,
       href: "crm",
-      available: false,
+      available: true,
     },
     {
       key: "reporting",
