@@ -82,64 +82,9 @@ const QUALITY_CHECKLIST_TEMPLATES: Record<string, string[]> = {
   ],
 };
 
-const INITIAL_INSPECTIONS: QCInspection[] = [
-  {
-    id: "qi-1",
-    title: "A Blok Temel Kalite Kontrolü",
-    projectId: "",
-    date: "2026-03-10",
-    inspector: "Ahmet Y.",
-    type: "kalite",
-    status: "gecti",
-    checklist: QUALITY_CHECKLIST_TEMPLATES.kalite.map((item) => ({
-      item,
-      passed: true,
-    })),
-    notes: "Tüm kontroller başarıyla tamamlandı.",
-  },
-  {
-    id: "qi-2",
-    title: "Saha Güvenlik Denetimi - Mart",
-    projectId: "",
-    date: "2026-03-12",
-    inspector: "Fatma K.",
-    type: "guvenlik",
-    status: "duzeltici-aksiyon",
-    checklist: QUALITY_CHECKLIST_TEMPLATES.guvenlik.map((item, i) => ({
-      item,
-      passed: i !== 2,
-    })),
-    notes: "Elektrik ekipmanlarında eksiklik tespit edildi.",
-    correctiveAction:
-      "Elektrik ekipmanları 15.03 tarihine kadar değiştirilecek.",
-  },
-];
+const INITIAL_INSPECTIONS: QCInspection[] = [];
 
-const INITIAL_INCIDENTS: Incident[] = [
-  {
-    id: "inc-1",
-    title: "İskele Korkuluğu Hasar",
-    projectId: "",
-    date: "2026-03-08",
-    reporter: "Mehmet D.",
-    severity: "orta",
-    type: "tehlike",
-    status: "kapali",
-    description: "3. katta iskele korkuluğunda hasar tespit edildi.",
-    actionTaken: "Korkuluk değiştirildi ve kontrol edildi.",
-  },
-  {
-    id: "inc-2",
-    title: "Baret Kullanmama İhlali",
-    projectId: "",
-    date: "2026-03-13",
-    reporter: "Zeynep A.",
-    severity: "yuksek",
-    type: "ppe-ihlal",
-    status: "acik",
-    description: "2 personelin baret kullanmadığı tespit edildi.",
-  },
-];
+const INITIAL_INCIDENTS: Incident[] = [];
 
 const STATUS_LABELS: Record<QCStatus, string> = {
   beklemede: "Beklemede",

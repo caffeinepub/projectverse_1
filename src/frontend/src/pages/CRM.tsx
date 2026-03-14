@@ -94,76 +94,9 @@ const PIPELINE_COLUMNS: LeadStatus[] = [
   "kazanildi",
 ];
 
-const INITIAL_CONTACTS: Contact[] = [
-  {
-    id: "c-1",
-    name: "Mustafa Kaya",
-    company: "Kaya İnşaat A.Ş.",
-    email: "mustafa@kayainsaat.com",
-    phone: "0532 111 2233",
-    type: "musteri",
-    notes: "Uzun süreli müşteri, düzenli projeler.",
-    createdAt: "2026-01-15",
-  },
-  {
-    id: "c-2",
-    name: "Elif Şahin",
-    company: "Şahin Yapı Ltd.",
-    email: "elif@sahinyapi.com",
-    phone: "0533 222 3344",
-    type: "aday",
-    notes: "Teklif aşamasında.",
-    createdAt: "2026-02-20",
-  },
-  {
-    id: "c-3",
-    name: "Hasan Demir",
-    company: "Demir Proje",
-    email: "hasan@demirproje.com",
-    phone: "0534 333 4455",
-    type: "is-ortagi",
-    notes: "Ortak projeler için görüşülüyor.",
-    createdAt: "2026-03-01",
-  },
-];
+const INITIAL_CONTACTS: Contact[] = [];
 
-const INITIAL_LEADS: Lead[] = [
-  {
-    id: "l-1",
-    title: "Kaya İnşaat - Depo Projesi",
-    contactId: "c-1",
-    value: 450000,
-    status: "teklif",
-    priority: "yuksek",
-    assignedTo: "Ahmet Y.",
-    expectedClose: "2026-04-30",
-    notes: "Teklif gönderildi, yanıt bekleniyor.",
-    interactions: [
-      { date: "2026-03-10", note: "İlk görüşme yapıldı.", type: "toplanti" },
-      { date: "2026-03-13", note: "Teklif maili gönderildi.", type: "email" },
-    ],
-    createdAt: "2026-03-05",
-  },
-  {
-    id: "l-2",
-    title: "Şahin Yapı - Konut Projesi",
-    contactId: "c-2",
-    value: 750000,
-    status: "iletisim",
-    priority: "orta",
-    assignedTo: "Fatma K.",
-    expectedClose: "2026-05-15",
-    notes: "İlk görüşme olumlu geçti.",
-    interactions: [
-      {
-        date: "2026-03-12",
-        note: "Keşif toplantısı yapıldı.",
-        type: "toplanti",
-      },
-    ],
-    createdAt: "2026-03-10",
-  },
-];
+const INITIAL_LEADS: Lead[] = [];
 
 const CONTACT_TYPE_LABELS: Record<ContactType, string> = {
   musteri: "Müşteri",
