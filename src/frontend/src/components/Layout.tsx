@@ -346,18 +346,26 @@ export default function Layout({
   const sidebarContent = (
     <>
       <div
-        className="flex items-center gap-3 px-4 py-5 border-b"
-        style={{ borderColor: "oklch(0.26 0.01 264)" }}
+        className="sidebar-logo-area flex items-center gap-3 px-4 py-5 border-b"
+        style={{ borderColor: "oklch(0.20 0.018 245)" }}
       >
-        <div className="w-8 h-8 rounded-lg gradient-bg flex items-center justify-center flex-shrink-0">
-          <span className="text-white font-bold text-sm">PV</span>
+        <div
+          className="w-8 h-8 rounded-xl gradient-bg flex items-center justify-center flex-shrink-0"
+          style={{ boxShadow: "0 0 12px oklch(0.74 0.18 52 / 0.35)" }}
+        >
+          <span
+            className="font-bold text-sm"
+            style={{ color: "oklch(0.12 0.01 52)" }}
+          >
+            PV
+          </span>
         </div>
         <span className="font-bold text-lg gradient-text">ProjectVerse</span>
       </div>
 
       <div
         className="px-4 py-3 border-b space-y-2"
-        style={{ borderColor: "oklch(0.26 0.01 264)" }}
+        style={{ borderColor: "oklch(0.20 0.018 245)" }}
       >
         {currentCompany && (
           <div className="flex items-center gap-2">
@@ -381,7 +389,7 @@ export default function Layout({
           </Badge>
         )}
         {activeSubType && (
-          <p className="text-xs" style={{ color: "oklch(0.55 0.04 264)" }}>
+          <p className="text-xs" style={{ color: "oklch(0.52 0.012 245)" }}>
             {activeSubType}
           </p>
         )}
@@ -415,7 +423,7 @@ export default function Layout({
 
       <div
         className="px-3 py-3 border-t space-y-1"
-        style={{ borderColor: "oklch(0.26 0.01 264)" }}
+        style={{ borderColor: "oklch(0.20 0.018 245)" }}
       >
         {canViewModule("settings") && (
           <button
@@ -446,13 +454,13 @@ export default function Layout({
             sidebarOpen ? "w-64" : "w-16"
           }`}
           style={{
-            background: "oklch(0.16 0.01 264)",
-            borderRight: "1px solid oklch(0.26 0.01 264)",
+            background: "oklch(0.11 0.02 245)",
+            borderRight: "1px solid oklch(0.20 0.018 245)",
           }}
         >
           <div
-            className="flex items-center gap-3 px-4 py-5 border-b"
-            style={{ borderColor: "oklch(0.26 0.01 264)" }}
+            className="sidebar-logo-area flex items-center gap-3 px-4 py-5 border-b"
+            style={{ borderColor: "oklch(0.20 0.018 245)" }}
           >
             <div className="w-8 h-8 rounded-lg gradient-bg flex items-center justify-center flex-shrink-0">
               <span className="text-white font-bold text-sm">PV</span>
@@ -467,7 +475,7 @@ export default function Layout({
           {sidebarOpen && (
             <div
               className="px-4 py-3 border-b space-y-2"
-              style={{ borderColor: "oklch(0.26 0.01 264)" }}
+              style={{ borderColor: "oklch(0.20 0.018 245)" }}
             >
               {currentCompany && (
                 <div className="flex items-center gap-2">
@@ -493,7 +501,7 @@ export default function Layout({
               {activeSubType && (
                 <p
                   className="text-xs"
-                  style={{ color: "oklch(0.55 0.04 264)" }}
+                  style={{ color: "oklch(0.52 0.012 245)" }}
                 >
                   {activeSubType}
                 </p>
@@ -526,7 +534,7 @@ export default function Layout({
 
           <div
             className="px-3 py-3 border-t space-y-1"
-            style={{ borderColor: "oklch(0.26 0.01 264)" }}
+            style={{ borderColor: "oklch(0.20 0.018 245)" }}
           >
             {canViewModule("settings") && (
               <button
@@ -554,7 +562,7 @@ export default function Layout({
             side="left"
             className="p-0 w-72 flex flex-col"
             style={{
-              background: "oklch(0.16 0.01 264)",
+              background: "oklch(0.11 0.02 245)",
               border: "none",
             }}
           >
@@ -567,8 +575,8 @@ export default function Layout({
         <header
           className="flex items-center justify-between px-4 md:px-6 py-4 border-b flex-shrink-0"
           style={{
-            background: "oklch(0.16 0.01 264)",
-            borderColor: "oklch(0.26 0.01 264)",
+            background: "oklch(0.11 0.02 245)",
+            borderColor: "oklch(0.20 0.018 245)",
           }}
         >
           <div className="flex items-center gap-3">

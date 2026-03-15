@@ -31,42 +31,13 @@ import {
   User,
   Users,
 } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
-import { useApp } from "../contexts/AppContext";
+import { useMemo, useState } from "react";
+import { type CrmContact, type CrmLead, useApp } from "../contexts/AppContext";
 
-type LeadStatus =
-  | "yeni"
-  | "iletisim"
-  | "teklif"
-  | "muzakere"
-  | "kazanildi"
-  | "kaybedildi";
-type ContactType = "musteri" | "aday" | "is-ortagi";
-
-interface Contact {
-  id: string;
-  name: string;
-  company: string;
-  email: string;
-  phone: string;
-  type: ContactType;
-  notes: string;
-  createdAt: string;
-}
-
-interface Lead {
-  id: string;
-  title: string;
-  contactId: string;
-  value: number;
-  status: LeadStatus;
-  priority: "dusuk" | "orta" | "yuksek";
-  assignedTo: string;
-  expectedClose: string;
-  notes: string;
-  interactions: { date: string; note: string; type: string }[];
-  createdAt: string;
-}
+type ContactType = CrmContact["type"];
+type LeadStatus = CrmLead["status"];
+type Contact = CrmContact;
+type Lead = CrmLead;
 
 const LEAD_STATUS_LABELS: Record<LeadStatus, string> = {
   yeni: "Yeni",
@@ -94,10 +65,6 @@ const PIPELINE_COLUMNS: LeadStatus[] = [
   "kazanildi",
 ];
 
-const INITIAL_CONTACTS: Contact[] = [];
-
-const INITIAL_LEADS: Lead[] = [];
-
 const CONTACT_TYPE_LABELS: Record<ContactType, string> = {
   musteri: "Müşteri",
   aday: "Aday",
@@ -120,43 +87,14 @@ function formatCurrency(v: number) {
 
 export default function CRM() {
   const {
-    activeCompanyId,
     hrPersonnel: personnel,
     activeRoleId,
     checkPermission,
+    crmContacts: contacts,
+    setCrmContacts: setContacts,
+    crmLeads: leads,
+    setCrmLeads: setLeads,
   } = useApp();
-
-  const cKey = `pv_crm_contacts_${activeCompanyId}`;
-  const lKey = `pv_crm_leads_${activeCompanyId}`;
-
-  const [contacts, setContacts] = useState<Contact[]>(() => {
-    if (!activeCompanyId) return INITIAL_CONTACTS;
-    const s = localStorage.getItem(cKey);
-    return s ? JSON.parse(s) : INITIAL_CONTACTS;
-  });
-
-  const [leads, setLeads] = useState<Lead[]>(() => {
-    if (!activeCompanyId) return INITIAL_LEADS;
-    const s = localStorage.getItem(lKey);
-    return s ? JSON.parse(s) : INITIAL_LEADS;
-  });
-
-  // Reload data when company changes
-  useEffect(() => {
-    if (!activeCompanyId) return;
-    const sc = localStorage.getItem(`pv_crm_contacts_${activeCompanyId}`);
-    setContacts(sc ? JSON.parse(sc) : []);
-    const sl = localStorage.getItem(`pv_crm_leads_${activeCompanyId}`);
-    setLeads(sl ? JSON.parse(sl) : []);
-  }, [activeCompanyId]);
-
-  useEffect(() => {
-    if (activeCompanyId) localStorage.setItem(cKey, JSON.stringify(contacts));
-  }, [contacts, activeCompanyId, cKey]);
-
-  useEffect(() => {
-    if (activeCompanyId) localStorage.setItem(lKey, JSON.stringify(leads));
-  }, [leads, activeCompanyId, lKey]);
 
   const canEdit =
     activeRoleId === "owner" ||
@@ -190,13 +128,13 @@ export default function CRM() {
 
   const handleAddContact = () => {
     if (!newContact.name) return;
-    setContacts((prev) => [
+    setContacts([
       {
         ...newContact,
         id: `c-${Date.now()}`,
         createdAt: new Date().toISOString().split("T")[0],
       },
-      ...prev,
+      ...contacts,
     ]);
     setNewContact({
       name: "",
@@ -236,7 +174,7 @@ export default function CRM() {
       interactions: [],
       createdAt: new Date().toISOString().split("T")[0],
     };
-    setLeads((prev) => [lead, ...prev]);
+    setLeads([lead, ...leads]);
     setNewLead({
       title: "",
       contactId: "",
@@ -254,7 +192,7 @@ export default function CRM() {
   const [newNote, setNewNote] = useState("");
 
   const moveLead = (id: string, status: LeadStatus) => {
-    setLeads((prev) => prev.map((l) => (l.id === id ? { ...l, status } : l)));
+    setLeads(leads.map((l) => (l.id === id ? { ...l, status } : l)));
     setSelectedLead((prev) => (prev?.id === id ? { ...prev, status } : prev));
   };
 
@@ -265,8 +203,8 @@ export default function CRM() {
       note: newNote,
       type: "not",
     };
-    setLeads((prev) =>
-      prev.map((l) =>
+    setLeads(
+      leads.map((l) =>
         l.id === id
           ? { ...l, interactions: [...l.interactions, interaction] }
           : l,
@@ -297,8 +235,8 @@ export default function CRM() {
 
   const handleEditContact = () => {
     if (!selectedContact || !editContactData.name) return;
-    setContacts((prev) =>
-      prev.map((c) =>
+    setContacts(
+      contacts.map((c) =>
         c.id === selectedContact.id ? { ...c, ...editContactData } : c,
       ),
     );
@@ -310,7 +248,7 @@ export default function CRM() {
 
   const handleDeleteContact = () => {
     if (!selectedContact) return;
-    setContacts((prev) => prev.filter((c) => c.id !== selectedContact.id));
+    setContacts(contacts.filter((c) => c.id !== selectedContact.id));
     setSelectedContact(null);
     setDeleteContactConfirm(false);
   };

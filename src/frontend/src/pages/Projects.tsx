@@ -1,3 +1,4 @@
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -17,8 +18,16 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { ArrowRight, Calendar, Plus, Users } from "lucide-react";
-import { useState } from "react";
+import {
+  AlertTriangle,
+  ArrowRight,
+  Calendar,
+  CheckSquare,
+  DollarSign,
+  Plus,
+  Users,
+} from "lucide-react";
+import { useMemo, useState } from "react";
 import AccessDenied from "../components/AccessDenied";
 import { type Project, useApp } from "../contexts/AppContext";
 
@@ -32,7 +41,8 @@ const STATUS_CONFIG: Record<string, { label: string; color: string }> = {
 export default function Projects({
   onOpenProject,
 }: { onOpenProject: (id: string) => void }) {
-  const { checkPermission, t, projects, addProject, currentCompany } = useApp();
+  const { checkPermission, t, projects, tasks, addProject, currentCompany } =
+    useApp();
   const [filter, setFilter] = useState("all");
   const [viewMode, setViewMode] = useState<"list" | "kanban">("list");
   const [open, setOpen] = useState(false);
@@ -42,6 +52,7 @@ export default function Projects({
     status: "active" as Project["status"],
     startDate: "",
     endDate: "",
+    budget: "",
   });
 
   if (!checkPermission("projects", "view")) return <AccessDenied />;
@@ -60,7 +71,7 @@ export default function Projects({
       ...form,
       companyId: currentCompany?.id || "c1",
       members: [],
-      budget: undefined,
+      budget: form.budget ? Number(form.budget) : undefined,
     });
     setOpen(false);
     setForm({
@@ -69,6 +80,7 @@ export default function Projects({
       status: "active",
       startDate: "",
       endDate: "",
+      budget: "",
     });
   };
 
@@ -80,6 +92,8 @@ export default function Projects({
     on_hold: t.onHold,
     completed: t.completed,
   };
+
+  const today = new Date();
 
   return (
     <div className="space-y-6">
@@ -175,6 +189,19 @@ export default function Projects({
                   </div>
                 </div>
                 <div>
+                  <Label>Bütçe (TL, isteğe bağlı)</Label>
+                  <Input
+                    data-ocid="new_project.budget_input"
+                    type="number"
+                    value={form.budget}
+                    onChange={(e) =>
+                      setForm({ ...form, budget: e.target.value })
+                    }
+                    placeholder="0"
+                    className="mt-1"
+                  />
+                </div>
+                <div>
                   <Label>Durum</Label>
                   <Select
                     value={form.status}
@@ -236,45 +263,85 @@ export default function Projects({
         </div>
       ) : viewMode === "list" ? (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-          {filtered.map((project, i) => (
-            <button
-              type="button"
-              key={project.id}
-              data-ocid={`projects.item.${i + 1}`}
-              className="glass-card rounded-xl p-5 hover:border-primary/40 transition-all cursor-pointer group text-left"
-              onClick={() => onOpenProject(project.id)}
-            >
-              <div className="flex items-start justify-between mb-3">
-                <h3 className="font-semibold text-foreground group-hover:text-primary transition-colors line-clamp-2">
-                  {project.title}
-                </h3>
-                <StatusPill status={project.status} />
-              </div>
-              <p className="text-sm text-muted-foreground mb-4 line-clamp-2">
-                {project.description}
-              </p>
-              <Progress value={project.progress} className="h-1.5 mb-3" />
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                  <Users className="w-3 h-3" />
-                  <span>{project.members.length || 1} üye</span>
+          {filtered.map((project, i) => {
+            const projectTasks = tasks.filter(
+              (t2) => t2.projectId === project.id,
+            );
+            const completedCount = projectTasks.filter(
+              (t2) => t2.status === "done",
+            ).length;
+            const totalCount = projectTasks.length;
+            const hasOverdue = projectTasks.some(
+              (t2) =>
+                t2.status !== "done" &&
+                t2.dueDate &&
+                new Date(t2.dueDate) < today,
+            );
+            return (
+              <button
+                type="button"
+                key={project.id}
+                data-ocid={`projects.item.${i + 1}`}
+                className="glass-card rounded-xl p-5 hover:border-primary/40 transition-all cursor-pointer group text-left"
+                onClick={() => onOpenProject(project.id)}
+              >
+                <div className="flex items-start justify-between mb-3">
+                  <h3 className="font-semibold text-foreground group-hover:text-primary transition-colors line-clamp-2">
+                    {project.title}
+                  </h3>
+                  <StatusPill status={project.status} />
                 </div>
-                {project.endDate && (
+                <p className="text-sm text-muted-foreground mb-4 line-clamp-2">
+                  {project.description}
+                </p>
+                <Progress value={project.progress} className="h-1.5 mb-3" />
+                <div className="flex items-center justify-between flex-wrap gap-y-2">
                   <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                    <Calendar className="w-3 h-3" />
-                    <span>{project.endDate}</span>
+                    <Users className="w-3 h-3" />
+                    <span>{project.members.length || 1} üye</span>
+                  </div>
+                  {totalCount > 0 && (
+                    <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                      <CheckSquare className="w-3 h-3" />
+                      <span>
+                        {completedCount}/{totalCount} görev
+                      </span>
+                    </div>
+                  )}
+                  {project.budget && project.budget > 0 && (
+                    <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                      <DollarSign className="w-3 h-3" />
+                      <span>{project.budget.toLocaleString("tr-TR")} TL</span>
+                    </div>
+                  )}
+                  {project.endDate && (
+                    <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                      <Calendar className="w-3 h-3" />
+                      <span>{project.endDate}</span>
+                    </div>
+                  )}
+                  <div
+                    className="flex items-center gap-1 text-xs font-semibold"
+                    style={{ color: "oklch(0.72 0.2 280)" }}
+                  >
+                    <span>{project.progress}%</span>
+                    <ArrowRight className="w-3 h-3" />
+                  </div>
+                </div>
+                {hasOverdue && (
+                  <div className="flex items-center gap-1 mt-2">
+                    <Badge
+                      variant="outline"
+                      className="text-xs border-orange-500/50 text-orange-400 bg-orange-500/10"
+                    >
+                      <AlertTriangle className="w-3 h-3 mr-1" />
+                      Gecikmiş görev
+                    </Badge>
                   </div>
                 )}
-                <div
-                  className="flex items-center gap-1 text-xs font-semibold"
-                  style={{ color: "oklch(0.72 0.2 280)" }}
-                >
-                  <span>{project.progress}%</span>
-                  <ArrowRight className="w-3 h-3" />
-                </div>
-              </div>
-            </button>
-          ))}
+              </button>
+            );
+          })}
         </div>
       ) : (
         /* Kanban view */
@@ -310,33 +377,64 @@ export default function Projects({
                         Proje yok
                       </p>
                     ) : (
-                      colProjects.map((project, i) => (
-                        <button
-                          type="button"
-                          key={project.id}
-                          data-ocid={`projects.kanban.item.${i + 1}`}
-                          className="w-full text-left p-3 rounded-lg bg-card border border-border hover:border-primary/30 transition-all cursor-pointer group"
-                          onClick={() => onOpenProject(project.id)}
-                        >
-                          <p className="text-sm font-medium text-foreground group-hover:text-primary transition-colors line-clamp-2 mb-2">
-                            {project.title}
-                          </p>
-                          <Progress
-                            value={project.progress}
-                            className="h-1 mb-2"
-                          />
-                          <div className="flex items-center justify-between">
-                            <span className="text-xs text-muted-foreground">
-                              {project.progress}%
-                            </span>
-                            {project.endDate && (
+                      colProjects.map((project, i) => {
+                        const projectTasks = tasks.filter(
+                          (t2) => t2.projectId === project.id,
+                        );
+                        const completedCount = projectTasks.filter(
+                          (t2) => t2.status === "done",
+                        ).length;
+                        const totalCount = projectTasks.length;
+                        const hasOverdue = projectTasks.some(
+                          (t2) =>
+                            t2.status !== "done" &&
+                            t2.dueDate &&
+                            new Date(t2.dueDate) < today,
+                        );
+                        return (
+                          <button
+                            type="button"
+                            key={project.id}
+                            data-ocid={`projects.kanban.item.${i + 1}`}
+                            className="w-full text-left p-3 rounded-lg bg-card border border-border hover:border-primary/30 transition-all cursor-pointer group"
+                            onClick={() => onOpenProject(project.id)}
+                          >
+                            <p className="text-sm font-medium text-foreground group-hover:text-primary transition-colors line-clamp-2 mb-2">
+                              {project.title}
+                            </p>
+                            <Progress
+                              value={project.progress}
+                              className="h-1 mb-2"
+                            />
+                            <div className="flex items-center justify-between">
                               <span className="text-xs text-muted-foreground">
-                                {project.endDate}
+                                {project.progress}%
                               </span>
+                              {totalCount > 0 && (
+                                <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                                  <CheckSquare className="w-3 h-3" />
+                                  <span>
+                                    {completedCount}/{totalCount}
+                                  </span>
+                                </div>
+                              )}
+                              {project.endDate && (
+                                <span className="text-xs text-muted-foreground">
+                                  {project.endDate}
+                                </span>
+                              )}
+                            </div>
+                            {hasOverdue && (
+                              <div className="flex items-center gap-1 mt-1.5">
+                                <AlertTriangle className="w-3 h-3 text-orange-400" />
+                                <span className="text-xs text-orange-400">
+                                  Gecikmiş
+                                </span>
+                              </div>
                             )}
-                          </div>
-                        </button>
-                      ))
+                          </button>
+                        );
+                      })
                     )}
                   </div>
                 </div>

@@ -136,7 +136,8 @@ export default function Finance() {
     supplier: "",
     amount: "",
     dueDate: "",
-    project: "",
+    projectId: "",
+    installments: 1,
   });
 
   const handleAddInvoice = () => {
@@ -150,10 +151,17 @@ export default function Finance() {
         newInvoice.dueDate && newInvoice.dueDate < today
           ? "Gecikmiş"
           : "Bekliyor",
-      project: newInvoice.project,
+      projectId: newInvoice.projectId,
+      installments: newInvoice.installments,
     };
     setInvoices([inv, ...invoices]);
-    setNewInvoice({ supplier: "", amount: "", dueDate: "", project: "" });
+    setNewInvoice({
+      supplier: "",
+      amount: "",
+      dueDate: "",
+      projectId: "",
+      installments: 1,
+    });
     setNewInvoiceOpen(false);
   };
 
@@ -813,9 +821,9 @@ export default function Finance() {
                     <div>
                       <Label>Proje</Label>
                       <Select
-                        value={newInvoice.project}
+                        value={newInvoice.projectId}
                         onValueChange={(v) =>
-                          setNewInvoice({ ...newInvoice, project: v })
+                          setNewInvoice({ ...newInvoice, projectId: v })
                         }
                       >
                         <SelectTrigger
@@ -826,12 +834,42 @@ export default function Finance() {
                         </SelectTrigger>
                         <SelectContent className="bg-card border-border">
                           {projects.map((p) => (
-                            <SelectItem key={p.id} value={p.title}>
+                            <SelectItem key={p.id} value={p.id}>
                               {p.title}
                             </SelectItem>
                           ))}
                         </SelectContent>
                       </Select>
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <Label>Taksit Sayısı</Label>
+                        <Input
+                          data-ocid="finance.invoice.installments.input"
+                          type="number"
+                          min={1}
+                          value={newInvoice.installments}
+                          onChange={(e) =>
+                            setNewInvoice({
+                              ...newInvoice,
+                              installments: Math.max(1, Number(e.target.value)),
+                            })
+                          }
+                          className="bg-background border-border mt-1"
+                        />
+                      </div>
+                      <div>
+                        <Label>Taksit Tutarı</Label>
+                        <Input
+                          readOnly
+                          value={
+                            newInvoice.amount && newInvoice.installments > 1
+                              ? `${(Number(newInvoice.amount) / newInvoice.installments).toLocaleString("tr-TR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ₺`
+                              : "-"
+                          }
+                          className="bg-background border-border mt-1 text-muted-foreground"
+                        />
+                      </div>
                     </div>
                   </div>
                   <DialogFooter>
@@ -892,7 +930,8 @@ export default function Finance() {
                         {inv.supplier}
                       </TableCell>
                       <TableCell className="text-xs text-muted-foreground">
-                        {inv.project}
+                        {projects.find((p) => p.id === inv.projectId)?.title ??
+                          inv.projectId}
                       </TableCell>
                       <TableCell className="text-right font-semibold">
                         {fmt(inv.amount)}

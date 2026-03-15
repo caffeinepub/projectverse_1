@@ -30,6 +30,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import {
+  BarChart3,
   CalendarDays,
   Check,
   ChevronLeft,
@@ -40,6 +41,7 @@ import {
   Pencil,
   Plus,
   Search,
+  Timer,
   Trash2,
   UploadCloud,
   UserPlus,
@@ -51,6 +53,7 @@ import type {
   LeaveRequest,
   LeaveStatus,
   LeaveType,
+  OvertimeRecord,
   Personnel,
   ShiftAssignment,
 } from "../contexts/AppContext";
@@ -220,6 +223,347 @@ function dateStr(year: number, month: number, day: number) {
   return `${year}-${String(month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
 }
 
+function OvertimeTab() {
+  const {
+    overtimeRecords,
+    addOvertimeRecord,
+    updateOvertimeRecord,
+    hrPersonnel,
+    user,
+    activeRoleId,
+  } = useApp();
+
+  const [addOpen, setAddOpen] = useState(false);
+  const [form, setForm] = useState({
+    personnelId: "",
+    date: "",
+    hours: "",
+    type: "weekday" as OvertimeRecord["type"],
+    description: "",
+  });
+
+  const today = new Date();
+  const thisMonth = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}`;
+
+  const handleAdd = () => {
+    if (!form.personnelId || !form.date || !form.hours) return;
+    const personnel = hrPersonnel.find((p) => p.id === form.personnelId);
+    if (!personnel) return;
+    const record: OvertimeRecord = {
+      id: `ot${Date.now()}`,
+      personnelId: form.personnelId,
+      personnelName: personnel.name,
+      date: form.date,
+      hours: Number(form.hours),
+      type: form.type,
+      description: form.description,
+      status: "pending",
+      createdBy: user?.name || "Sistem",
+    };
+    addOvertimeRecord(record);
+    setForm({
+      personnelId: "",
+      date: "",
+      hours: "",
+      type: "weekday",
+      description: "",
+    });
+    setAddOpen(false);
+  };
+
+  const canApprove = activeRoleId === "owner" || activeRoleId === "manager";
+
+  // Monthly summary: approved records this month per person
+  const monthlySummary = hrPersonnel
+    .map((p) => {
+      const approved = overtimeRecords.filter(
+        (r) =>
+          r.personnelId === p.id &&
+          r.status === "approved" &&
+          r.date.startsWith(thisMonth),
+      );
+      return {
+        id: p.id,
+        name: p.name,
+        initials: p.initials,
+        color: p.color,
+        hours: approved.reduce((s, r) => s + r.hours, 0),
+      };
+    })
+    .filter((p) => p.hours > 0);
+
+  const typeLabels: Record<OvertimeRecord["type"], string> = {
+    weekday: "Hafta İçi",
+    weekend: "Hafta Sonu",
+    holiday: "Tatil",
+  };
+  const statusLabels: Record<
+    OvertimeRecord["status"],
+    { label: string; color: string }
+  > = {
+    pending: {
+      label: "Bekliyor",
+      color: "bg-amber-500/20 text-amber-300 border-amber-500/30",
+    },
+    approved: {
+      label: "Onaylandı",
+      color: "bg-emerald-500/20 text-emerald-300 border-emerald-500/30",
+    },
+    rejected: {
+      label: "Reddedildi",
+      color: "bg-rose-500/20 text-rose-300 border-rose-500/30",
+    },
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between flex-wrap gap-3">
+        <div className="flex items-center gap-2">
+          <Timer className="h-5 w-5 text-primary" />
+          <h2 className="text-lg font-semibold">Mesai Takibi</h2>
+        </div>
+        <Dialog open={addOpen} onOpenChange={setAddOpen}>
+          <DialogTrigger asChild>
+            <Button
+              data-ocid="hr.overtime.open_modal_button"
+              size="sm"
+              className="gradient-bg text-white gap-2"
+            >
+              <Plus className="h-4 w-4" />
+              Mesai Ekle
+            </Button>
+          </DialogTrigger>
+          <DialogContent
+            data-ocid="hr.overtime.dialog"
+            className="bg-card border-border"
+          >
+            <DialogHeader>
+              <DialogTitle>Mesai Kaydı Ekle</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div>
+                <Label>Personel</Label>
+                <Select
+                  value={form.personnelId}
+                  onValueChange={(v) => setForm({ ...form, personnelId: v })}
+                >
+                  <SelectTrigger
+                    data-ocid="hr.overtime.personnel_select"
+                    className="mt-1"
+                  >
+                    <SelectValue placeholder="Personel seçin..." />
+                  </SelectTrigger>
+                  <SelectContent className="bg-card">
+                    {hrPersonnel.map((p) => (
+                      <SelectItem key={p.id} value={p.id}>
+                        {p.name} — {p.role}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <Label>Tarih</Label>
+                  <Input
+                    data-ocid="hr.overtime.date_input"
+                    type="date"
+                    value={form.date}
+                    onChange={(e) => setForm({ ...form, date: e.target.value })}
+                    className="mt-1"
+                  />
+                </div>
+                <div>
+                  <Label>Saat</Label>
+                  <Input
+                    data-ocid="hr.overtime.hours_input"
+                    type="number"
+                    min="0.5"
+                    max="24"
+                    step="0.5"
+                    value={form.hours}
+                    onChange={(e) =>
+                      setForm({ ...form, hours: e.target.value })
+                    }
+                    placeholder="Ör: 3"
+                    className="mt-1"
+                  />
+                </div>
+              </div>
+              <div>
+                <Label>Tür</Label>
+                <Select
+                  value={form.type}
+                  onValueChange={(v) =>
+                    setForm({ ...form, type: v as OvertimeRecord["type"] })
+                  }
+                >
+                  <SelectTrigger
+                    data-ocid="hr.overtime.type_select"
+                    className="mt-1"
+                  >
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent className="bg-card">
+                    <SelectItem value="weekday">Hafta İçi</SelectItem>
+                    <SelectItem value="weekend">Hafta Sonu</SelectItem>
+                    <SelectItem value="holiday">Tatil</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label>Açıklama</Label>
+                <Input
+                  data-ocid="hr.overtime.desc_input"
+                  value={form.description}
+                  onChange={(e) =>
+                    setForm({ ...form, description: e.target.value })
+                  }
+                  placeholder="Mesai açıklaması..."
+                  className="mt-1"
+                />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button
+                data-ocid="hr.overtime.cancel_button"
+                variant="outline"
+                onClick={() => setAddOpen(false)}
+                className="border-border"
+              >
+                İptal
+              </Button>
+              <Button
+                data-ocid="hr.overtime.submit_button"
+                onClick={handleAdd}
+                disabled={!form.personnelId || !form.date || !form.hours}
+                className="gradient-bg text-white"
+              >
+                Kaydet
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      </div>
+
+      {/* Monthly Summary */}
+      {monthlySummary.length > 0 && (
+        <Card className="bg-card border-border">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm flex items-center gap-2">
+              <BarChart3 className="h-4 w-4 text-primary" />
+              Bu Ay Onaylanan Mesailer
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex flex-wrap gap-3">
+              {monthlySummary.map((p) => (
+                <div
+                  key={p.id}
+                  className="flex items-center gap-2 bg-background/50 border border-border rounded-lg px-3 py-2"
+                >
+                  <div
+                    className="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold"
+                    style={{ background: `${p.color}22`, color: p.color }}
+                  >
+                    {p.initials}
+                  </div>
+                  <span className="text-sm font-medium">{p.name}</span>
+                  <Badge
+                    variant="outline"
+                    className="text-xs bg-emerald-500/10 text-emerald-400 border-emerald-500/30"
+                  >
+                    {p.hours} saat
+                  </Badge>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Records List */}
+      {overtimeRecords.length === 0 ? (
+        <div
+          data-ocid="hr.overtime.empty_state"
+          className="text-center py-12 text-muted-foreground bg-card border border-border rounded-xl"
+        >
+          <Timer className="h-10 w-10 mx-auto mb-3 opacity-20" />
+          <p className="text-sm">Henüz mesai kaydı bulunmuyor.</p>
+          <p className="text-xs mt-1">
+            Yeni mesai eklemek için yukarıdaki butonu kullanın.
+          </p>
+        </div>
+      ) : (
+        <div className="space-y-2">
+          {overtimeRecords.map((record, idx) => {
+            const st = statusLabels[record.status];
+            return (
+              <div
+                key={record.id}
+                data-ocid={`hr.overtime.item.${idx + 1}`}
+                className="flex items-center gap-3 bg-card border border-border rounded-lg px-4 py-3"
+              >
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="font-medium text-sm">
+                      {record.personnelName}
+                    </span>
+                    <Badge variant="outline" className="text-xs">
+                      {typeLabels[record.type]}
+                    </Badge>
+                  </div>
+                  <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground">
+                    <span>{record.date}</span>
+                    <span className="font-semibold text-foreground">
+                      {record.hours} saat
+                    </span>
+                    {record.description && (
+                      <span className="truncate">{record.description}</span>
+                    )}
+                  </div>
+                </div>
+                <Badge
+                  variant="outline"
+                  className={`text-xs flex-shrink-0 ${st.color}`}
+                >
+                  {st.label}
+                </Badge>
+                {canApprove && record.status === "pending" && (
+                  <div className="flex gap-1">
+                    <Button
+                      data-ocid={`hr.overtime.approve_button.${idx + 1}`}
+                      size="sm"
+                      variant="outline"
+                      className="h-7 text-xs border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/10"
+                      onClick={() =>
+                        updateOvertimeRecord(record.id, { status: "approved" })
+                      }
+                    >
+                      Onayla
+                    </Button>
+                    <Button
+                      data-ocid={`hr.overtime.reject_button.${idx + 1}`}
+                      size="sm"
+                      variant="outline"
+                      className="h-7 text-xs border-rose-500/30 text-rose-400 hover:bg-rose-500/10"
+                      onClick={() =>
+                        updateOvertimeRecord(record.id, { status: "rejected" })
+                      }
+                    >
+                      Reddet
+                    </Button>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function HumanResources() {
   const {
     activeRoleId,
@@ -384,6 +728,7 @@ export default function HumanResources() {
     const newReq: LeaveRequest = {
       id: String(Date.now()),
       name: senderName,
+      personnelId: selectedPersonnel?.id,
       type: newLeave.type,
       startDate: newLeave.startDate,
       endDate: newLeave.endDate,
@@ -501,6 +846,9 @@ export default function HumanResources() {
           </TabsTrigger>
           <TabsTrigger data-ocid="hr.calendar.tab" value="calendar">
             İzin Takvimi
+          </TabsTrigger>
+          <TabsTrigger data-ocid="hr.overtime.tab" value="overtime">
+            Mesai Takibi
           </TabsTrigger>
         </TabsList>
 
@@ -762,7 +1110,10 @@ export default function HumanResources() {
                       const usedLeaveDays = leaves
                         .filter(
                           (l) =>
-                            l.name === person.name && l.status === "Onaylandı",
+                            (l.personnelId
+                              ? l.personnelId === person.id
+                              : l.name === person.name) &&
+                            l.status === "Onaylandı",
                         )
                         .reduce((sum, l) => {
                           if (!l.startDate || !l.endDate) return sum + 1;
@@ -1299,6 +1650,11 @@ export default function HumanResources() {
             </div>
           </div>
         </TabsContent>
+
+        {/* ─── OVERTIME TAB ─── */}
+        <TabsContent value="overtime" className="mt-4 space-y-4">
+          <OvertimeTab />
+        </TabsContent>
       </Tabs>
 
       {/* ─── Personnel Detail Sheet ─── */}
@@ -1469,7 +1825,11 @@ export default function HumanResources() {
                   </h3>
                   <div className="space-y-2">
                     {leaves
-                      .filter((l) => l.name === selectedPersonnel.name)
+                      .filter((l) =>
+                        l.personnelId
+                          ? l.personnelId === selectedPersonnel.id
+                          : l.name === selectedPersonnel.name,
+                      )
                       .slice(0, 5)
                       .map((leave, lIdx) => (
                         <div
@@ -1493,8 +1853,11 @@ export default function HumanResources() {
                           </Badge>
                         </div>
                       ))}
-                    {leaves.filter((l) => l.name === selectedPersonnel.name)
-                      .length === 0 && (
+                    {leaves.filter((l) =>
+                      l.personnelId
+                        ? l.personnelId === selectedPersonnel.id
+                        : l.name === selectedPersonnel.name,
+                    ).length === 0 && (
                       <p className="text-xs text-muted-foreground text-center py-4">
                         İzin geçmişi bulunmuyor.
                       </p>

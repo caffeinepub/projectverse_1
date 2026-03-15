@@ -37,6 +37,7 @@ import {
   X,
 } from "lucide-react";
 import { useRef, useState } from "react";
+import { toast } from "sonner";
 import AccessDenied from "../components/AccessDenied";
 import type { DocFile, DocFolder } from "../contexts/AppContext";
 import { useApp } from "../contexts/AppContext";
@@ -62,7 +63,8 @@ interface FileVersion {
   size: string;
 }
 
-const STORAGE_KEY = (companyId: string | null) => `${companyId}_doc_versions`;
+const STORAGE_KEY = (companyId: string | null) =>
+  `pv_doc_versions_${companyId}`;
 
 function loadVersions(companyId: string | null): Record<string, FileVersion[]> {
   try {
@@ -185,6 +187,7 @@ export default function Documents() {
       uploadedBy: uploaderName,
       date: new Date().toISOString().split("T")[0],
       folderId: selectedFolder,
+      dataUrl: pendingFileData.dataUrl,
     };
     addDocFile(newFile);
     // Add version history
@@ -574,6 +577,16 @@ export default function Documents() {
                             className="h-7 w-7 p-0 text-muted-foreground hover:text-primary"
                             onClick={(e) => {
                               e.stopPropagation();
+                              if (!file.dataUrl) {
+                                toast.error("Dosya içeriği mevcut değil");
+                                return;
+                              }
+                              const a = document.createElement("a");
+                              a.href = file.dataUrl;
+                              a.download = file.name;
+                              document.body.appendChild(a);
+                              a.click();
+                              document.body.removeChild(a);
                             }}
                           >
                             <Download className="h-3.5 w-3.5" />

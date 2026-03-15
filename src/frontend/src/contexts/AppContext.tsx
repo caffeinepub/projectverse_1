@@ -375,6 +375,7 @@ export interface Personnel {
 export interface LeaveRequest {
   id: string;
   name: string;
+  personnelId?: string;
   type: LeaveType;
   startDate: string;
   endDate: string;
@@ -386,6 +387,29 @@ export interface ShiftAssignment {
   day: string;
   shift: string;
   personnel: string[];
+}
+
+// ─── Overtime & Milestone Types ──────────────────────────────────────────────
+export interface OvertimeRecord {
+  id: string;
+  personnelId: string;
+  personnelName: string;
+  date: string;
+  hours: number;
+  type: "weekday" | "weekend" | "holiday";
+  description: string;
+  status: "pending" | "approved" | "rejected";
+  createdBy: string;
+}
+
+export interface Milestone {
+  id: string;
+  projectId: string;
+  title: string;
+  targetDate: string;
+  description: string;
+  completed: boolean;
+  completedDate?: string;
 }
 
 // ─── Finance Types ───────────────────────────────────────────────────────────
@@ -409,7 +433,8 @@ export interface Invoice {
   amount: number;
   dueDate: string;
   status: InvoiceStatus;
-  project: string;
+  projectId: string;
+  installments?: number;
 }
 
 // ─── Communication Types ─────────────────────────────────────────────────────
@@ -540,6 +565,42 @@ export interface DocFile {
   uploadedBy: string;
   date: string;
   folderId: string;
+  dataUrl?: string;
+}
+
+// ─── CRM Types ───────────────────────────────────────────────────────────────
+export type ContactType = "musteri" | "aday" | "is-ortagi";
+export type LeadStatus =
+  | "yeni"
+  | "iletisim"
+  | "teklif"
+  | "muzakere"
+  | "kazanildi"
+  | "kaybedildi";
+
+export interface CrmContact {
+  id: string;
+  name: string;
+  company: string;
+  email: string;
+  phone: string;
+  type: ContactType;
+  notes: string;
+  createdAt: string;
+}
+
+export interface CrmLead {
+  id: string;
+  title: string;
+  contactId: string;
+  value: number;
+  status: LeadStatus;
+  priority: "dusuk" | "orta" | "yuksek";
+  assignedTo: string;
+  expectedClose: string;
+  notes: string;
+  interactions: { date: string; note: string; type: string }[];
+  createdAt: string;
 }
 
 // ─── Initial Module Data ─────────────────────────────────────────────────────
@@ -568,6 +629,10 @@ const INITIAL_STOCK_MOVEMENTS: Movement[] = [];
 const INITIAL_DOC_FOLDERS: DocFolder[] = [];
 
 const INITIAL_DOC_FILES: DocFile[] = [];
+
+const INITIAL_CRM_CONTACTS: CrmContact[] = [];
+
+const INITIAL_CRM_LEADS: CrmLead[] = [];
 
 const MOCK_INVITE_CODES: InviteCode[] = [];
 
@@ -657,6 +722,13 @@ interface AppState {
   setHrLeaves: (l: LeaveRequest[]) => void;
   hrShifts: ShiftAssignment[];
   setHrShifts: (s: ShiftAssignment[]) => void;
+  overtimeRecords: OvertimeRecord[];
+  addOvertimeRecord: (record: OvertimeRecord) => void;
+  updateOvertimeRecord: (id: string, updates: Partial<OvertimeRecord>) => void;
+  milestones: Milestone[];
+  addMilestone: (milestone: Milestone) => void;
+  updateMilestone: (id: string, updates: Partial<Milestone>) => void;
+  deleteMilestone: (id: string) => void;
   // Finance
   expenses: Expense[];
   setExpenses: (e: Expense[]) => void;
@@ -683,6 +755,11 @@ interface AppState {
   addDocFile: (file: DocFile) => void;
   deleteDocFile: (fileId: string) => void;
   addDocFolder: (folder: DocFolder) => void;
+  // CRM
+  crmContacts: CrmContact[];
+  setCrmContacts: (c: CrmContact[]) => void;
+  crmLeads: CrmLead[];
+  setCrmLeads: (l: CrmLead[]) => void;
   // Notifications
   notifications: Notification[];
   addNotification: (n: Omit<Notification, "id" | "timestamp" | "read">) => void;
@@ -822,6 +899,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
       ? loadCompanyData(initCid, "hr_shifts", INITIAL_HR_SHIFTS)
       : INITIAL_HR_SHIFTS,
   );
+  const [overtimeRecords, setOvertimeRecordsState] = useState<OvertimeRecord[]>(
+    () => (initCid ? loadCompanyData(initCid, "hr_overtime", []) : []),
+  );
+  const [milestones, setMilestonesState] = useState<Milestone[]>(() =>
+    initCid ? loadCompanyData(initCid, "milestones", []) : [],
+  );
   const [expenses, setExpensesState] = useState<Expense[]>(() =>
     initCid
       ? loadCompanyData(initCid, "expenses", INITIAL_EXPENSES)
@@ -873,6 +956,18 @@ export function AppProvider({ children }: { children: ReactNode }) {
     initCid
       ? loadCompanyData(initCid, "doc_files", INITIAL_DOC_FILES)
       : INITIAL_DOC_FILES,
+  );
+
+  const [crmContacts, setCrmContactsState] = useState<CrmContact[]>(() =>
+    initCid
+      ? loadCompanyData(initCid, "crm_contacts", INITIAL_CRM_CONTACTS)
+      : INITIAL_CRM_CONTACTS,
+  );
+
+  const [crmLeads, setCrmLeadsState] = useState<CrmLead[]>(() =>
+    initCid
+      ? loadCompanyData(initCid, "crm_leads", INITIAL_CRM_LEADS)
+      : INITIAL_CRM_LEADS,
   );
 
   const [notifications, setNotificationsState] = useState<Notification[]>(() =>
@@ -935,6 +1030,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setHrShiftsState(
       loadCompanyData(companyId, "hr_shifts", INITIAL_HR_SHIFTS),
     );
+    setOvertimeRecordsState(loadCompanyData(companyId, "hr_overtime", []));
+    setMilestonesState(loadCompanyData(companyId, "milestones", []));
     setExpensesState(loadCompanyData(companyId, "expenses", INITIAL_EXPENSES));
     setInvoicesState(loadCompanyData(companyId, "invoices", INITIAL_INVOICES));
     setChannelsState(loadCompanyData(companyId, "channels", INITIAL_CHANNELS));
@@ -965,6 +1062,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
     );
     setNotificationsState(loadCompanyData(companyId, "notifications", []));
     setOrdersState(loadCompanyData(companyId, "orders", []));
+    setCrmContactsState(
+      loadCompanyData(companyId, "crm_contacts", INITIAL_CRM_CONTACTS),
+    );
+    setCrmLeadsState(
+      loadCompanyData(companyId, "crm_leads", INITIAL_CRM_LEADS),
+    );
     setProjectsState(loadCompanyData(companyId, "projects", MOCK_PROJECTS));
     setTasksState(loadCompanyData(companyId, "tasks", MOCK_TASKS));
     setWorkOrdersState(
@@ -1084,6 +1187,17 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setDocFoldersState(updatedFolders);
     saveCompanyData(activeCompanyId, "doc_files", updatedFiles);
     saveCompanyData(activeCompanyId, "doc_folders", updatedFolders);
+  };
+
+  // ─── CRM ───────────────────────────────────────────────────────────────────
+  const setCrmContacts = (c: CrmContact[]) => {
+    setCrmContactsState(c);
+    saveCompanyData(activeCompanyId, "crm_contacts", c);
+  };
+
+  const setCrmLeads = (l: CrmLead[]) => {
+    setCrmLeadsState(l);
+    saveCompanyData(activeCompanyId, "crm_leads", l);
   };
 
   // ─── Notifications ─────────────────────────────────────────────────────────
@@ -1225,6 +1339,39 @@ export function AppProvider({ children }: { children: ReactNode }) {
         message: `${materialName} stoğu kritik seviyeye düştü.`,
       });
     }
+  };
+
+  const addOvertimeRecord = (record: OvertimeRecord) => {
+    const updated = [record, ...overtimeRecords];
+    setOvertimeRecordsState(updated);
+    saveCompanyData(activeCompanyId, "hr_overtime", updated);
+  };
+  const updateOvertimeRecord = (
+    id: string,
+    updates: Partial<OvertimeRecord>,
+  ) => {
+    const updated = overtimeRecords.map((r) =>
+      r.id === id ? { ...r, ...updates } : r,
+    );
+    setOvertimeRecordsState(updated);
+    saveCompanyData(activeCompanyId, "hr_overtime", updated);
+  };
+  const addMilestone = (milestone: Milestone) => {
+    const updated = [milestone, ...milestones];
+    setMilestonesState(updated);
+    saveCompanyData(activeCompanyId, "milestones", updated);
+  };
+  const updateMilestone = (id: string, updates: Partial<Milestone>) => {
+    const updated = milestones.map((m) =>
+      m.id === id ? { ...m, ...updates } : m,
+    );
+    setMilestonesState(updated);
+    saveCompanyData(activeCompanyId, "milestones", updated);
+  };
+  const deleteMilestone = (id: string) => {
+    const updated = milestones.filter((m) => m.id !== id);
+    setMilestonesState(updated);
+    saveCompanyData(activeCompanyId, "milestones", updated);
   };
 
   const t = translations[lang];
@@ -1586,6 +1733,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
         setHrLeaves,
         hrShifts,
         setHrShifts,
+        overtimeRecords,
+        addOvertimeRecord,
+        updateOvertimeRecord,
+        milestones,
+        addMilestone,
+        updateMilestone,
+        deleteMilestone,
         expenses,
         setExpenses,
         invoices,
@@ -1607,6 +1761,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
         addDocFile,
         deleteDocFile,
         addDocFolder,
+        crmContacts,
+        setCrmContacts,
+        crmLeads,
+        setCrmLeads,
         notifications,
         addNotification,
         markNotificationRead,

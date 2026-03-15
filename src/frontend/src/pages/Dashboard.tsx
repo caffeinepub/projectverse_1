@@ -4,7 +4,9 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { useNavigate } from "@tanstack/react-router";
 import {
+  Activity,
   AlertTriangle,
+  Calendar,
   CheckCircle2,
   CheckSquare,
   ClipboardList,
@@ -12,6 +14,7 @@ import {
   Hammer,
   HardHat,
   Plus,
+  TrendingDown,
   TrendingUp,
   UserPlus,
   Users,
@@ -30,6 +33,7 @@ import {
   YAxis,
 } from "recharts";
 import AccessDenied from "../components/AccessDenied";
+import EmptyState from "../components/EmptyState";
 import { useApp } from "../contexts/AppContext";
 
 export default function Dashboard() {
@@ -41,7 +45,7 @@ export default function Dashboard() {
     workOrders,
     fieldInspections,
     currentCompany,
-    activeCompanyId,
+    hrPersonnel,
   } = useApp();
 
   const navigate = useNavigate();
@@ -66,19 +70,44 @@ export default function Dashboard() {
       (f) => f.status === "scheduled" || f.status === "in_progress",
     ).length;
 
-    // Team members from localStorage
-    let teamMembers = 0;
-    try {
-      const raw = localStorage.getItem(
-        `hr_personnel_${activeCompanyId || "c1"}`,
-      );
-      if (raw) {
-        const arr = JSON.parse(raw);
-        teamMembers = Array.isArray(arr) ? arr.length : 0;
-      }
-    } catch (_) {
-      teamMembers = 0;
-    }
+    // Team members from hrPersonnel context
+    const teamMembers = Array.isArray(hrPersonnel) ? hrPersonnel.length : 0;
+
+    // Weekly trends
+    const startOfThisWeek = new Date(today);
+    startOfThisWeek.setDate(today.getDate() - today.getDay());
+    startOfThisWeek.setHours(0, 0, 0, 0);
+    const startOfLastWeek = new Date(startOfThisWeek);
+    startOfLastWeek.setDate(startOfThisWeek.getDate() - 7);
+
+    const tasksCompletedThisWeek = tasks.filter((t2) => {
+      if (t2.status !== "done" || !t2.dueDate) return false;
+      const d = new Date(t2.dueDate);
+      return d >= startOfThisWeek && d <= today;
+    }).length;
+
+    const tasksCompletedLastWeek = tasks.filter((t2) => {
+      if (t2.status !== "done" || !t2.dueDate) return false;
+      const d = new Date(t2.dueDate);
+      return d >= startOfLastWeek && d < startOfThisWeek;
+    }).length;
+
+    const taskWeeklyDiff = tasksCompletedThisWeek - tasksCompletedLastWeek;
+
+    // Projects added this week
+    const projectsThisWeek = companyProjects.filter((p) => {
+      if (!p.startDate) return false;
+      const d = new Date(p.startDate);
+      return d >= startOfThisWeek && d <= today;
+    }).length;
+
+    const projectsLastWeek = companyProjects.filter((p) => {
+      if (!p.startDate) return false;
+      const d = new Date(p.startDate);
+      return d >= startOfLastWeek && d < startOfThisWeek;
+    }).length;
+
+    const projectWeeklyDiff = projectsThisWeek - projectsLastWeek;
 
     return {
       activeProjects,
@@ -87,6 +116,10 @@ export default function Dashboard() {
       teamMembers,
       activeWorkOrders,
       openInspections,
+      taskWeeklyDiff,
+      tasksCompletedThisWeek,
+      projectWeeklyDiff,
+      projectsThisWeek,
     };
   }, [
     projects,
@@ -94,7 +127,7 @@ export default function Dashboard() {
     workOrders,
     fieldInspections,
     currentCompany,
-    activeCompanyId,
+    hrPersonnel,
   ]);
 
   // Bar chart: completed tasks per day for last 7 days
@@ -247,6 +280,7 @@ export default function Dashboard() {
           size="sm"
           className="gap-2 gradient-bg text-white"
           data-ocid="dashboard.new_project.button"
+          onClick={() => navigate({ to: "/projects" })}
         >
           <Plus className="w-4 h-4" /> Yeni Proje
         </Button>
@@ -255,6 +289,7 @@ export default function Dashboard() {
           variant="outline"
           className="gap-2"
           data-ocid="dashboard.new_task.button"
+          onClick={() => navigate({ to: "/projects" })}
         >
           <CheckSquare className="w-4 h-4" /> Yeni Görev
         </Button>
@@ -263,6 +298,7 @@ export default function Dashboard() {
           variant="outline"
           className="gap-2"
           data-ocid="dashboard.new_workorder.button"
+          onClick={() => navigate({ to: "/field" })}
         >
           <Hammer className="w-4 h-4" /> Yeni İş Emri
         </Button>
@@ -271,6 +307,7 @@ export default function Dashboard() {
           variant="outline"
           className="gap-2"
           data-ocid="dashboard.invite_personnel.button"
+          onClick={() => navigate({ to: "/settings" })}
         >
           <UserPlus className="w-4 h-4" /> Personel Davet
         </Button>
@@ -279,7 +316,7 @@ export default function Dashboard() {
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <Card
           data-ocid="dashboard.active_projects_card"
-          className="bg-card border-border cursor-pointer hover:border-primary/40 transition-colors"
+          className="bg-card border-border cursor-pointer kpi-card"
           onClick={() => navigate({ to: "/projects" })}
         >
           <CardContent className="pt-6">
@@ -301,23 +338,35 @@ export default function Dashboard() {
               >
                 <FolderKanban
                   className="w-6 h-6"
-                  style={{ color: "oklch(0.72 0.2 280)" }}
+                  style={{ color: "oklch(0.80 0.18 52)" }}
                 />
               </div>
             </div>
             <div className="flex items-center gap-1 mt-3">
-              <TrendingUp
-                className="w-3 h-3"
-                style={{ color: "oklch(0.72 0.16 160)" }}
-              />
+              {stats.projectWeeklyDiff >= 0 ? (
+                <TrendingUp
+                  className="w-3 h-3"
+                  style={{ color: "oklch(0.72 0.16 160)" }}
+                />
+              ) : (
+                <TrendingDown
+                  className="w-3 h-3"
+                  style={{ color: "oklch(0.65 0.22 25)" }}
+                />
+              )}
               <span
                 className="text-xs"
-                style={{ color: "oklch(0.72 0.16 160)" }}
+                style={{
+                  color:
+                    stats.projectWeeklyDiff >= 0
+                      ? "oklch(0.72 0.16 160)"
+                      : "oklch(0.65 0.22 25)",
+                }}
               >
-                +2 bu ay
+                {stats.projectWeeklyDiff >= 0 ? "+" : ""}
+                {stats.projectWeeklyDiff} bu hafta
               </span>
             </div>
-            <p className="text-xs text-green-400 mt-1">↑ +2 bu hafta</p>
           </CardContent>
         </Card>
 
@@ -349,24 +398,37 @@ export default function Dashboard() {
               </div>
             </div>
             <div className="flex items-center gap-1 mt-3">
-              <TrendingUp
-                className="w-3 h-3"
-                style={{ color: "oklch(0.72 0.16 160)" }}
-              />
+              {stats.taskWeeklyDiff >= 0 ? (
+                <TrendingUp
+                  className="w-3 h-3"
+                  style={{ color: "oklch(0.72 0.16 160)" }}
+                />
+              ) : (
+                <TrendingDown
+                  className="w-3 h-3"
+                  style={{ color: "oklch(0.65 0.22 25)" }}
+                />
+              )}
               <span
                 className="text-xs"
-                style={{ color: "oklch(0.72 0.16 160)" }}
+                style={{
+                  color:
+                    stats.taskWeeklyDiff >= 0
+                      ? "oklch(0.72 0.16 160)"
+                      : "oklch(0.65 0.22 25)",
+                }}
               >
-                +12 bu hafta
+                {stats.taskWeeklyDiff >= 0 ? "+" : ""}
+                {stats.taskWeeklyDiff} bu hafta ({stats.tasksCompletedThisWeek}{" "}
+                tamamlandı)
               </span>
             </div>
-            <p className="text-xs text-green-400 mt-1">↑ +5 bu hafta</p>
           </CardContent>
         </Card>
 
         <Card
           data-ocid="dashboard.overdue_tasks_card"
-          className="bg-card border-border cursor-pointer hover:border-primary/40 transition-colors"
+          className="bg-card border-border cursor-pointer kpi-card"
           onClick={() => navigate({ to: "/projects" })}
         >
           <CardContent className="pt-6">
@@ -403,7 +465,7 @@ export default function Dashboard() {
 
         <Card
           data-ocid="dashboard.team_members_card"
-          className="bg-card border-border cursor-pointer hover:border-primary/40 transition-colors"
+          className="bg-card border-border cursor-pointer kpi-card"
           onClick={() => navigate({ to: "/hr" })}
         >
           <CardContent className="pt-6">
@@ -428,7 +490,6 @@ export default function Dashboard() {
               </div>
             </div>
             <p className="text-xs text-muted-foreground mt-3">İK modülünden</p>
-            <p className="text-xs text-green-400 mt-1">↑ +1 bu hafta</p>
           </CardContent>
         </Card>
       </div>
@@ -588,7 +649,7 @@ export default function Dashboard() {
                 />
                 <Bar
                   dataKey="completed"
-                  fill="oklch(0.62 0.22 280)"
+                  fill="oklch(0.72 0.19 52)"
                   radius={[4, 4, 0, 0]}
                 />
               </BarChart>
@@ -604,12 +665,12 @@ export default function Dashboard() {
           </CardHeader>
           <CardContent className="space-y-3">
             {recentActivities.length === 0 ? (
-              <p
-                className="text-sm text-muted-foreground"
+              <EmptyState
                 data-ocid="dashboard.activity.empty_state"
-              >
-                Henüz aktivite yok.
-              </p>
+                icon={Activity}
+                title="Henüz aktivite yok"
+                description="Görev tamamlandıkça ve iş emirleri oluşturuldukça son aktiviteler burada görünür."
+              />
             ) : (
               recentActivities.map((a, i) => (
                 <div key={`${a.text}-${i}`} className="flex items-start gap-3">
@@ -637,12 +698,12 @@ export default function Dashboard() {
           </CardHeader>
           <CardContent className="space-y-3">
             {upcomingDeadlines.length === 0 ? (
-              <p
-                className="text-sm text-muted-foreground"
+              <EmptyState
                 data-ocid="dashboard.deadlines.empty_state"
-              >
-                Yaklaşan son tarih yok.
-              </p>
+                icon={Calendar}
+                title="Yaklaşan son tarih yok"
+                description="Son 14 gün içinde teslim edilmesi gereken görev veya iş emri bulunmuyor."
+              />
             ) : (
               upcomingDeadlines.map((d, i) => (
                 <div

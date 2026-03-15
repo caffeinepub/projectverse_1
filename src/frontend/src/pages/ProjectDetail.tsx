@@ -4,8 +4,10 @@ import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
+  DialogTrigger,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -37,12 +39,16 @@ import { Textarea } from "@/components/ui/textarea";
 import {
   ArrowLeft,
   Calendar,
+  CheckCircle2,
   Clock,
+  Flag,
   MessageSquare,
   Plus,
   Send,
+  Trash2,
 } from "lucide-react";
 import { useState } from "react";
+import type { Milestone } from "../contexts/AppContext";
 import {
   type Task,
   type TaskPriority,
@@ -56,6 +62,225 @@ const PRIORITY_CONFIG: Record<string, { label: string; color: string }> = {
   high: { label: "Yüksek", color: "oklch(0.65 0.22 25)" },
   critical: { label: "Kritik", color: "oklch(0.58 0.22 25)" },
 };
+
+function MilestonesTab({ projectId }: { projectId: string }) {
+  const { milestones, addMilestone, updateMilestone, deleteMilestone } =
+    useApp();
+
+  const [addOpen, setAddOpen] = useState(false);
+  const [form, setForm] = useState({
+    title: "",
+    targetDate: "",
+    description: "",
+  });
+
+  const projectMilestones = milestones.filter((m) => m.projectId === projectId);
+  const today = new Date().toISOString().split("T")[0];
+
+  const handleAdd = () => {
+    if (!form.title || !form.targetDate) return;
+    const milestone: Milestone = {
+      id: `ms${Date.now()}`,
+      projectId,
+      title: form.title,
+      targetDate: form.targetDate,
+      description: form.description,
+      completed: false,
+      completedDate: undefined,
+    };
+    addMilestone(milestone);
+    setForm({ title: "", targetDate: "", description: "" });
+    setAddOpen(false);
+  };
+
+  const getMilestoneStatus = (m: Milestone) => {
+    if (m.completed)
+      return {
+        label: "Tamamlandı",
+        color: "bg-emerald-500/20 text-emerald-300 border-emerald-500/30",
+      };
+    if (m.targetDate < today)
+      return {
+        label: "Gecikmiş",
+        color: "bg-rose-500/20 text-rose-300 border-rose-500/30",
+      };
+    return {
+      label: "Bekliyor",
+      color: "bg-amber-500/20 text-amber-300 border-amber-500/30",
+    };
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between flex-wrap gap-3">
+        <div className="flex items-center gap-2">
+          <Flag className="h-5 w-5 text-primary" />
+          <h2 className="text-lg font-semibold">Kilometre Taşları</h2>
+          <Badge variant="outline" className="text-xs">
+            {projectMilestones.filter((m) => m.completed).length}/
+            {projectMilestones.length} tamamlandı
+          </Badge>
+        </div>
+        <Dialog open={addOpen} onOpenChange={setAddOpen}>
+          <DialogTrigger asChild>
+            <Button
+              data-ocid="milestone.open_modal_button"
+              size="sm"
+              className="gradient-bg text-white gap-2"
+            >
+              <Plus className="h-4 w-4" />
+              Taş Ekle
+            </Button>
+          </DialogTrigger>
+          <DialogContent
+            data-ocid="milestone.dialog"
+            className="bg-card border-border"
+          >
+            <DialogHeader>
+              <DialogTitle>Kilometre Taşı Ekle</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div>
+                <Label>Başlık</Label>
+                <Input
+                  data-ocid="milestone.title_input"
+                  value={form.title}
+                  onChange={(e) => setForm({ ...form, title: e.target.value })}
+                  placeholder="Kilometre taşı başlığı..."
+                  className="mt-1"
+                />
+              </div>
+              <div>
+                <Label>Hedef Tarih</Label>
+                <Input
+                  data-ocid="milestone.date_input"
+                  type="date"
+                  value={form.targetDate}
+                  onChange={(e) =>
+                    setForm({ ...form, targetDate: e.target.value })
+                  }
+                  className="mt-1"
+                />
+              </div>
+              <div>
+                <Label>Açıklama</Label>
+                <Input
+                  data-ocid="milestone.desc_input"
+                  value={form.description}
+                  onChange={(e) =>
+                    setForm({ ...form, description: e.target.value })
+                  }
+                  placeholder="Kısa açıklama (opsiyonel)..."
+                  className="mt-1"
+                />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button
+                data-ocid="milestone.cancel_button"
+                variant="outline"
+                onClick={() => setAddOpen(false)}
+                className="border-border"
+              >
+                İptal
+              </Button>
+              <Button
+                data-ocid="milestone.submit_button"
+                onClick={handleAdd}
+                disabled={!form.title || !form.targetDate}
+                className="gradient-bg text-white"
+              >
+                Ekle
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      </div>
+
+      {projectMilestones.length === 0 ? (
+        <div
+          data-ocid="milestone.empty_state"
+          className="text-center py-12 text-muted-foreground bg-card border border-border rounded-xl"
+        >
+          <Flag className="h-10 w-10 mx-auto mb-3 opacity-20" />
+          <p className="text-sm">Henüz kilometre taşı eklenmemiş.</p>
+          <p className="text-xs mt-1">
+            Proje dönüm noktalarını takip etmek için taş ekleyin.
+          </p>
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {projectMilestones.map((milestone, idx) => {
+            const st = getMilestoneStatus(milestone);
+            return (
+              <div
+                key={milestone.id}
+                data-ocid={`milestone.item.${idx + 1}`}
+                className={`flex items-start gap-3 bg-card border rounded-xl px-4 py-3 ${
+                  milestone.completed
+                    ? "border-emerald-500/20 bg-emerald-500/5"
+                    : milestone.targetDate < today
+                      ? "border-rose-500/20 bg-rose-500/5"
+                      : "border-border"
+                }`}
+              >
+                <button
+                  type="button"
+                  data-ocid={`milestone.checkbox.${idx + 1}`}
+                  className="mt-0.5 flex-shrink-0"
+                  onClick={() =>
+                    updateMilestone(milestone.id, {
+                      completed: !milestone.completed,
+                      completedDate: !milestone.completed ? today : undefined,
+                    })
+                  }
+                >
+                  {milestone.completed ? (
+                    <CheckCircle2 className="h-5 w-5 text-emerald-400" />
+                  ) : (
+                    <div className="h-5 w-5 rounded-full border-2 border-muted-foreground/50" />
+                  )}
+                </button>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span
+                      className={`font-medium text-sm ${milestone.completed ? "line-through text-muted-foreground" : ""}`}
+                    >
+                      {milestone.title}
+                    </span>
+                    <Badge variant="outline" className={`text-xs ${st.color}`}>
+                      {st.label}
+                    </Badge>
+                  </div>
+                  <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground">
+                    <span className="flex items-center gap-1">
+                      <Calendar className="h-3 w-3" />
+                      {milestone.targetDate}
+                    </span>
+                    {milestone.completedDate && (
+                      <span>Tamamlandı: {milestone.completedDate}</span>
+                    )}
+                    {milestone.description && (
+                      <span className="truncate">{milestone.description}</span>
+                    )}
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  data-ocid={`milestone.delete_button.${idx + 1}`}
+                  className="flex-shrink-0 text-muted-foreground hover:text-rose-400 transition-colors"
+                  onClick={() => deleteMilestone(milestone.id)}
+                >
+                  <Trash2 className="h-4 w-4" />
+                </button>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
 
 export default function ProjectDetail({
   projectId,
@@ -163,6 +388,9 @@ export default function ProjectDetail({
           </TabsTrigger>
           <TabsTrigger data-ocid="project_detail.tab.3" value="kanban">
             {t.kanban}
+          </TabsTrigger>
+          <TabsTrigger data-ocid="project_detail.tab.4" value="milestones">
+            Kilometre Taşları
           </TabsTrigger>
         </TabsList>
 
@@ -425,6 +653,11 @@ export default function ProjectDetail({
               },
             )}
           </div>
+        </TabsContent>
+
+        {/* ─── MILESTONES TAB ─── */}
+        <TabsContent value="milestones" className="mt-4">
+          <MilestonesTab projectId={project.id} />
         </TabsContent>
       </Tabs>
 

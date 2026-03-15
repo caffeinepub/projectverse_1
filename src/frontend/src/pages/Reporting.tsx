@@ -91,6 +91,8 @@ export default function Reporting() {
     invoices,
     hrPersonnel,
     workOrders,
+    overtimeRecords,
+    milestones,
   } = useApp();
 
   const canView =
@@ -101,6 +103,29 @@ export default function Reporting() {
     checkPermission("reporting", "view");
 
   const [period, setPeriod] = useState("Son 6 Ay");
+
+  const filterByPeriod = (date: string): boolean => {
+    if (!date) return true;
+    const d = new Date(date);
+    const now = new Date();
+    if (period === "Bu Ay") {
+      return (
+        d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth()
+      );
+    }
+    if (period === "Son 3 Ay") {
+      const cutoff = new Date(now.getFullYear(), now.getMonth() - 2, 1);
+      return d >= cutoff;
+    }
+    if (period === "Son 6 Ay") {
+      const cutoff = new Date(now.getFullYear(), now.getMonth() - 5, 1);
+      return d >= cutoff;
+    }
+    if (period === "Bu Yıl") {
+      return d.getFullYear() === now.getFullYear();
+    }
+    return true;
+  };
 
   // Reactive CRM data from localStorage with company-scoped reload
   const [crmContacts, setCrmContacts] = useState<Array<{ type: string }>>(
@@ -194,7 +219,8 @@ export default function Reporting() {
     (sum, p) => sum + ((p as { budget?: number }).budget || 0),
     0,
   );
-  const totalSpent = expenses.reduce(
+  const filteredExpenses = expenses.filter((e) => filterByPeriod(e.date));
+  const totalSpent = filteredExpenses.reduce(
     (sum, e) => sum + (typeof e.amount === "number" ? e.amount : 0),
     0,
   );
@@ -210,7 +236,7 @@ export default function Reporting() {
 
   // Budget chart: top 5 projects
   const budgetData = projects.slice(0, 5).map((p) => {
-    const projectExpenses = expenses
+    const projectExpenses = filteredExpenses
       .filter((e) => e.projectId === p.id)
       .reduce((s, e) => s + (typeof e.amount === "number" ? e.amount : 0), 0);
     return {
@@ -231,7 +257,7 @@ export default function Reporting() {
   });
   const expenseTrend = monthLabels.map(({ key, label }) => ({
     ay: label,
-    toplam: expenses
+    toplam: filteredExpenses
       .filter((e) => (e.date || "").startsWith(key))
       .reduce((s, e) => s + (typeof e.amount === "number" ? e.amount : 0), 0),
   }));
@@ -282,8 +308,6 @@ export default function Reporting() {
       accent: g.accent,
     };
   });
-
-  void invoices;
 
   const kpis = [
     {
@@ -365,6 +389,38 @@ export default function Reporting() {
       icon: <Activity className="w-5 h-5" />,
       color: "text-rose-400",
       bg: "from-rose-500/10 to-pink-500/5 border-rose-500/20",
+    },
+    {
+      label: "Faturalar",
+      value: String(invoices.length),
+      sub: `₺${invoices.reduce((s, i) => s + i.amount, 0).toLocaleString("tr-TR")} toplam`,
+      icon: <DollarSign className="w-5 h-5" />,
+      color: "text-emerald-400",
+      bg: "from-emerald-500/10 to-teal-500/5 border-emerald-500/20",
+    },
+    {
+      label: "Bu Ay Mesai",
+      value: `${(() => {
+        const m = `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, "0")}`;
+        return overtimeRecords
+          .filter((r) => r.status === "approved" && r.date.startsWith(m))
+          .reduce((s, r) => s + r.hours, 0);
+      })()}s`,
+      sub: "onaylanan mesai saati",
+      icon: <TrendingUp className="w-5 h-5" />,
+      color: "text-cyan-400",
+      bg: "from-cyan-500/10 to-sky-500/5 border-cyan-500/20",
+    },
+    {
+      label: "Kilometre Taşları",
+      value: `${milestones.filter((m) => m.completed).length}/${milestones.length}`,
+      sub:
+        milestones.length > 0
+          ? `${Math.round((milestones.filter((m) => m.completed).length / milestones.length) * 100)}% tamamlandı`
+          : "taş tanımlanmamış",
+      icon: <CheckSquare className="w-5 h-5" />,
+      color: "text-violet-400",
+      bg: "from-violet-500/10 to-purple-500/5 border-violet-500/20",
     },
   ];
 
