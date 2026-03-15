@@ -1,53 +1,50 @@
-# ProjectVerse -- Phase 6
+# ProjectVerse
 
 ## Current State
-- Phase 5 delivered: İnsan Kaynakları (HR) and İletişim (Communication) modules.
-- Finance and Documents modules are in the nav but marked `available: false` (placeholder only).
-- App.tsx routes: dashboard, projects, fieldOps, hr, communication are active.
-- HR module has personnel cards, leave management (request/approval), weekly shift planner.
-- Communication module has project channels + general channel, text messaging, file attachment button.
-- FieldOps module has job orders and inspections.
+ProjectVerse is a modular ERP-SaaS platform with 10+ modules, all using company-scoped localStorage. The codebase has 31 code-level bugs identified by static analysis, spanning broken RBAC, hardcoded values, broken cross-module integrations, and multi-tenant isolation failures.
 
 ## Requested Changes (Diff)
 
 ### Add
-- **Finance Module** (`src/frontend/src/pages/Finance.tsx`)
-  - Dashboard summary: total budget, spent, remaining, pending approvals
-  - Project-based budget tracking table (planned vs actual)
-  - Expense records list with create form (amount, category, project, description, receipt upload)
-  - Expense approval workflow (pending / approved / rejected statuses)
-  - Invoice list (vendor, amount, due date, status: paid / pending / overdue)
-  - Role-based access: only Owner and Manager (financial-authorized roles) can approve/edit
-
-- **Documents Module** (`src/frontend/src/pages/Documents.tsx`)
-  - Folder structure: Company-wide folders + per-project folders
-  - File list per folder (name, type icon, size, uploader, upload date)
-  - Upload button (simulated, blob-storage compatible)
-  - File actions: download, delete (role-based)
-  - Search/filter files by name or type
-  - Role-based access: all roles can view, only authorized roles can upload/delete
+- 6 missing modules (purchasing, inventory, communication, reporting, qualitySafety, crm) to `ALL_MODULE_PERMISSIONS` and `getDefaultPermissionsByRole` in AppContext
+- `annualLeaveBalance` field to `Personnel` type (default 14, but editable per employee)
+- `updateOrder` function in AppContext that persists all order fields (not just status)
+- Invoice creation dialog in Finance module
+- CRM contact edit and delete capability in contact detail modal
+- Corrective action input field in QualitySafety inspection close flow
+- Incident close action text input (instead of hardcoded string)
 
 ### Modify
-- **App.tsx**: import and render Finance and Documents pages
-- **Layout.tsx**: set `available: true` for finance and documents nav items
-- **HumanResources.tsx**:
-  - Add "Documents" tab to personnel card detail view (list of personal docs: contract, ID, certifications)
-  - Add leave calendar view (monthly calendar showing approved leaves by person)
-- **Communication.tsx**:
-  - Add message search bar within a channel
-  - Add read receipt indicators ("Okundu" / tick marks)
-- **FieldOps.tsx**:
-  - Add cost field to job order detail (estimated cost, actual cost)
-  - Link to Finance module ("Gider Oluştur" button on job order detail)
+- AppContext: Make projects/tasks/workOrders/fieldInspections company-scoped (`pv_projects_${cid}` etc.)
+- AppContext: `setActiveCompany` must also reload projects, tasks, workOrders, fieldInspections, taskComments
+- AppContext: Fix `updateOrderStatus` to only update status (keep); add separate `updateOrder(id, Partial<Order>)` for full edits
+- Fix role permission checks in Finance, Purchasing, HumanResources, Inventory, Reporting — replace broken `"manager_idari"` string comparisons with `activeRoleId === "owner" || activeRoleId === "manager"` or use `checkPermission()`
+- Purchasing: Store project by ID not title; fix project lookup to use ID throughout
+- Purchasing: `handleSaveOrder` must call new `updateOrder` to persist deliveryDate and notes
+- Inventory: Match stock items to projects by ID not title
+- Reporting: Remove fabricated budget fallback (`expenses * 1.3` / `100000`); use real project.budget or show N/A
+- Reporting: Replace raw `localStorage.getItem` for CRM/QS with reactive state via `useEffect` + `useState`
+- Reporting: Wire invoices data into invoice KPI card
+- Communication: On `activeCompanyId` change, reset `activeChannelId` to first channel of new company
+- Communication: Persist unread counts per channel to AppContext `channel.unread` field, not just local state
+- HumanResources: Add `useEffect` to reload `personnelDocs` when `activeCompanyId` changes
+- HumanResources: Use `personnel.annualLeaveBalance` instead of hardcoded 14
+- FieldOps: Remove shadow inventory deduction from `actualCost` blur handler (keep only the explicit dialog on complete)
+- Finance: Wire "Fatura Yükle" button to open an invoice creation dialog that calls `setInvoices`
 
 ### Remove
-- Nothing removed
+- Hardcoded fallback strings `"Ben"`, `"Mevcut Kullanıcı"`, `"Satın Alma Modülü"` — replace with `user?.name || ""` (no Turkish fallback)
+- `void invoices` suppression in Reporting.tsx
 
 ## Implementation Plan
-1. Create `Finance.tsx` with mock data: budget summary cards, project budget table, expense list with approval flow, invoice list. Tabs: Bütçe / Giderler / Faturalar.
-2. Create `Documents.tsx` with mock folder tree (sidebar), file list (main area), upload button, search. Folders: Genel, and per-project folders.
-3. Update `App.tsx`: import Finance, Documents; add render conditions `page === 'finance'` and `page === 'documents'`.
-4. Update `Layout.tsx`: set `available: true` for finance and documents.
-5. Update `HumanResources.tsx`: add Documents tab to personnel detail panel; add calendar view tab to leave management.
-6. Update `Communication.tsx`: add search input at top of message area; add read receipt "✓✓" to sent messages.
-7. Update `FieldOps.tsx`: add cost fields (estimated/actual) to job order detail; add "Gider Oluştur" button.
+1. Update AppContext: add missing modules to permission maps, company-scope project/task/workOrder/inspection keys, add `updateOrder`, reload taskComments in setActiveCompany
+2. Fix all 5 modules with broken role ID comparisons (Finance, Purchasing, HR, Inventory, Reporting)
+3. Fix Purchasing: project stored/looked up by ID
+4. Fix Inventory: stock items matched to projects by ID
+5. Fix Reporting: remove fabricated budgets, use reactive CRM/QS state, wire invoices
+6. Fix Communication: reset activeChannelId on company switch, sync unread counts
+7. Fix HumanResources: reload personnelDocs on company switch, use per-employee leave balance
+8. Fix FieldOps: remove duplicate shadow inventory deduction
+9. Finance: implement invoice creation dialog
+10. QualitySafety: add corrective action input for inspections, action text input for incident close
+11. CRM: add edit and delete to contact detail modal

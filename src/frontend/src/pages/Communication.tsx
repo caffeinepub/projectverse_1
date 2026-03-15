@@ -91,6 +91,12 @@ export default function Communication() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: reset to first channel when channels list changes (visibleChannels derived from channels)
+  useEffect(() => {
+    const firstChannel = visibleChannels[0]?.id || "";
+    setActiveChannelId(firstChannel);
+  }, [channels, isSubcontractor]);
+
   const activeChannel = visibleChannels.find((c) => c.id === activeChannelId);
   const channelMessages = messages
     .filter((m) => m.channelId === activeChannelId)
@@ -101,11 +107,11 @@ export default function Communication() {
     );
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: scroll to bottom intentionally on msg/channel change
+  // biome-ignore lint/correctness/useExhaustiveDependencies: scroll to bottom on message/channel change
   useEffect(() => {
     if (scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
-    // biome-ignore lint/correctness/useExhaustiveDependencies: intentional
   }, [channelMessages.length, activeChannelId]);
 
   const handleSend = () => {

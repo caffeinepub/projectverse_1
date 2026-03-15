@@ -111,6 +111,7 @@ function StarRating({
 export default function Purchasing() {
   const {
     activeRoleId,
+    checkPermission,
     suppliers,
     setSuppliers,
     purchaseRequests: requests,
@@ -119,21 +120,23 @@ export default function Purchasing() {
     setExpenses,
     orders,
     addOrder,
-    updateOrderStatus: updateOrderStatusCtx,
+    updateOrder,
     addNotification,
+    user,
+    projects,
   } = useApp();
 
   const canEdit =
     activeRoleId === "owner" ||
     activeRoleId === "manager" ||
-    activeRoleId === "manager_idari";
+    activeRoleId === "pm" ||
+    checkPermission("purchasing", "edit");
 
   const canView =
     canEdit ||
-    activeRoleId === "manager_teknik" ||
-    activeRoleId === "personnel" ||
-    activeRoleId === "personnel_teknik" ||
-    activeRoleId === "personnel_idari";
+    activeRoleId === "supervisor" ||
+    activeRoleId === "staff" ||
+    checkPermission("purchasing", "view");
 
   // ── Orders from AppContext ──────────────────────────────────────────────
 
@@ -254,7 +257,7 @@ export default function Purchasing() {
         project: newRequest.project,
         priority: newRequest.priority,
         status: "Bekliyor" as const,
-        requestedBy: "Mevcut Kullanıcı",
+        requestedBy: user?.name || "",
         date: new Date().toISOString().split("T")[0],
         description: newRequest.description,
       },
@@ -274,9 +277,17 @@ export default function Purchasing() {
     id: string,
     action: "Onaylandı" | "Reddedildi",
   ) => {
+    const req = requests.find((r) => r.id === id);
     setRequests(
       requests.map((r) => (r.id === id ? { ...r, status: action } : r)),
     );
+    if (req) {
+      addNotification({
+        type: "order_status",
+        title: action === "Onaylandı" ? "Talep Onaylandı" : "Talep Reddedildi",
+        message: `${req.item} talebi ${action.toLowerCase()}.`,
+      });
+    }
   };
 
   const openOrderDetail = (order: Order) => {
@@ -299,20 +310,23 @@ export default function Purchasing() {
       deliveryDate: editOrderDelivery,
       notes: editOrderNotes,
     };
-    updateOrderStatusCtx(selectedOrder.id, editOrderStatus);
-    // Also update other fields by direct state sync if needed (we update via re-adding in the map logic)
+    updateOrder(selectedOrder.id, {
+      status: editOrderStatus,
+      deliveryDate: editOrderDelivery,
+      notes: editOrderNotes,
+    });
 
     // Auto-add expense when order delivered
     if (wasDelivered) {
       const newExpense = {
         id: `exp_ord_${selectedOrder.id}`,
         category: "Satın Alma",
-        projectId: selectedOrder.item,
+        projectId: selectedOrder.projectId || "",
         amount: selectedOrder.totalAmount,
         date: new Date().toISOString().split("T")[0],
         status: "Onaylandı" as const,
         description: `${selectedOrder.supplier} – ${selectedOrder.item}`,
-        createdBy: "Satın Alma Modülü",
+        createdBy: user?.name || "",
       };
       setExpenses([...expenses, newExpense]);
       addNotification({
@@ -336,6 +350,9 @@ export default function Purchasing() {
   const handleConvertToOrder = () => {
     const req = requests.find((r) => r.id === convertReqId);
     if (!req) return;
+    const projForOrder =
+      projects.find((p) => p.id === req.project) ||
+      projects.find((p) => p.title === req.project);
     const newOrder: Order = {
       id: `o${Date.now()}`,
       supplier: suppliers[0]?.name ?? "Belirtilmedi",
@@ -346,11 +363,15 @@ export default function Purchasing() {
       status: "Taslak",
       notes: req.description,
       fromRequestId: req.id,
+      projectId: projForOrder?.id || "",
     };
     addOrder(newOrder);
     setConvertDialogOpen(false);
     setConvertReqId(null);
   };
+
+  const getProjectName = (projectId: string) =>
+    projects.find((p) => p.id === projectId)?.title || projectId;
 
   // ── Filtered suppliers ────────────────────────────────────────────────────
   const filteredSuppliers = suppliers.filter(
@@ -720,14 +741,9 @@ export default function Purchasing() {
                         <SelectValue placeholder="Proje seçin" />
                       </SelectTrigger>
                       <SelectContent className="bg-card border-border">
-                        {[
-                          "İstanbul Rezidans",
-                          "Ankara Plaza",
-                          "İzmir Liman",
-                          "Bursa Konutları",
-                        ].map((p) => (
-                          <SelectItem key={p} value={p}>
-                            {p}
+                        {projects.map((p) => (
+                          <SelectItem key={p.id} value={p.id}>
+                            {p.title}
                           </SelectItem>
                         ))}
                       </SelectContent>
@@ -848,7 +864,7 @@ export default function Purchasing() {
                         ₺{(req.qty * req.unitPrice).toLocaleString("tr-TR")}
                       </TableCell>
                       <TableCell className="text-muted-foreground text-sm">
-                        {req.project}
+                        {getProjectName(req.project)}
                       </TableCell>
                       <TableCell>
                         <Badge

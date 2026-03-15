@@ -87,6 +87,12 @@ const ALL_MODULE_PERMISSIONS: Record<string, ModulePermissions> = {
   finance: { view: true, edit: true, delete: true },
   documents: { view: true, edit: true, delete: true },
   settings: { view: true, edit: true, delete: true },
+  purchasing: { view: true, edit: true, delete: true },
+  inventory: { view: true, edit: true, delete: true },
+  communication: { view: true, edit: true, delete: true },
+  reporting: { view: true, edit: true, delete: true },
+  qualitySafety: { view: true, edit: true, delete: true },
+  crm: { view: true, edit: true, delete: true },
 };
 
 function getDefaultPermissionsByRole(
@@ -103,6 +109,12 @@ function getDefaultPermissionsByRole(
         hr: { view: true, edit: false, delete: false },
         finance: { view: true, edit: false, delete: false },
         settings: { view: true, edit: false, delete: false },
+        purchasing: { view: true, edit: true, delete: false },
+        inventory: { view: true, edit: true, delete: false },
+        communication: { view: true, edit: true, delete: false },
+        reporting: { view: true, edit: true, delete: false },
+        qualitySafety: { view: true, edit: true, delete: false },
+        crm: { view: true, edit: true, delete: false },
       };
     }
     // İdari
@@ -114,6 +126,12 @@ function getDefaultPermissionsByRole(
       projects: { view: true, edit: false, delete: false },
       fieldOps: { view: true, edit: false, delete: false },
       settings: { view: true, edit: false, delete: false },
+      purchasing: { view: true, edit: true, delete: false },
+      inventory: { view: true, edit: true, delete: false },
+      communication: { view: true, edit: true, delete: false },
+      reporting: { view: true, edit: true, delete: false },
+      qualitySafety: { view: true, edit: true, delete: false },
+      crm: { view: true, edit: true, delete: false },
     };
   }
   if (roleId === "personnel") {
@@ -122,6 +140,12 @@ function getDefaultPermissionsByRole(
         dashboard: { view: true, edit: false, delete: false },
         projects: { view: true, edit: true, delete: false },
         fieldOps: { view: true, edit: true, delete: false },
+        purchasing: { view: true, edit: false, delete: false },
+        inventory: { view: true, edit: false, delete: false },
+        communication: { view: true, edit: true, delete: false },
+        reporting: { view: true, edit: false, delete: false },
+        qualitySafety: { view: true, edit: false, delete: false },
+        crm: { view: true, edit: false, delete: false },
       };
     }
     // İdari
@@ -129,12 +153,19 @@ function getDefaultPermissionsByRole(
       dashboard: { view: true, edit: false, delete: false },
       hr: { view: true, edit: true, delete: false },
       documents: { view: true, edit: true, delete: false },
+      purchasing: { view: true, edit: false, delete: false },
+      inventory: { view: true, edit: false, delete: false },
+      communication: { view: true, edit: true, delete: false },
+      reporting: { view: true, edit: false, delete: false },
+      qualitySafety: { view: true, edit: false, delete: false },
+      crm: { view: true, edit: false, delete: false },
     };
   }
   if (roleId === "subcontractor") {
     return {
       fieldOps: { view: true, edit: false, delete: false },
       projects: { view: true, edit: false, delete: false },
+      communication: { view: true, edit: false, delete: false },
     };
   }
   return {};
@@ -338,6 +369,7 @@ export interface Personnel {
   status: "Aktif" | "Pasif";
   initials: string;
   color: string;
+  annualLeaveBalance?: number;
 }
 
 export interface LeaveRequest {
@@ -489,6 +521,7 @@ export interface Order {
   status: OrderStatus;
   notes: string;
   fromRequestId?: string;
+  projectId?: string;
 }
 
 // ─── Document Types ───────────────────────────────────────────────────────────
@@ -659,6 +692,7 @@ interface AppState {
   orders: Order[];
   addOrder: (order: Order) => void;
   updateOrderStatus: (id: string, status: OrderStatus) => void;
+  updateOrder: (id: string, updates: Partial<Order>) => void;
   deductStock: (
     materialName: string,
     qty: number,
@@ -730,21 +764,25 @@ export function AppProvider({ children }: { children: ReactNode }) {
     () => localStorage.getItem("pv_active_subtype") || null,
   );
   const [projects, setProjectsState] = useState<Project[]>(() => {
-    const s = localStorage.getItem("pv_projects");
+    const cid = localStorage.getItem("pv_active_company");
+    const s = cid ? localStorage.getItem(`pv_projects_${cid}`) : null;
     return s ? JSON.parse(s) : MOCK_PROJECTS;
   });
   const [tasks, setTasksState] = useState<Task[]>(() => {
-    const s = localStorage.getItem("pv_tasks");
+    const cid = localStorage.getItem("pv_active_company");
+    const s = cid ? localStorage.getItem(`pv_tasks_${cid}`) : null;
     return s ? JSON.parse(s) : MOCK_TASKS;
   });
   const [workOrders, setWorkOrdersState] = useState<WorkOrder[]>(() => {
-    const s = localStorage.getItem("pv_work_orders");
+    const cid = localStorage.getItem("pv_active_company");
+    const s = cid ? localStorage.getItem(`pv_work_orders_${cid}`) : null;
     return s ? JSON.parse(s) : MOCK_WORK_ORDERS;
   });
   const [fieldInspections, setFieldInspectionsState] = useState<
     FieldInspection[]
   >(() => {
-    const s = localStorage.getItem("pv_inspections");
+    const cid = localStorage.getItem("pv_active_company");
+    const s = cid ? localStorage.getItem(`pv_inspections_${cid}`) : null;
     return s ? JSON.parse(s) : MOCK_INSPECTIONS;
   });
   const [pendingInvites, setPendingInvitesState] = useState<PendingInvite[]>(
@@ -845,7 +883,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
   );
 
   const [taskComments, setTaskCommentsState] = useState<TaskComment[]>(() => {
-    const s = localStorage.getItem("pv_task_comments");
+    const cid = localStorage.getItem("pv_active_company");
+    const s = cid ? localStorage.getItem(`pv_task_comments_${cid}`) : null;
     return s ? JSON.parse(s) : [];
   });
 
@@ -926,6 +965,16 @@ export function AppProvider({ children }: { children: ReactNode }) {
     );
     setNotificationsState(loadCompanyData(companyId, "notifications", []));
     setOrdersState(loadCompanyData(companyId, "orders", []));
+    setProjectsState(loadCompanyData(companyId, "projects", MOCK_PROJECTS));
+    setTasksState(loadCompanyData(companyId, "tasks", MOCK_TASKS));
+    setWorkOrdersState(
+      loadCompanyData(companyId, "work_orders", MOCK_WORK_ORDERS),
+    );
+    setFieldInspectionsState(
+      loadCompanyData(companyId, "inspections", MOCK_INSPECTIONS),
+    );
+    const tc = localStorage.getItem(`pv_task_comments_${companyId}`);
+    setTaskCommentsState(tc ? JSON.parse(tc) : []);
   };
   const setActiveRole = (roleId: string, subType?: string) => {
     setActiveRoleIdState(roleId);
@@ -936,19 +985,19 @@ export function AppProvider({ children }: { children: ReactNode }) {
   };
   const setProjects = (p: Project[]) => {
     setProjectsState(p);
-    localStorage.setItem("pv_projects", JSON.stringify(p));
+    saveCompanyData(activeCompanyId, "projects", p);
   };
   const setTasks = (t: Task[]) => {
     setTasksState(t);
-    localStorage.setItem("pv_tasks", JSON.stringify(t));
+    saveCompanyData(activeCompanyId, "tasks", t);
   };
   const setWorkOrders = (w: WorkOrder[]) => {
     setWorkOrdersState(w);
-    localStorage.setItem("pv_work_orders", JSON.stringify(w));
+    saveCompanyData(activeCompanyId, "work_orders", w);
   };
   const setFieldInspections = (f: FieldInspection[]) => {
     setFieldInspectionsState(f);
-    localStorage.setItem("pv_inspections", JSON.stringify(f));
+    saveCompanyData(activeCompanyId, "inspections", f);
   };
   const setPendingInvites = (invites: PendingInvite[]) => {
     setPendingInvitesState(invites);
@@ -1073,6 +1122,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
     saveCompanyData(activeCompanyId, "orders", updated);
   };
 
+  const updateOrder = (id: string, updates: Partial<Order>) => {
+    const updated = orders.map((o) => (o.id === id ? { ...o, ...updates } : o));
+    setOrdersState(updated);
+    saveCompanyData(activeCompanyId, "orders", updated);
+  };
+
   const updateOrderStatus = (id: string, status: OrderStatus) => {
     const order = orders.find((o) => o.id === id);
     const updated = orders.map((o) => (o.id === id ? { ...o, status } : o));
@@ -1119,7 +1174,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
     };
     const updated = [comment, ...taskComments];
     setTaskCommentsState(updated);
-    localStorage.setItem("pv_task_comments", JSON.stringify(updated));
+    if (activeCompanyId)
+      localStorage.setItem(
+        `pv_task_comments_${activeCompanyId}`,
+        JSON.stringify(updated),
+      );
   };
 
   const deductStock = (
@@ -1200,7 +1259,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
     };
     const updatedComments = [log, ...taskComments];
     setTaskCommentsState(updatedComments);
-    localStorage.setItem("pv_task_comments", JSON.stringify(updatedComments));
+    if (activeCompanyId)
+      localStorage.setItem(
+        `pv_task_comments_${activeCompanyId}`,
+        JSON.stringify(updatedComments),
+      );
   };
 
   const createCompany = (name: string, desc: string): Company => {
@@ -1551,6 +1614,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         orders,
         addOrder,
         updateOrderStatus,
+        updateOrder,
         deductStock,
         updateCurrentUser,
       }}

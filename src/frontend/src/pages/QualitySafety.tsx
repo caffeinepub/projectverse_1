@@ -150,6 +150,15 @@ export default function QualitySafety() {
     return s ? JSON.parse(s) : INITIAL_INCIDENTS;
   });
 
+  // Reload data when company changes
+  useEffect(() => {
+    if (!activeCompanyId) return;
+    const si = localStorage.getItem(`pv_qs_${activeCompanyId}`);
+    setInspections(si ? JSON.parse(si) : []);
+    const sinc = localStorage.getItem(`pv_inc_${activeCompanyId}`);
+    setIncidents(sinc ? JSON.parse(sinc) : []);
+  }, [activeCompanyId]);
+
   useEffect(() => {
     if (activeCompanyId) {
       localStorage.setItem(storageKey, JSON.stringify(inspections));
@@ -317,6 +326,8 @@ export default function QualitySafety() {
         : prev,
     );
   };
+
+  const [incidentActionText, setIncidentActionText] = useState("");
 
   return (
     <div
@@ -918,6 +929,35 @@ export default function QualitySafety() {
                   </p>
                 </div>
               )}
+              {canEdit && (
+                <div>
+                  <p className="text-xs font-medium text-muted-foreground mb-1">
+                    Düzeltici Aksiyon Notu
+                  </p>
+                  <textarea
+                    data-ocid="quality_safety.inspection_corrective.textarea"
+                    className="w-full rounded-md border border-border bg-background p-2 text-sm resize-none focus:outline-none focus:ring-1 focus:ring-primary"
+                    rows={3}
+                    placeholder="Düzeltici aksiyon bilgisi girin..."
+                    defaultValue={selectedInsp.correctiveAction || ""}
+                    onBlur={(e) => {
+                      const val = e.target.value.trim();
+                      if (val) {
+                        setInspections((prev) =>
+                          prev.map((i) =>
+                            i.id === selectedInsp.id
+                              ? { ...i, correctiveAction: val }
+                              : i,
+                          ),
+                        );
+                        setSelectedInsp((prev) =>
+                          prev ? { ...prev, correctiveAction: val } : prev,
+                        );
+                      }
+                    }}
+                  />
+                </div>
+              )}
             </div>
             <DialogFooter>
               <Button
@@ -992,20 +1032,32 @@ export default function QualitySafety() {
                       İncelemeye Al
                     </Button>
                   )}
-                  <Button
-                    data-ocid="quality_safety.incident_close_action_button"
-                    size="sm"
-                    className="gradient-bg"
-                    onClick={() =>
-                      updateIncidentStatus(
-                        selectedInc.id,
-                        "kapali",
-                        "İnceleme tamamlandı ve kapatıldı.",
-                      )
-                    }
-                  >
-                    Kapat
-                  </Button>
+                  <div className="flex flex-col gap-2 w-full">
+                    <textarea
+                      data-ocid="quality_safety.incident_action.textarea"
+                      className="w-full rounded-md border border-border bg-background p-2 text-sm resize-none focus:outline-none focus:ring-1 focus:ring-primary"
+                      rows={2}
+                      placeholder="Gerçekleştirilen aksiyon..."
+                      value={incidentActionText}
+                      onChange={(e) => setIncidentActionText(e.target.value)}
+                    />
+                    <Button
+                      data-ocid="quality_safety.incident_close_action_button"
+                      size="sm"
+                      className="gradient-bg"
+                      onClick={() => {
+                        updateIncidentStatus(
+                          selectedInc.id,
+                          "kapali",
+                          incidentActionText ||
+                            "İnceleme tamamlandı ve kapatıldı.",
+                        );
+                        setIncidentActionText("");
+                      }}
+                    >
+                      Kapat
+                    </Button>
+                  </div>
                 </div>
               )}
             </div>

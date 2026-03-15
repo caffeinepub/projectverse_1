@@ -50,13 +50,7 @@ const statusColors: Record<StockStatus, string> = {
   Tükendi: "bg-rose-500/20 text-rose-400 border-rose-500/30",
 };
 
-const PROJECTS = [
-  "Tümü",
-  "İstanbul Rezidans",
-  "Ankara Plaza",
-  "İzmir Liman",
-  "Bursa Konutları",
-];
+// Projects list now comes from AppContext
 
 const CATEGORIES = ["Malzeme", "Ekipman", "Sarf", "Yapı", "Elektrik", "Diğer"];
 
@@ -69,23 +63,26 @@ function getStockStatus(quantity: number, threshold: number): StockStatus {
 export default function Inventory() {
   const {
     activeRoleId,
+    checkPermission,
     stockItems,
     setStockItems,
     stockMovements,
     setStockMovements,
+    projects,
+    user,
   } = useApp();
 
   const canEdit =
     activeRoleId === "owner" ||
     activeRoleId === "manager" ||
-    activeRoleId === "manager_teknik" ||
-    activeRoleId === "manager_idari";
+    activeRoleId === "pm" ||
+    checkPermission("inventory", "edit");
 
   const canView =
     canEdit ||
-    activeRoleId === "personnel" ||
-    activeRoleId === "personnel_teknik" ||
-    activeRoleId === "personnel_idari";
+    activeRoleId === "supervisor" ||
+    activeRoleId === "staff" ||
+    checkPermission("inventory", "view");
 
   const [projectFilter, setProjectFilter] = useState("Tümü");
   const [search, setSearch] = useState("");
@@ -97,7 +94,7 @@ export default function Inventory() {
     category: "Malzeme",
     quantity: "",
     unit: "adet",
-    project: "İstanbul Rezidans",
+    project: "",
     threshold: "",
     value: "",
   });
@@ -108,7 +105,7 @@ export default function Inventory() {
   const [newMovement, setNewMovement] = useState({
     type: "Giriş" as MovementType,
     quantity: "",
-    project: "İstanbul Rezidans",
+    project: "",
     description: "",
     date: new Date().toISOString().split("T")[0],
   });
@@ -117,7 +114,9 @@ export default function Inventory() {
 
   const filteredStock = stockItems.filter((s) => {
     const matchesProject =
-      projectFilter === "Tümü" || s.project === projectFilter;
+      projectFilter === "Tümü" ||
+      s.project === projectFilter ||
+      s.project === projects.find((p) => p.id === projectFilter)?.title;
     const matchesSearch =
       search === "" || s.name.toLowerCase().includes(search.toLowerCase());
     return matchesProject && matchesSearch;
@@ -133,10 +132,10 @@ export default function Inventory() {
   const criticalCount = criticalItems.length;
 
   // ── Project summary ───────────────────────────────────────────────────────
-  const projectSummary = PROJECTS.filter((p) => p !== "Tümü").map((proj) => {
-    const items = stockItems.filter((s) => s.project === proj);
+  const projectSummary = projects.map((proj) => {
+    const items = stockItems.filter((s) => s.project === proj.title);
     const value = items.reduce((sum, s) => sum + s.quantity * s.value, 0);
-    return { project: proj, count: items.length, value };
+    return { project: proj.title, count: items.length, value };
   });
 
   // ── Handlers ──────────────────────────────────────────────────────────────
@@ -164,7 +163,7 @@ export default function Inventory() {
       category: "Malzeme",
       quantity: "",
       unit: "adet",
-      project: "İstanbul Rezidans",
+      project: "",
       threshold: "",
       value: "",
     });
@@ -177,7 +176,7 @@ export default function Inventory() {
     setNewMovement({
       type: "Giriş",
       quantity: "",
-      project: item?.project ?? "İstanbul Rezidans",
+      project: item?.project ?? "",
       description: "",
       date: new Date().toISOString().split("T")[0],
     });
@@ -214,7 +213,7 @@ export default function Inventory() {
         qty,
         unit: item.unit,
         project: newMovement.project,
-        recordedBy: "Mevcut Kullanıcı",
+        recordedBy: user?.name || "Mevcut Kullanıcı",
       },
       ...stockMovements,
     ]);
@@ -402,7 +401,7 @@ export default function Inventory() {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent className="bg-card border-border">
-                  {PROJECTS.map((p) => (
+                  {["Tümü", ...projects.map((p) => p.title)].map((p) => (
                     <SelectItem key={p} value={p}>
                       {p}
                     </SelectItem>
@@ -782,9 +781,9 @@ export default function Inventory() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent className="bg-card border-border">
-                    {PROJECTS.filter((p) => p !== "Tümü").map((p) => (
-                      <SelectItem key={p} value={p}>
-                        {p}
+                    {projects.map((p) => (
+                      <SelectItem key={p.id} value={p.id}>
+                        {p.title}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -900,9 +899,9 @@ export default function Inventory() {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent className="bg-card border-border">
-                  {PROJECTS.filter((p) => p !== "Tümü").map((p) => (
-                    <SelectItem key={p} value={p}>
-                      {p}
+                  {projects.map((p) => (
+                    <SelectItem key={p.id} value={p.title}>
+                      {p.title}
                     </SelectItem>
                   ))}
                 </SelectContent>

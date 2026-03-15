@@ -141,6 +141,15 @@ export default function CRM() {
     return s ? JSON.parse(s) : INITIAL_LEADS;
   });
 
+  // Reload data when company changes
+  useEffect(() => {
+    if (!activeCompanyId) return;
+    const sc = localStorage.getItem(`pv_crm_contacts_${activeCompanyId}`);
+    setContacts(sc ? JSON.parse(sc) : []);
+    const sl = localStorage.getItem(`pv_crm_leads_${activeCompanyId}`);
+    setLeads(sl ? JSON.parse(sl) : []);
+  }, [activeCompanyId]);
+
   useEffect(() => {
     if (activeCompanyId) localStorage.setItem(cKey, JSON.stringify(contacts));
   }, [contacts, activeCompanyId, cKey]);
@@ -273,6 +282,38 @@ export default function CRM() {
 
   // Contact detail
   const [selectedContact, setSelectedContact] = useState<Contact | null>(null);
+  const [editContactOpen, setEditContactOpen] = useState(false);
+  const [editContactData, setEditContactData] = useState<
+    Omit<Contact, "id" | "createdAt">
+  >({
+    name: "",
+    company: "",
+    email: "",
+    phone: "",
+    type: "musteri",
+    notes: "",
+  });
+  const [deleteContactConfirm, setDeleteContactConfirm] = useState(false);
+
+  const handleEditContact = () => {
+    if (!selectedContact || !editContactData.name) return;
+    setContacts((prev) =>
+      prev.map((c) =>
+        c.id === selectedContact.id ? { ...c, ...editContactData } : c,
+      ),
+    );
+    setSelectedContact((prev) =>
+      prev ? { ...prev, ...editContactData } : prev,
+    );
+    setEditContactOpen(false);
+  };
+
+  const handleDeleteContact = () => {
+    if (!selectedContact) return;
+    setContacts((prev) => prev.filter((c) => c.id !== selectedContact.id));
+    setSelectedContact(null);
+    setDeleteContactConfirm(false);
+  };
 
   return (
     <div data-ocid="crm.page" className="p-6 space-y-6 max-w-7xl mx-auto">
@@ -1006,7 +1047,38 @@ export default function CRM() {
                 </div>
               </div>
             </div>
-            <DialogFooter>
+            <DialogFooter className="flex flex-wrap gap-2 justify-between">
+              <div className="flex gap-2">
+                <Button
+                  data-ocid="crm.contact_edit_button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    if (selectedContact) {
+                      setEditContactData({
+                        name: selectedContact.name,
+                        company: selectedContact.company,
+                        email: selectedContact.email,
+                        phone: selectedContact.phone,
+                        type: selectedContact.type,
+                        notes: selectedContact.notes,
+                      });
+                      setEditContactOpen(true);
+                    }
+                  }}
+                >
+                  Düzenle
+                </Button>
+                <Button
+                  data-ocid="crm.contact_delete_button"
+                  variant="outline"
+                  size="sm"
+                  className="text-rose-400 border-rose-500/30 hover:bg-rose-500/10"
+                  onClick={() => setDeleteContactConfirm(true)}
+                >
+                  Sil
+                </Button>
+              </div>
               <Button
                 data-ocid="crm.contact_close_button"
                 variant="outline"
@@ -1018,6 +1090,152 @@ export default function CRM() {
           </DialogContent>
         </Dialog>
       )}
+
+      {/* Edit Contact Dialog */}
+      <Dialog open={editContactOpen} onOpenChange={setEditContactOpen}>
+        <DialogContent
+          data-ocid="crm.contact_edit_dialog"
+          className="bg-card border-border"
+        >
+          <DialogHeader>
+            <DialogTitle>Müşteri Düzenle</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div>
+              <p className="text-xs font-medium text-muted-foreground">
+                Ad Soyad
+              </p>
+              <input
+                data-ocid="crm.contact_edit_name.input"
+                className="w-full rounded-md border border-border bg-background p-2 text-sm mt-1 focus:outline-none focus:ring-1 focus:ring-primary"
+                value={editContactData.name}
+                onChange={(e) =>
+                  setEditContactData({
+                    ...editContactData,
+                    name: e.target.value,
+                  })
+                }
+              />
+            </div>
+            <div>
+              <p className="text-xs font-medium text-muted-foreground">
+                Şirket
+              </p>
+              <input
+                data-ocid="crm.contact_edit_company.input"
+                className="w-full rounded-md border border-border bg-background p-2 text-sm mt-1 focus:outline-none focus:ring-1 focus:ring-primary"
+                value={editContactData.company}
+                onChange={(e) =>
+                  setEditContactData({
+                    ...editContactData,
+                    company: e.target.value,
+                  })
+                }
+              />
+            </div>
+            <div>
+              <p className="text-xs font-medium text-muted-foreground">
+                E-posta
+              </p>
+              <input
+                data-ocid="crm.contact_edit_email.input"
+                className="w-full rounded-md border border-border bg-background p-2 text-sm mt-1 focus:outline-none focus:ring-1 focus:ring-primary"
+                value={editContactData.email}
+                onChange={(e) =>
+                  setEditContactData({
+                    ...editContactData,
+                    email: e.target.value,
+                  })
+                }
+              />
+            </div>
+            <div>
+              <p className="text-xs font-medium text-muted-foreground">
+                Telefon
+              </p>
+              <input
+                data-ocid="crm.contact_edit_phone.input"
+                className="w-full rounded-md border border-border bg-background p-2 text-sm mt-1 focus:outline-none focus:ring-1 focus:ring-primary"
+                value={editContactData.phone}
+                onChange={(e) =>
+                  setEditContactData({
+                    ...editContactData,
+                    phone: e.target.value,
+                  })
+                }
+              />
+            </div>
+            <div>
+              <p className="text-xs font-medium text-muted-foreground">
+                Notlar
+              </p>
+              <textarea
+                data-ocid="crm.contact_edit_notes.textarea"
+                className="w-full rounded-md border border-border bg-background p-2 text-sm mt-1 resize-none focus:outline-none focus:ring-1 focus:ring-primary"
+                rows={3}
+                value={editContactData.notes}
+                onChange={(e) =>
+                  setEditContactData({
+                    ...editContactData,
+                    notes: e.target.value,
+                  })
+                }
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              data-ocid="crm.contact_edit_cancel_button"
+              variant="outline"
+              onClick={() => setEditContactOpen(false)}
+            >
+              İptal
+            </Button>
+            <Button
+              data-ocid="crm.contact_edit_save_button"
+              className="gradient-bg text-white"
+              onClick={handleEditContact}
+            >
+              Kaydet
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Confirm Dialog */}
+      <Dialog
+        open={deleteContactConfirm}
+        onOpenChange={setDeleteContactConfirm}
+      >
+        <DialogContent
+          data-ocid="crm.contact_delete_dialog"
+          className="bg-card border-border"
+        >
+          <DialogHeader>
+            <DialogTitle>Müşteriyi Sil</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">
+            <strong>{selectedContact?.name}</strong> müşterisini silmek
+            istediğinizden emin misiniz?
+          </p>
+          <DialogFooter>
+            <Button
+              data-ocid="crm.contact_delete_cancel_button"
+              variant="outline"
+              onClick={() => setDeleteContactConfirm(false)}
+            >
+              İptal
+            </Button>
+            <Button
+              data-ocid="crm.contact_delete_confirm_button"
+              className="bg-rose-600 hover:bg-rose-700 text-white"
+              onClick={handleDeleteContact}
+            >
+              Sil
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

@@ -92,18 +92,21 @@ export default function Finance() {
     invoices,
     setInvoices,
     projects,
+    user,
+    addNotification,
   } = useApp();
 
   const canEdit =
     activeRoleId === "owner" ||
     activeRoleId === "manager" ||
-    activeRoleId === "manager_idari" ||
+    activeRoleId === "pm" ||
     checkPermission("finance", "edit");
 
   const canView =
-    checkPermission("finance", "view") ||
-    activeRoleId === "owner" ||
-    activeRoleId === "manager";
+    canEdit ||
+    activeRoleId === "supervisor" ||
+    activeRoleId === "staff" ||
+    checkPermission("finance", "view");
 
   const [newExpenseOpen, setNewExpenseOpen] = useState(false);
   const [newExpense, setNewExpense] = useState({
@@ -126,6 +129,33 @@ export default function Finance() {
           .reduce((s, e) => s + e.amount, 0),
       }));
   }, [projects, expenses]);
+
+  const today = new Date().toISOString().split("T")[0];
+  const [newInvoiceOpen, setNewInvoiceOpen] = useState(false);
+  const [newInvoice, setNewInvoice] = useState({
+    supplier: "",
+    amount: "",
+    dueDate: "",
+    project: "",
+  });
+
+  const handleAddInvoice = () => {
+    if (!newInvoice.supplier || !newInvoice.amount) return;
+    const inv: Invoice = {
+      id: `inv${Date.now()}`,
+      supplier: newInvoice.supplier,
+      amount: Number(newInvoice.amount),
+      dueDate: newInvoice.dueDate,
+      status:
+        newInvoice.dueDate && newInvoice.dueDate < today
+          ? "Gecikmiş"
+          : "Bekliyor",
+      project: newInvoice.project,
+    };
+    setInvoices([inv, ...invoices]);
+    setNewInvoice({ supplier: "", amount: "", dueDate: "", project: "" });
+    setNewInvoiceOpen(false);
+  };
 
   if (!canView) return <AccessDenied />;
 
@@ -168,9 +198,18 @@ export default function Finance() {
       date: new Date().toISOString().split("T")[0],
       status: "Bekliyor",
       description: newExpense.description,
-      createdBy: "Ben",
+      createdBy: user?.name || "",
     };
     setExpenses([expense, ...expenses]);
+    // Notify if budget overrun
+    const warn = getProjectBudgetWarning(expense.projectId);
+    if (warn?.includes("aşılmış")) {
+      addNotification({
+        type: "order_status",
+        title: "Bütçe Aşıldı",
+        message: warn,
+      });
+    }
     setNewExpense({
       amount: "",
       category: "Malzeme",
@@ -571,14 +610,6 @@ export default function Finance() {
                       rows={3}
                     />
                   </div>
-                  <Button
-                    data-ocid="finance.expense.upload_button"
-                    variant="outline"
-                    className="w-full border-border border-dashed"
-                  >
-                    <Upload className="h-4 w-4 mr-2" />
-                    Fatura Yükle
-                  </Button>
                 </div>
                 <DialogFooter>
                   <Button
@@ -716,6 +747,112 @@ export default function Finance() {
             <p className="text-sm text-muted-foreground">
               {invoices.length} fatura
             </p>
+            {canEdit && (
+              <Dialog open={newInvoiceOpen} onOpenChange={setNewInvoiceOpen}>
+                <DialogTrigger asChild>
+                  <Button
+                    data-ocid="finance.invoice.open_modal_button"
+                    size="sm"
+                    className="gradient-bg text-white gap-1"
+                  >
+                    <Plus className="h-3.5 w-3.5" />
+                    Yeni Fatura
+                  </Button>
+                </DialogTrigger>
+                <DialogContent className="bg-card border-border">
+                  <DialogHeader>
+                    <DialogTitle>Yeni Fatura Ekle</DialogTitle>
+                  </DialogHeader>
+                  <div className="space-y-3">
+                    <div>
+                      <Label>Tedarikçi</Label>
+                      <Input
+                        data-ocid="finance.invoice.supplier.input"
+                        value={newInvoice.supplier}
+                        onChange={(e) =>
+                          setNewInvoice({
+                            ...newInvoice,
+                            supplier: e.target.value,
+                          })
+                        }
+                        className="bg-background border-border mt-1"
+                        placeholder="Tedarikçi adı"
+                      />
+                    </div>
+                    <div>
+                      <Label>Tutar (₺)</Label>
+                      <Input
+                        data-ocid="finance.invoice.amount.input"
+                        type="number"
+                        value={newInvoice.amount}
+                        onChange={(e) =>
+                          setNewInvoice({
+                            ...newInvoice,
+                            amount: e.target.value,
+                          })
+                        }
+                        className="bg-background border-border mt-1"
+                        placeholder="0"
+                      />
+                    </div>
+                    <div>
+                      <Label>Vade Tarihi</Label>
+                      <Input
+                        data-ocid="finance.invoice.due_date.input"
+                        type="date"
+                        value={newInvoice.dueDate}
+                        onChange={(e) =>
+                          setNewInvoice({
+                            ...newInvoice,
+                            dueDate: e.target.value,
+                          })
+                        }
+                        className="bg-background border-border mt-1"
+                      />
+                    </div>
+                    <div>
+                      <Label>Proje</Label>
+                      <Select
+                        value={newInvoice.project}
+                        onValueChange={(v) =>
+                          setNewInvoice({ ...newInvoice, project: v })
+                        }
+                      >
+                        <SelectTrigger
+                          data-ocid="finance.invoice.project.select"
+                          className="bg-background border-border mt-1"
+                        >
+                          <SelectValue placeholder="Proje seçin..." />
+                        </SelectTrigger>
+                        <SelectContent className="bg-card border-border">
+                          {projects.map((p) => (
+                            <SelectItem key={p.id} value={p.title}>
+                              {p.title}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                  <DialogFooter>
+                    <Button
+                      data-ocid="finance.invoice.cancel_button"
+                      variant="outline"
+                      onClick={() => setNewInvoiceOpen(false)}
+                    >
+                      İptal
+                    </Button>
+                    <Button
+                      data-ocid="finance.invoice.submit_button"
+                      className="gradient-bg text-white"
+                      onClick={handleAddInvoice}
+                    >
+                      Ekle
+                    </Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
+            )}
           </div>
           <Card className="bg-card border-border">
             <CardContent className="p-0">

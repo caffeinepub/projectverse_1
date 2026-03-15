@@ -46,7 +46,7 @@ import {
   Users,
   X,
 } from "lucide-react";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type {
   LeaveRequest,
   LeaveStatus,
@@ -224,6 +224,7 @@ export default function HumanResources() {
   const {
     activeRoleId,
     activeCompanyId,
+    checkPermission,
     hrPersonnel: personnel,
     setHrPersonnel: setPersonnel,
     hrLeaves: leaves,
@@ -231,13 +232,15 @@ export default function HumanResources() {
     hrShifts: shifts,
     setHrShifts: setShifts,
     user,
+    addNotification,
   } = useApp();
 
   const isManager =
     activeRoleId === "owner" ||
     activeRoleId === "manager" ||
-    activeRoleId === "manager_teknik" ||
-    activeRoleId === "manager_idari";
+    activeRoleId === "pm" ||
+    activeRoleId === "supervisor" ||
+    checkPermission("hr", "edit");
 
   // Personnel state
   const [search, setSearch] = useState("");
@@ -249,6 +252,7 @@ export default function HumanResources() {
     department: "Teknik",
     phone: "",
     email: "",
+    annualLeaveBalance: "14",
   });
   const [selectedPersonnel, setSelectedPersonnel] = useState<Personnel | null>(
     null,
@@ -258,6 +262,11 @@ export default function HumanResources() {
   const [personnelDocs, setPersonnelDocs] = useState<
     Record<string, PersonnelDoc[]>
   >(() => loadPersonnelDocs(activeCompanyId));
+
+  // Reload personnel docs when company changes
+  useEffect(() => {
+    if (activeCompanyId) setPersonnelDocs(loadPersonnelDocs(activeCompanyId));
+  }, [activeCompanyId]);
   const [isUploadingDoc, setIsUploadingDoc] = useState(false);
   const [docUploadProgress, setDocUploadProgress] = useState(0);
   const docFileInputRef = useRef<HTMLInputElement>(null);
@@ -297,19 +306,35 @@ export default function HumanResources() {
   const departments = Array.from(new Set(personnel.map((p) => p.department)));
 
   const handleApprove = (id: string) => {
+    const leave = leaves.find((l) => l.id === id);
     setLeaves(
       leaves.map((l) =>
         l.id === id ? { ...l, status: "Onaylandı" as LeaveStatus } : l,
       ),
     );
+    if (leave) {
+      addNotification({
+        type: "leave_approved",
+        title: "İzin Onaylandı",
+        message: `${leave.name} adlı personelin izin talebi onaylandı.`,
+      });
+    }
   };
 
   const handleReject = (id: string) => {
+    const leave = leaves.find((l) => l.id === id);
     setLeaves(
       leaves.map((l) =>
         l.id === id ? { ...l, status: "Reddedildi" as LeaveStatus } : l,
       ),
     );
+    if (leave) {
+      addNotification({
+        type: "leave_rejected",
+        title: "İzin Reddedildi",
+        message: `${leave.name} adlı personelin izin talebi reddedildi.`,
+      });
+    }
   };
 
   const handleAddPersonnel = () => {
@@ -339,6 +364,7 @@ export default function HumanResources() {
       status: "Aktif",
       initials,
       color,
+      annualLeaveBalance: Number(newPersonnel.annualLeaveBalance) || 14,
     };
     setPersonnel([...personnel, newPerson]);
     setNewPersonnel({
@@ -347,6 +373,7 @@ export default function HumanResources() {
       department: "Teknik",
       phone: "",
       email: "",
+      annualLeaveBalance: "14",
     });
     setAddPersonnelOpen(false);
   };
@@ -614,6 +641,22 @@ export default function HumanResources() {
                           placeholder="ornek@sirket.com"
                         />
                       </div>
+                      <div>
+                        <Label>Yıllık İzin (Gün)</Label>
+                        <Input
+                          data-ocid="hr.personnel_leave_balance.input"
+                          type="number"
+                          value={newPersonnel.annualLeaveBalance}
+                          onChange={(e) =>
+                            setNewPersonnel((p) => ({
+                              ...p,
+                              annualLeaveBalance: e.target.value,
+                            }))
+                          }
+                          className="mt-1 bg-background border-border"
+                          placeholder="14"
+                        />
+                      </div>
                     </div>
                   </div>
                   <DialogFooter>
@@ -735,7 +778,10 @@ export default function HumanResources() {
                             )
                           );
                         }, 0);
-                      const remainingLeave = Math.max(0, 14 - usedLeaveDays);
+                      const remainingLeave = Math.max(
+                        0,
+                        (person.annualLeaveBalance ?? 14) - usedLeaveDays,
+                      );
                       return (
                         <span className="text-xs text-muted-foreground">
                           İzin: {remainingLeave} gün kaldı

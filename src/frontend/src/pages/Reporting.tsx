@@ -19,7 +19,7 @@ import {
   TrendingUp,
   Users,
 } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   Bar,
   BarChart,
@@ -83,6 +83,8 @@ const PIE_COLORS = [
 export default function Reporting() {
   const {
     activeRoleId,
+    activeCompanyId,
+    checkPermission,
     projects,
     tasks,
     expenses,
@@ -94,10 +96,82 @@ export default function Reporting() {
   const canView =
     activeRoleId === "owner" ||
     activeRoleId === "manager" ||
-    activeRoleId === "manager_teknik" ||
-    activeRoleId === "manager_idari";
+    activeRoleId === "pm" ||
+    activeRoleId === "supervisor" ||
+    checkPermission("reporting", "view");
 
   const [period, setPeriod] = useState("Son 6 Ay");
+
+  // Reactive CRM data from localStorage with company-scoped reload
+  const [crmContacts, setCrmContacts] = useState<Array<{ type: string }>>(
+    () => {
+      if (!activeCompanyId) return [];
+      try {
+        const s = localStorage.getItem(`pv_crm_contacts_${activeCompanyId}`);
+        return s ? JSON.parse(s) : [];
+      } catch {
+        return [];
+      }
+    },
+  );
+  const [crmLeads, setCrmLeads] = useState<
+    Array<{ status: string; value?: number }>
+  >(() => {
+    if (!activeCompanyId) return [];
+    try {
+      const s = localStorage.getItem(`pv_crm_leads_${activeCompanyId}`);
+      return s ? JSON.parse(s) : [];
+    } catch {
+      return [];
+    }
+  });
+  const [qsInspections, setQsInspections] = useState<Array<{ status: string }>>(
+    () => {
+      if (!activeCompanyId) return [];
+      try {
+        const s = localStorage.getItem(`pv_qs_${activeCompanyId}`);
+        return s ? JSON.parse(s) : [];
+      } catch {
+        return [];
+      }
+    },
+  );
+  const [qsIncidents, setQsIncidents] = useState<Array<object>>(() => {
+    if (!activeCompanyId) return [];
+    try {
+      const s = localStorage.getItem(`pv_inc_${activeCompanyId}`);
+      return s ? JSON.parse(s) : [];
+    } catch {
+      return [];
+    }
+  });
+
+  useEffect(() => {
+    if (!activeCompanyId) return;
+    try {
+      const sc = localStorage.getItem(`pv_crm_contacts_${activeCompanyId}`);
+      setCrmContacts(sc ? JSON.parse(sc) : []);
+      const sl = localStorage.getItem(`pv_crm_leads_${activeCompanyId}`);
+      setCrmLeads(sl ? JSON.parse(sl) : []);
+      const si = localStorage.getItem(`pv_qs_${activeCompanyId}`);
+      setQsInspections(si ? JSON.parse(si) : []);
+      const sinc = localStorage.getItem(`pv_inc_${activeCompanyId}`);
+      setQsIncidents(sinc ? JSON.parse(sinc) : []);
+    } catch {
+      // ignore parse errors
+    }
+  }, [activeCompanyId]);
+
+  const totalCustomers = crmContacts.length;
+  const openOpportunities = crmLeads.filter(
+    (l) => l.status !== "Kazanıldı" && l.status !== "Kaybedildi",
+  ).length;
+  const pipelineValue = crmLeads.reduce((sum, l) => sum + (l.value || 0), 0);
+  const totalQsInspections = qsInspections.length;
+  const incidentCount = qsIncidents.length;
+  const openFindings = qsInspections.filter(
+    (i: { status: string }) => i.status === "Düzeltici Aksiyon Gerekiyor",
+  ).length;
 
   if (!canView) return <AccessDenied />;
 
@@ -141,8 +215,7 @@ export default function Reporting() {
       .reduce((s, e) => s + (typeof e.amount === "number" ? e.amount : 0), 0);
     return {
       project: p.title.length > 12 ? `${p.title.slice(0, 12)}…` : p.title,
-      Planlanan:
-        (p as { budget?: number }).budget || projectExpenses * 1.3 || 100000,
+      Planlanan: (p as { budget?: number }).budget || 0,
       Gerçekleşen: projectExpenses || 0,
     };
   });
@@ -258,6 +331,38 @@ export default function Reporting() {
       value: String(pendingWorkOrders),
       sub: "onay bekliyor",
       icon: <TrendingUp className="w-5 h-5" />,
+      color: "text-rose-400",
+      bg: "from-rose-500/10 to-pink-500/5 border-rose-500/20",
+    },
+    {
+      label: "CRM Müşteriler",
+      value: String(totalCustomers),
+      sub: `${openOpportunities} açık fırsat`,
+      icon: <Users className="w-5 h-5" />,
+      color: "text-violet-400",
+      bg: "from-violet-500/10 to-purple-500/5 border-violet-500/20",
+    },
+    {
+      label: "Pipeline Değeri",
+      value: `₺${pipelineValue.toLocaleString("tr-TR")}`,
+      sub: `${openOpportunities} aktif fırsat`,
+      icon: <DollarSign className="w-5 h-5" />,
+      color: "text-amber-400",
+      bg: "from-amber-500/10 to-orange-500/5 border-amber-500/20",
+    },
+    {
+      label: "Kalite Denetimleri",
+      value: String(totalQsInspections),
+      sub: `${openFindings} açık bulgu`,
+      icon: <CheckSquare className="w-5 h-5" />,
+      color: "text-cyan-400",
+      bg: "from-cyan-500/10 to-sky-500/5 border-cyan-500/20",
+    },
+    {
+      label: "İSG Olayları",
+      value: String(incidentCount),
+      sub: "olay & kaza kaydı",
+      icon: <Activity className="w-5 h-5" />,
       color: "text-rose-400",
       bg: "from-rose-500/10 to-pink-500/5 border-rose-500/20",
     },

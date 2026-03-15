@@ -125,10 +125,9 @@ export default function FieldOps({ onNavigate }: FieldOpsProps = {}) {
     completeInspection,
     failInspection,
     stockItems,
-    setStockItems,
-    addNotification,
     deductStock,
     user,
+    setFieldInspections,
   } = useApp();
 
   const [woFilter, setWoFilter] = useState({
@@ -356,10 +355,14 @@ export default function FieldOps({ onNavigate }: FieldOpsProps = {}) {
     }));
     const existing = selectedInspection.attachments || [];
     const merged = [...existing, ...newAtts];
-    // Update in context via setFieldInspections indirectly — use updateInspectionItem workaround
-    // Actually we need to update inspection directly; we'll use setFieldInspections via a helper
-    // Since we don't have updateInspection, we'll patch it via local state and sync on close
-    setSelectedInspection({ ...selectedInspection, attachments: merged });
+    const updatedInsp = { ...selectedInspection, attachments: merged };
+    setSelectedInspection(updatedInsp);
+    // Persist to context
+    setFieldInspections(
+      fieldInspections.map((f) =>
+        f.id === selectedInspection.id ? updatedInsp : f,
+      ),
+    );
     e.target.value = "";
   };
 
@@ -831,11 +834,16 @@ export default function FieldOps({ onNavigate }: FieldOpsProps = {}) {
                 <Select
                   value={selectedWO.status}
                   onValueChange={(v) => {
-                    updateWorkOrderStatus(selectedWO.id, v as WorkOrderStatus);
-                    setSelectedWO({
-                      ...selectedWO,
-                      status: v as WorkOrderStatus,
-                    });
+                    const newStatus = v as WorkOrderStatus;
+                    updateWorkOrderStatus(selectedWO.id, newStatus);
+                    setSelectedWO({ ...selectedWO, status: newStatus });
+                    if (newStatus === "completed") {
+                      setPendingCompleteWO({
+                        ...selectedWO,
+                        status: newStatus,
+                      });
+                      setDeductDialogOpen(true);
+                    }
                   }}
                 >
                   <SelectTrigger
@@ -900,44 +908,6 @@ export default function FieldOps({ onNavigate }: FieldOpsProps = {}) {
                           : undefined;
                         updateWorkOrder(selectedWO.id, { actualCost: val });
                         setSelectedWO({ ...selectedWO, actualCost: val });
-                        // Deduct from inventory if material name matches
-                        if (selectedWO.title) {
-                          const matchingItem = stockItems.find((s) =>
-                            selectedWO.title
-                              .toLowerCase()
-                              .includes(s.name.toLowerCase()),
-                          );
-                          if (matchingItem && val && Number(val) > 0) {
-                            const deductQty = 1;
-                            const newQty = Math.max(
-                              0,
-                              matchingItem.quantity - deductQty,
-                            );
-                            const newStatus =
-                              newQty === 0
-                                ? "Tükendi"
-                                : newQty <= matchingItem.threshold
-                                  ? "Kritik"
-                                  : "Normal";
-                            const updated = stockItems.map((s) =>
-                              s.id === matchingItem.id
-                                ? {
-                                    ...s,
-                                    quantity: newQty,
-                                    status: newStatus as typeof s.status,
-                                  }
-                                : s,
-                            );
-                            setStockItems(updated);
-                            if (newQty <= matchingItem.threshold) {
-                              addNotification({
-                                type: "low_stock",
-                                title: "Düşük Stok Uyarısı",
-                                message: `${matchingItem.name} stoku kritik seviyede: ${newQty} ${matchingItem.unit}`,
-                              });
-                            }
-                          }
-                        }
                       }}
                       className="bg-background border-border mt-1 h-8 text-sm"
                     />
