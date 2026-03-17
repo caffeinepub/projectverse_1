@@ -1,0 +1,1022 @@
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  Building2,
+  DollarSign,
+  FileText,
+  Mail,
+  Phone,
+  Plus,
+  User,
+  Wrench,
+} from "lucide-react";
+import { useMemo, useState } from "react";
+import { useApp } from "../contexts/AppContext";
+
+interface Subcontractor {
+  id: string;
+  name: string;
+  contactPerson: string;
+  phone: string;
+  email: string;
+  specialty: string;
+  city: string;
+  status: "Aktif" | "Pasif";
+  createdAt: string;
+}
+
+interface SubContract {
+  id: string;
+  subcontractorId: string;
+  projectName: string;
+  amount: number;
+  startDate: string;
+  endDate: string;
+  status: "Devam Ediyor" | "Tamamlandı" | "İptal";
+}
+
+interface SubPayment {
+  id: string;
+  subcontractorId: string;
+  amount: number;
+  date: string;
+  description: string;
+  status: "Ödendi" | "Bekliyor" | "Gecikmiş";
+}
+
+const SPECIALTIES = [
+  "Elektrik",
+  "Tesisat",
+  "Beton",
+  "Çelik Konstrüksiyon",
+  "Alçıpan",
+  "Boyacılık",
+  "Zemin Kaplaması",
+  "Cam & Alüminyum",
+  "Isı & Ses Yalıtımı",
+  "Peyzaj",
+  "Diğer",
+];
+
+const CONTRACT_STATUS_STYLES: Record<SubContract["status"], string> = {
+  "Devam Ediyor": "bg-blue-500/15 text-blue-400 border border-blue-500/30",
+  Tamamlandı: "bg-emerald-500/15 text-emerald-400 border border-emerald-500/30",
+  İptal: "bg-rose-500/15 text-rose-400 border border-rose-500/30",
+};
+
+const PAYMENT_STATUS_STYLES: Record<SubPayment["status"], string> = {
+  Ödendi: "bg-emerald-500/15 text-emerald-400 border border-emerald-500/30",
+  Bekliyor: "bg-amber-500/15 text-amber-400 border border-amber-500/30",
+  Gecikmiş: "bg-rose-500/15 text-rose-400 border border-rose-500/30",
+};
+
+function formatCurrency(v: number) {
+  return new Intl.NumberFormat("tr-TR", {
+    style: "currency",
+    currency: "TRY",
+    maximumFractionDigits: 0,
+  }).format(v);
+}
+
+export default function SubcontractorManagement() {
+  const { activeCompanyId } = useApp();
+  const companyId = activeCompanyId || "default";
+
+  // ── State ─────────────────────────────────────────────────────────────────
+  const [subcontractors, setSubcontractors] = useState<Subcontractor[]>(() => {
+    try {
+      return JSON.parse(
+        localStorage.getItem(`pv_subcontractors_${companyId}`) || "[]",
+      );
+    } catch {
+      return [];
+    }
+  });
+
+  const [contracts, setContracts] = useState<SubContract[]>(() => {
+    try {
+      return JSON.parse(
+        localStorage.getItem(`pv_subcontracts_${companyId}`) || "[]",
+      );
+    } catch {
+      return [];
+    }
+  });
+
+  const [payments, setPayments] = useState<SubPayment[]>(() => {
+    try {
+      return JSON.parse(
+        localStorage.getItem(`pv_subpayments_${companyId}`) || "[]",
+      );
+    } catch {
+      return [];
+    }
+  });
+
+  const saveSubcontractors = (data: Subcontractor[]) => {
+    setSubcontractors(data);
+    localStorage.setItem(
+      `pv_subcontractors_${companyId}`,
+      JSON.stringify(data),
+    );
+  };
+
+  const saveContracts = (data: SubContract[]) => {
+    setContracts(data);
+    localStorage.setItem(`pv_subcontracts_${companyId}`, JSON.stringify(data));
+  };
+
+  const savePayments = (data: SubPayment[]) => {
+    setPayments(data);
+    localStorage.setItem(`pv_subpayments_${companyId}`, JSON.stringify(data));
+  };
+
+  // ── New subcontractor form ────────────────────────────────────────────────
+  const [newSubOpen, setNewSubOpen] = useState(false);
+  const [newSub, setNewSub] = useState({
+    name: "",
+    contactPerson: "",
+    phone: "",
+    email: "",
+    specialty: "",
+    city: "",
+  });
+
+  const handleAddSub = () => {
+    if (!newSub.name.trim() || !newSub.specialty) return;
+    const sub: Subcontractor = {
+      id: `sub_${Date.now()}`,
+      ...newSub,
+      status: "Aktif",
+      createdAt: new Date().toISOString().split("T")[0],
+    };
+    saveSubcontractors([sub, ...subcontractors]);
+    setNewSubOpen(false);
+    setNewSub({
+      name: "",
+      contactPerson: "",
+      phone: "",
+      email: "",
+      specialty: "",
+      city: "",
+    });
+  };
+
+  // ── New contract form ─────────────────────────────────────────────────────
+  const [newContractOpen, setNewContractOpen] = useState(false);
+  const [newContract, setNewContract] = useState({
+    subcontractorId: "",
+    projectName: "",
+    amount: "",
+    startDate: "",
+    endDate: "",
+    status: "Devam Ediyor" as SubContract["status"],
+  });
+
+  const handleAddContract = () => {
+    if (
+      !newContract.subcontractorId ||
+      !newContract.projectName ||
+      !newContract.amount
+    )
+      return;
+    const contract: SubContract = {
+      id: `contract_${Date.now()}`,
+      subcontractorId: newContract.subcontractorId,
+      projectName: newContract.projectName,
+      amount: Number(newContract.amount),
+      startDate: newContract.startDate,
+      endDate: newContract.endDate,
+      status: newContract.status,
+    };
+    saveContracts([contract, ...contracts]);
+    setNewContractOpen(false);
+    setNewContract({
+      subcontractorId: "",
+      projectName: "",
+      amount: "",
+      startDate: "",
+      endDate: "",
+      status: "Devam Ediyor",
+    });
+  };
+
+  // ── New payment form ──────────────────────────────────────────────────────
+  const [newPaymentOpen, setNewPaymentOpen] = useState(false);
+  const [newPayment, setNewPayment] = useState({
+    subcontractorId: "",
+    amount: "",
+    date: "",
+    description: "",
+    status: "Bekliyor" as SubPayment["status"],
+  });
+
+  const handleAddPayment = () => {
+    if (!newPayment.subcontractorId || !newPayment.amount) return;
+    const payment: SubPayment = {
+      id: `pay_${Date.now()}`,
+      subcontractorId: newPayment.subcontractorId,
+      amount: Number(newPayment.amount),
+      date: newPayment.date || new Date().toISOString().split("T")[0],
+      description: newPayment.description,
+      status: newPayment.status,
+    };
+    savePayments([payment, ...payments]);
+    setNewPaymentOpen(false);
+    setNewPayment({
+      subcontractorId: "",
+      amount: "",
+      date: "",
+      description: "",
+      status: "Bekliyor",
+    });
+  };
+
+  // ── KPIs ──────────────────────────────────────────────────────────────────
+  const kpis = useMemo(() => {
+    const activeContracts = contracts.filter(
+      (c) => c.status === "Devam Ediyor",
+    ).length;
+    const thisMonth = new Date().toISOString().slice(0, 7);
+    const paidThisMonth = payments
+      .filter((p) => p.status === "Ödendi" && p.date.startsWith(thisMonth))
+      .reduce((s, p) => s + p.amount, 0);
+    const pendingPayments = payments
+      .filter((p) => p.status === "Bekliyor" || p.status === "Gecikmiş")
+      .reduce((s, p) => s + p.amount, 0);
+    return {
+      total: subcontractors.length,
+      activeContracts,
+      paidThisMonth,
+      pendingPayments,
+    };
+  }, [subcontractors, contracts, payments]);
+
+  const subMap = useMemo(() => {
+    const m: Record<string, string> = {};
+    for (const s of subcontractors) m[s.id] = s.name;
+    return m;
+  }, [subcontractors]);
+
+  return (
+    <div className="p-6 space-y-6">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-foreground">
+            Taşeron Yönetimi
+          </h1>
+          <p className="text-muted-foreground text-sm mt-1">
+            Alt yüklenici firmalar, sözleşmeler ve ödemeler
+          </p>
+        </div>
+        <Dialog open={newSubOpen} onOpenChange={setNewSubOpen}>
+          <DialogTrigger asChild>
+            <Button
+              data-ocid="subcontractor.add_button"
+              className="gradient-bg text-white gap-2"
+            >
+              <Plus className="w-4 h-4" />
+              Yeni Taşeron
+            </Button>
+          </DialogTrigger>
+          <DialogContent className="bg-card border-border">
+            <DialogHeader>
+              <DialogTitle>Yeni Taşeron Firma</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-3">
+              <div>
+                <Label>Firma Adı *</Label>
+                <Input
+                  data-ocid="subcontractor.name_input"
+                  className="bg-background border-border mt-1"
+                  value={newSub.name}
+                  onChange={(e) =>
+                    setNewSub({ ...newSub, name: e.target.value })
+                  }
+                  placeholder="Firma adı"
+                />
+              </div>
+              <div>
+                <Label>İletişim Kişisi</Label>
+                <Input
+                  className="bg-background border-border mt-1"
+                  value={newSub.contactPerson}
+                  onChange={(e) =>
+                    setNewSub({ ...newSub, contactPerson: e.target.value })
+                  }
+                  placeholder="Ad Soyad"
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <Label>Telefon</Label>
+                  <Input
+                    className="bg-background border-border mt-1"
+                    value={newSub.phone}
+                    onChange={(e) =>
+                      setNewSub({ ...newSub, phone: e.target.value })
+                    }
+                    placeholder="0532 xxx xxxx"
+                  />
+                </div>
+                <div>
+                  <Label>E-posta</Label>
+                  <Input
+                    className="bg-background border-border mt-1"
+                    value={newSub.email}
+                    onChange={(e) =>
+                      setNewSub({ ...newSub, email: e.target.value })
+                    }
+                    placeholder="firma@email.com"
+                  />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <Label>Uzmanlık Alanı *</Label>
+                  <Select
+                    value={newSub.specialty}
+                    onValueChange={(v) =>
+                      setNewSub({ ...newSub, specialty: v })
+                    }
+                  >
+                    <SelectTrigger className="bg-background border-border mt-1">
+                      <SelectValue placeholder="Seçiniz" />
+                    </SelectTrigger>
+                    <SelectContent className="bg-card border-border">
+                      {SPECIALTIES.map((s) => (
+                        <SelectItem key={s} value={s}>
+                          {s}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label>Şehir</Label>
+                  <Input
+                    className="bg-background border-border mt-1"
+                    value={newSub.city}
+                    onChange={(e) =>
+                      setNewSub({ ...newSub, city: e.target.value })
+                    }
+                    placeholder="İstanbul"
+                  />
+                </div>
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setNewSubOpen(false)}>
+                İptal
+              </Button>
+              <Button
+                className="gradient-bg text-white"
+                onClick={handleAddSub}
+                disabled={!newSub.name.trim() || !newSub.specialty}
+              >
+                Ekle
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      </div>
+
+      {/* KPI Cards */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <Card className="bg-card border-border">
+          <CardContent className="p-4">
+            <div className="flex items-center gap-3">
+              <div className="p-2 rounded-lg bg-amber-500/15">
+                <Wrench className="w-5 h-5 text-amber-400" />
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground">Toplam Taşeron</p>
+                <p className="text-2xl font-bold text-foreground">
+                  {kpis.total}
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        <Card className="bg-card border-border">
+          <CardContent className="p-4">
+            <div className="flex items-center gap-3">
+              <div className="p-2 rounded-lg bg-blue-500/15">
+                <FileText className="w-5 h-5 text-blue-400" />
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground">
+                  Aktif Sözleşmeler
+                </p>
+                <p className="text-2xl font-bold text-foreground">
+                  {kpis.activeContracts}
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        <Card className="bg-card border-border">
+          <CardContent className="p-4">
+            <div className="flex items-center gap-3">
+              <div className="p-2 rounded-lg bg-emerald-500/15">
+                <DollarSign className="w-5 h-5 text-emerald-400" />
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground">Bu Ay Ödenen</p>
+                <p className="text-lg font-bold text-foreground">
+                  {formatCurrency(kpis.paidThisMonth)}
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        <Card className="bg-card border-border">
+          <CardContent className="p-4">
+            <div className="flex items-center gap-3">
+              <div className="p-2 rounded-lg bg-rose-500/15">
+                <DollarSign className="w-5 h-5 text-rose-400" />
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground">
+                  Bekleyen Ödemeler
+                </p>
+                <p className="text-lg font-bold text-foreground">
+                  {formatCurrency(kpis.pendingPayments)}
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Tabs */}
+      <Tabs defaultValue="subcontractors">
+        <TabsList className="bg-card border border-border">
+          <TabsTrigger
+            value="subcontractors"
+            data-ocid="subcontractor.subcontractors.tab"
+            className="data-[state=active]:bg-amber-500/20 data-[state=active]:text-amber-300"
+          >
+            Taşeronlar
+          </TabsTrigger>
+          <TabsTrigger
+            value="contracts"
+            data-ocid="subcontractor.contracts.tab"
+            className="data-[state=active]:bg-amber-500/20 data-[state=active]:text-amber-300"
+          >
+            Sözleşmeler
+          </TabsTrigger>
+          <TabsTrigger
+            value="payments"
+            data-ocid="subcontractor.payments.tab"
+            className="data-[state=active]:bg-amber-500/20 data-[state=active]:text-amber-300"
+          >
+            Ödemeler
+          </TabsTrigger>
+        </TabsList>
+
+        {/* Subcontractors Tab */}
+        <TabsContent value="subcontractors" className="mt-6">
+          {subcontractors.length === 0 ? (
+            <div
+              data-ocid="subcontractor.list.empty_state"
+              className="text-center py-16 text-muted-foreground"
+            >
+              <Wrench className="w-12 h-12 mx-auto mb-4 opacity-30" />
+              <p className="font-medium">Henüz taşeron firma eklenmedi.</p>
+              <p className="text-sm mt-1">
+                "Yeni Taşeron" butonuyla alt yüklenici firmalar
+                ekleyebilirsiniz.
+              </p>
+            </div>
+          ) : (
+            <div className="grid gap-4">
+              {subcontractors.map((sub, idx) => (
+                <Card
+                  key={sub.id}
+                  data-ocid={`subcontractor.list.item.${idx + 1}`}
+                  className="bg-card border-border"
+                >
+                  <CardContent className="p-4">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                      <div className="flex items-start gap-3">
+                        <div className="p-2 rounded-lg bg-amber-500/15 mt-0.5">
+                          <Building2 className="w-5 h-5 text-amber-400" />
+                        </div>
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <h3 className="font-semibold text-foreground">
+                              {sub.name}
+                            </h3>
+                            <Badge
+                              className={
+                                sub.status === "Aktif"
+                                  ? "bg-emerald-500/15 text-emerald-400 border border-emerald-500/30"
+                                  : "bg-slate-500/15 text-slate-400 border border-slate-500/30"
+                              }
+                            >
+                              {sub.status}
+                            </Badge>
+                          </div>
+                          <div className="flex flex-wrap gap-x-4 gap-y-1 mt-1 text-sm text-muted-foreground">
+                            <span className="flex items-center gap-1">
+                              <Wrench className="w-3 h-3" />
+                              {sub.specialty}
+                            </span>
+                            {sub.contactPerson && (
+                              <span className="flex items-center gap-1">
+                                <User className="w-3 h-3" />
+                                {sub.contactPerson}
+                              </span>
+                            )}
+                            {sub.phone && (
+                              <span className="flex items-center gap-1">
+                                <Phone className="w-3 h-3" />
+                                {sub.phone}
+                              </span>
+                            )}
+                            {sub.email && (
+                              <span className="flex items-center gap-1">
+                                <Mail className="w-3 h-3" />
+                                {sub.email}
+                              </span>
+                            )}
+                            {sub.city && (
+                              <span className="text-xs">{sub.city}</span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2 shrink-0">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="text-xs"
+                          onClick={() => {
+                            const updated = subcontractors.map((s) =>
+                              s.id === sub.id
+                                ? {
+                                    ...s,
+                                    status: (s.status === "Aktif"
+                                      ? "Pasif"
+                                      : "Aktif") as Subcontractor["status"],
+                                  }
+                                : s,
+                            );
+                            saveSubcontractors(updated);
+                          }}
+                        >
+                          {sub.status === "Aktif" ? "Pasif Yap" : "Aktif Yap"}
+                        </Button>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          )}
+        </TabsContent>
+
+        {/* Contracts Tab */}
+        <TabsContent value="contracts" className="mt-6">
+          <div className="flex justify-between items-center mb-4">
+            <h2 className="text-sm font-medium text-muted-foreground">
+              {contracts.length} sözleşme
+            </h2>
+            <Dialog open={newContractOpen} onOpenChange={setNewContractOpen}>
+              <DialogTrigger asChild>
+                <Button
+                  data-ocid="subcontractor.contract.add_button"
+                  size="sm"
+                  className="gradient-bg text-white gap-1"
+                  disabled={subcontractors.length === 0}
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  Sözleşme Ekle
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="bg-card border-border">
+                <DialogHeader>
+                  <DialogTitle>Yeni Sözleşme</DialogTitle>
+                </DialogHeader>
+                <div className="space-y-3">
+                  <div>
+                    <Label>Taşeron *</Label>
+                    <Select
+                      value={newContract.subcontractorId}
+                      onValueChange={(v) =>
+                        setNewContract({ ...newContract, subcontractorId: v })
+                      }
+                    >
+                      <SelectTrigger className="bg-background border-border mt-1">
+                        <SelectValue placeholder="Taşeron seçin" />
+                      </SelectTrigger>
+                      <SelectContent className="bg-card border-border">
+                        {subcontractors.map((s) => (
+                          <SelectItem key={s.id} value={s.id}>
+                            {s.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <Label>Proje Adı *</Label>
+                    <Input
+                      className="bg-background border-border mt-1"
+                      value={newContract.projectName}
+                      onChange={(e) =>
+                        setNewContract({
+                          ...newContract,
+                          projectName: e.target.value,
+                        })
+                      }
+                      placeholder="Proje adı"
+                    />
+                  </div>
+                  <div>
+                    <Label>Sözleşme Tutarı (₺) *</Label>
+                    <Input
+                      className="bg-background border-border mt-1"
+                      type="number"
+                      value={newContract.amount}
+                      onChange={(e) =>
+                        setNewContract({
+                          ...newContract,
+                          amount: e.target.value,
+                        })
+                      }
+                      placeholder="0"
+                    />
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <Label>Başlangıç Tarihi</Label>
+                      <Input
+                        className="bg-background border-border mt-1"
+                        type="date"
+                        value={newContract.startDate}
+                        onChange={(e) =>
+                          setNewContract({
+                            ...newContract,
+                            startDate: e.target.value,
+                          })
+                        }
+                      />
+                    </div>
+                    <div>
+                      <Label>Bitiş Tarihi</Label>
+                      <Input
+                        className="bg-background border-border mt-1"
+                        type="date"
+                        value={newContract.endDate}
+                        onChange={(e) =>
+                          setNewContract({
+                            ...newContract,
+                            endDate: e.target.value,
+                          })
+                        }
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <Label>Durum</Label>
+                    <Select
+                      value={newContract.status}
+                      onValueChange={(v) =>
+                        setNewContract({
+                          ...newContract,
+                          status: v as SubContract["status"],
+                        })
+                      }
+                    >
+                      <SelectTrigger className="bg-background border-border mt-1">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent className="bg-card border-border">
+                        <SelectItem value="Devam Ediyor">
+                          Devam Ediyor
+                        </SelectItem>
+                        <SelectItem value="Tamamlandı">Tamamlandı</SelectItem>
+                        <SelectItem value="İptal">İptal</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                <DialogFooter>
+                  <Button
+                    variant="outline"
+                    onClick={() => setNewContractOpen(false)}
+                  >
+                    İptal
+                  </Button>
+                  <Button
+                    className="gradient-bg text-white"
+                    onClick={handleAddContract}
+                    disabled={
+                      !newContract.subcontractorId ||
+                      !newContract.projectName ||
+                      !newContract.amount
+                    }
+                  >
+                    Ekle
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+          </div>
+
+          {contracts.length === 0 ? (
+            <div
+              data-ocid="subcontractor.contracts.empty_state"
+              className="text-center py-16 text-muted-foreground"
+            >
+              <FileText className="w-12 h-12 mx-auto mb-4 opacity-30" />
+              <p className="font-medium">Henüz sözleşme eklenmedi.</p>
+              <p className="text-sm mt-1">
+                Önce taşeron firma ekleyin, ardından sözleşme oluşturun.
+              </p>
+            </div>
+          ) : (
+            <div className="rounded-xl border border-border overflow-hidden">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr
+                    className="border-b border-border"
+                    style={{ background: "oklch(0.15 0.018 245)" }}
+                  >
+                    <th className="text-left px-4 py-3 font-medium text-muted-foreground">
+                      Taşeron
+                    </th>
+                    <th className="text-left px-4 py-3 font-medium text-muted-foreground">
+                      Proje
+                    </th>
+                    <th className="text-left px-4 py-3 font-medium text-muted-foreground">
+                      Tutar
+                    </th>
+                    <th className="text-left px-4 py-3 font-medium text-muted-foreground">
+                      Başlangıç
+                    </th>
+                    <th className="text-left px-4 py-3 font-medium text-muted-foreground">
+                      Bitiş
+                    </th>
+                    <th className="text-left px-4 py-3 font-medium text-muted-foreground">
+                      Durum
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {contracts.map((contract, idx) => (
+                    <tr
+                      key={contract.id}
+                      data-ocid={`subcontractor.contracts.item.${idx + 1}`}
+                      className="border-b border-border/50 hover:bg-muted/10 transition-colors"
+                    >
+                      <td className="px-4 py-3 font-medium">
+                        {subMap[contract.subcontractorId] || "—"}
+                      </td>
+                      <td className="px-4 py-3 text-foreground/80">
+                        {contract.projectName}
+                      </td>
+                      <td className="px-4 py-3 text-amber-400 font-medium">
+                        {formatCurrency(contract.amount)}
+                      </td>
+                      <td className="px-4 py-3 text-muted-foreground text-xs">
+                        {contract.startDate || "—"}
+                      </td>
+                      <td className="px-4 py-3 text-muted-foreground text-xs">
+                        {contract.endDate || "—"}
+                      </td>
+                      <td className="px-4 py-3">
+                        <span
+                          className={`px-2 py-0.5 rounded text-xs font-medium ${
+                            CONTRACT_STATUS_STYLES[contract.status]
+                          }`}
+                        >
+                          {contract.status}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </TabsContent>
+
+        {/* Payments Tab */}
+        <TabsContent value="payments" className="mt-6">
+          <div className="flex justify-between items-center mb-4">
+            <h2 className="text-sm font-medium text-muted-foreground">
+              {payments.length} ödeme kaydı
+            </h2>
+            <Dialog open={newPaymentOpen} onOpenChange={setNewPaymentOpen}>
+              <DialogTrigger asChild>
+                <Button
+                  data-ocid="subcontractor.payment.add_button"
+                  size="sm"
+                  className="gradient-bg text-white gap-1"
+                  disabled={subcontractors.length === 0}
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  Ödeme Ekle
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="bg-card border-border">
+                <DialogHeader>
+                  <DialogTitle>Yeni Ödeme</DialogTitle>
+                </DialogHeader>
+                <div className="space-y-3">
+                  <div>
+                    <Label>Taşeron *</Label>
+                    <Select
+                      value={newPayment.subcontractorId}
+                      onValueChange={(v) =>
+                        setNewPayment({ ...newPayment, subcontractorId: v })
+                      }
+                    >
+                      <SelectTrigger className="bg-background border-border mt-1">
+                        <SelectValue placeholder="Taşeron seçin" />
+                      </SelectTrigger>
+                      <SelectContent className="bg-card border-border">
+                        {subcontractors.map((s) => (
+                          <SelectItem key={s.id} value={s.id}>
+                            {s.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <Label>Tutar (₺) *</Label>
+                    <Input
+                      className="bg-background border-border mt-1"
+                      type="number"
+                      value={newPayment.amount}
+                      onChange={(e) =>
+                        setNewPayment({ ...newPayment, amount: e.target.value })
+                      }
+                      placeholder="0"
+                    />
+                  </div>
+                  <div>
+                    <Label>Tarih</Label>
+                    <Input
+                      className="bg-background border-border mt-1"
+                      type="date"
+                      value={newPayment.date}
+                      onChange={(e) =>
+                        setNewPayment({ ...newPayment, date: e.target.value })
+                      }
+                    />
+                  </div>
+                  <div>
+                    <Label>Açıklama</Label>
+                    <Input
+                      className="bg-background border-border mt-1"
+                      value={newPayment.description}
+                      onChange={(e) =>
+                        setNewPayment({
+                          ...newPayment,
+                          description: e.target.value,
+                        })
+                      }
+                      placeholder="Ödeme açıklaması"
+                    />
+                  </div>
+                  <div>
+                    <Label>Durum</Label>
+                    <Select
+                      value={newPayment.status}
+                      onValueChange={(v) =>
+                        setNewPayment({
+                          ...newPayment,
+                          status: v as SubPayment["status"],
+                        })
+                      }
+                    >
+                      <SelectTrigger className="bg-background border-border mt-1">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent className="bg-card border-border">
+                        <SelectItem value="Ödendi">Ödendi</SelectItem>
+                        <SelectItem value="Bekliyor">Bekliyor</SelectItem>
+                        <SelectItem value="Gecikmiş">Gecikmiş</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                <DialogFooter>
+                  <Button
+                    variant="outline"
+                    onClick={() => setNewPaymentOpen(false)}
+                  >
+                    İptal
+                  </Button>
+                  <Button
+                    className="gradient-bg text-white"
+                    onClick={handleAddPayment}
+                    disabled={!newPayment.subcontractorId || !newPayment.amount}
+                  >
+                    Ekle
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+          </div>
+
+          {payments.length === 0 ? (
+            <div
+              data-ocid="subcontractor.payments.empty_state"
+              className="text-center py-16 text-muted-foreground"
+            >
+              <DollarSign className="w-12 h-12 mx-auto mb-4 opacity-30" />
+              <p className="font-medium">Henüz ödeme kaydı eklenmedi.</p>
+              <p className="text-sm mt-1">
+                Taşeronlara yapılan ödemeleri buradan takip edebilirsiniz.
+              </p>
+            </div>
+          ) : (
+            <div className="rounded-xl border border-border overflow-hidden">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr
+                    className="border-b border-border"
+                    style={{ background: "oklch(0.15 0.018 245)" }}
+                  >
+                    <th className="text-left px-4 py-3 font-medium text-muted-foreground">
+                      Taşeron
+                    </th>
+                    <th className="text-left px-4 py-3 font-medium text-muted-foreground">
+                      Tutar
+                    </th>
+                    <th className="text-left px-4 py-3 font-medium text-muted-foreground">
+                      Tarih
+                    </th>
+                    <th className="text-left px-4 py-3 font-medium text-muted-foreground">
+                      Açıklama
+                    </th>
+                    <th className="text-left px-4 py-3 font-medium text-muted-foreground">
+                      Durum
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {payments.map((payment, idx) => (
+                    <tr
+                      key={payment.id}
+                      data-ocid={`subcontractor.payments.item.${idx + 1}`}
+                      className="border-b border-border/50 hover:bg-muted/10 transition-colors"
+                    >
+                      <td className="px-4 py-3 font-medium">
+                        {subMap[payment.subcontractorId] || "—"}
+                      </td>
+                      <td className="px-4 py-3 text-amber-400 font-medium">
+                        {formatCurrency(payment.amount)}
+                      </td>
+                      <td className="px-4 py-3 text-muted-foreground text-xs">
+                        {payment.date}
+                      </td>
+                      <td className="px-4 py-3 text-foreground/80">
+                        {payment.description || "—"}
+                      </td>
+                      <td className="px-4 py-3">
+                        <span
+                          className={`px-2 py-0.5 rounded text-xs font-medium ${
+                            PAYMENT_STATUS_STYLES[payment.status]
+                          }`}
+                        >
+                          {payment.status}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </TabsContent>
+      </Tabs>
+    </div>
+  );
+}

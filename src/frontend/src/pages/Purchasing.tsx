@@ -122,6 +122,8 @@ export default function Purchasing() {
     addOrder,
     updateOrder,
     addNotification,
+    addAuditLog,
+    auditLogs,
     user,
     projects,
   } = useApp();
@@ -181,6 +183,7 @@ export default function Purchasing() {
   // ── Convert to order confirm ──────────────────────────────────────────────
   const [convertReqId, setConvertReqId] = useState<string | null>(null);
   const [convertDialogOpen, setConvertDialogOpen] = useState(false);
+  const [convertSupplier, setConvertSupplier] = useState<string>("");
 
   if (!canView) return <AccessDenied />;
 
@@ -271,6 +274,12 @@ export default function Purchasing() {
       description: "",
     });
     setRequestDialogOpen(false);
+    addAuditLog({
+      module: "purchasing",
+      action: "Talep Oluşturuldu",
+      description: `${newRequest.item} talebi oluşturuldu.`,
+      performedBy: user?.name || "",
+    });
   };
 
   const handleRequestAction = (
@@ -286,6 +295,12 @@ export default function Purchasing() {
         type: "order_status",
         title: action === "Onaylandı" ? "Talep Onaylandı" : "Talep Reddedildi",
         message: `${req.item} talebi ${action.toLowerCase()}.`,
+      });
+      addAuditLog({
+        module: "purchasing",
+        action: action === "Onaylandı" ? "Talep Onaylandı" : "Talep Reddedildi",
+        description: `${req?.item || ""} talebi ${action === "Onaylandı" ? "onaylandı" : "reddedildi"}.`,
+        performedBy: user?.name || "",
       });
     }
   };
@@ -336,6 +351,15 @@ export default function Purchasing() {
       });
     }
     if (editOrderStatus === "İptal") {
+      // Reverse any related expense
+      setExpenses(
+        expenses.map((e) =>
+          e.description?.includes(selectedOrder.id) ||
+          e.id === `exp_ord_${selectedOrder.id}`
+            ? { ...e, status: "Reddedildi" as const }
+            : e,
+        ),
+      );
       addNotification({
         type: "order_status",
         title: "Sipariş İptal Edildi",
@@ -344,6 +368,12 @@ export default function Purchasing() {
     }
 
     setOrderDetailOpen(false);
+    addAuditLog({
+      module: "purchasing",
+      action: "Sipariş Güncellendi",
+      description: `${selectedOrder?.supplier || ""} – ${selectedOrder?.item || ""} siparişi güncellendi. Durum: ${editOrderStatus}.`,
+      performedBy: user?.name || "",
+    });
     setSelectedOrder(null);
   };
 
@@ -355,7 +385,7 @@ export default function Purchasing() {
       projects.find((p) => p.title === req.project);
     const newOrder: Order = {
       id: `o${Date.now()}`,
-      supplier: suppliers[0]?.name ?? "Belirtilmedi",
+      supplier: convertSupplier || suppliers[0]?.name || "Belirtilmedi",
       item: req.item,
       totalAmount: req.qty * req.unitPrice,
       orderDate: new Date().toISOString().split("T")[0],
@@ -368,6 +398,7 @@ export default function Purchasing() {
     addOrder(newOrder);
     setConvertDialogOpen(false);
     setConvertReqId(null);
+    setConvertSupplier("");
   };
 
   const getProjectName = (projectId: string) =>
@@ -416,6 +447,13 @@ export default function Purchasing() {
           >
             <Check className="w-4 h-4 mr-2" />
             Siparişler
+          </TabsTrigger>
+          <TabsTrigger
+            data-ocid="purchasing.audit.tab"
+            value="audit"
+            className="data-[state=active]:gradient-bg data-[state=active]:text-white"
+          >
+            Denetim Logu
           </TabsTrigger>
         </TabsList>
 
@@ -1011,6 +1049,68 @@ export default function Purchasing() {
             </CardContent>
           </Card>
         </TabsContent>
+        <TabsContent value="audit" className="space-y-4">
+          <div className="rounded-xl border border-border overflow-hidden">
+            <table className="w-full text-sm">
+              <thead>
+                <tr
+                  className="border-b border-border"
+                  style={{ background: "oklch(0.15 0.018 245)" }}
+                >
+                  <th className="text-left px-4 py-3 font-medium text-muted-foreground">
+                    Tarih
+                  </th>
+                  <th className="text-left px-4 py-3 font-medium text-muted-foreground">
+                    Kullanıcı
+                  </th>
+                  <th className="text-left px-4 py-3 font-medium text-muted-foreground">
+                    İşlem
+                  </th>
+                  <th className="text-left px-4 py-3 font-medium text-muted-foreground">
+                    Detay
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {auditLogs.filter((l) => l.module === "purchasing").length ===
+                0 ? (
+                  <tr>
+                    <td
+                      colSpan={4}
+                      className="text-center py-10 text-muted-foreground"
+                    >
+                      Henüz denetim kaydı bulunmuyor.
+                    </td>
+                  </tr>
+                ) : (
+                  auditLogs
+                    .filter((l) => l.module === "purchasing")
+                    .map((log) => (
+                      <tr
+                        key={log.id}
+                        className="border-b border-border/50 hover:bg-muted/10 transition-colors"
+                      >
+                        <td className="px-4 py-3 text-xs text-muted-foreground whitespace-nowrap">
+                          {new Date(log.timestamp).toLocaleString("tr-TR")}
+                        </td>
+                        <td className="px-4 py-3 text-muted-foreground">
+                          {log.performedBy}
+                        </td>
+                        <td className="px-4 py-3">
+                          <span className="px-2 py-0.5 rounded text-xs font-medium bg-amber-500/15 text-amber-400 border border-amber-500/30">
+                            {log.action}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 text-foreground/80">
+                          {log.description}
+                        </td>
+                      </tr>
+                    ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </TabsContent>
       </Tabs>
 
       {/* ── SUPPLIER DETAIL MODAL ─────────────────────────────────────────── */}
@@ -1267,6 +1367,24 @@ export default function Purchasing() {
             Bu onaylı talep için yeni bir sipariş kaydı oluşturulacak. Devam
             etmek istiyor musunuz?
           </p>
+          <div>
+            <Label>Tedarikçi</Label>
+            <Select value={convertSupplier} onValueChange={setConvertSupplier}>
+              <SelectTrigger
+                data-ocid="purchasing.convert.supplier_select"
+                className="bg-background border-border mt-1"
+              >
+                <SelectValue placeholder="Tedarikçi seçin" />
+              </SelectTrigger>
+              <SelectContent className="bg-card border-border">
+                {suppliers.map((s) => (
+                  <SelectItem key={s.id} value={s.name}>
+                    {s.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
           <DialogFooter>
             <Button
               data-ocid="purchasing.convert.cancel_button"

@@ -31,6 +31,7 @@ import QualitySafety from "./pages/QualitySafety";
 import Reporting from "./pages/Reporting";
 import RoleSelect from "./pages/RoleSelect";
 import RoleSettings from "./pages/RoleSettings";
+import SubcontractorManagement from "./pages/SubcontractorManagement";
 
 type Screen =
   | "lang"
@@ -57,7 +58,8 @@ type AppPage =
   | "inventory"
   | "reporting"
   | "qualitySafety"
-  | "crm";
+  | "crm"
+  | "subcontractors";
 
 function Inner() {
   const {
@@ -208,6 +210,7 @@ function Inner() {
     else if (p === "reporting") setPage("reporting");
     else if (p === "qualitySafety") setPage("qualitySafety");
     else if (p === "crm") setPage("crm");
+    else if (p === "subcontractors") setPage("subcontractors");
     else setPage(p as AppPage);
   };
 
@@ -274,6 +277,7 @@ function Inner() {
       {page === "reporting" && <Reporting />}
       {page === "qualitySafety" && <QualitySafety />}
       {page === "crm" && <CRM />}
+      {page === "subcontractors" && <SubcontractorManagement />}
     </Layout>
   );
 }

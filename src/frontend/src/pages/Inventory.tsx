@@ -50,8 +50,6 @@ const statusColors: Record<StockStatus, string> = {
   Tükendi: "bg-rose-500/20 text-rose-400 border-rose-500/30",
 };
 
-// Projects list now comes from AppContext
-
 const CATEGORIES = ["Malzeme", "Ekipman", "Sarf", "Yapı", "Elektrik", "Diğer"];
 
 function getStockStatus(quantity: number, threshold: number): StockStatus {
@@ -87,6 +85,11 @@ export default function Inventory() {
   const [projectFilter, setProjectFilter] = useState("Tümü");
   const [search, setSearch] = useState("");
 
+  // Movement filters
+  const [movSearch, setMovSearch] = useState("");
+  const [movType, setMovType] = useState("Tümü");
+  const [movPeriod, setMovPeriod] = useState("Tümü");
+
   // ── New stock item dialog ─────────────────────────────────────────────────
   const [newItemOpen, setNewItemOpen] = useState(false);
   const [newItem, setNewItem] = useState({
@@ -98,6 +101,10 @@ export default function Inventory() {
     threshold: "",
     value: "",
   });
+  const [itemErrors, setItemErrors] = useState<{
+    name?: string;
+    unit?: string;
+  }>({});
 
   // ── Movement dialog ───────────────────────────────────────────────────────
   const [movementOpen, setMovementOpen] = useState(false);
@@ -131,6 +138,43 @@ export default function Inventory() {
   );
   const criticalCount = criticalItems.length;
 
+  // Fix: count movements from current month/year only
+  const now = new Date();
+  const movThisMonth = stockMovements.filter((m) => {
+    if (!m.date) return false;
+    const d = new Date(m.date);
+    return (
+      d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear()
+    );
+  }).length;
+
+  // ── Filtered movements ──────────────────────────────────────────────────
+  const filteredMovements = stockMovements.filter((m) => {
+    if (
+      movSearch &&
+      !m.material.toLowerCase().includes(movSearch.toLowerCase())
+    )
+      return false;
+    if (movType !== "Tümü" && m.type !== movType) return false;
+    if (movPeriod !== "Tümü") {
+      if (!m.date) return false;
+      const d = new Date(m.date);
+      if (movPeriod === "Bu Ay") {
+        if (
+          d.getMonth() !== now.getMonth() ||
+          d.getFullYear() !== now.getFullYear()
+        )
+          return false;
+      } else if (movPeriod === "Bu Hafta") {
+        const startOfWeek = new Date(now);
+        startOfWeek.setDate(now.getDate() - now.getDay());
+        startOfWeek.setHours(0, 0, 0, 0);
+        if (d < startOfWeek) return false;
+      }
+    }
+    return true;
+  });
+
   // ── Project summary ───────────────────────────────────────────────────────
   const projectSummary = projects.map((proj) => {
     const items = stockItems.filter((s) => s.project === proj.title);
@@ -140,7 +184,14 @@ export default function Inventory() {
 
   // ── Handlers ──────────────────────────────────────────────────────────────
   const handleAddItem = () => {
-    if (!newItem.name) return;
+    const errors: { name?: string; unit?: string } = {};
+    if (!newItem.name.trim()) errors.name = "Bu alan zorunludur";
+    if (!newItem.unit.trim()) errors.unit = "Bu alan zorunludur";
+    if (Object.keys(errors).length > 0) {
+      setItemErrors(errors);
+      return;
+    }
+    setItemErrors({});
     const qty = Number(newItem.quantity) || 0;
     const threshold = Number(newItem.threshold) || 0;
     const value = Number(newItem.value) || 0;
@@ -194,7 +245,6 @@ export default function Inventory() {
         : Math.max(0, item.quantity - qty);
     const newStatus = getStockStatus(newQty, item.threshold);
 
-    // Update stock item
     setStockItems(
       stockItems.map((s) =>
         s.id === movementTargetId
@@ -203,7 +253,6 @@ export default function Inventory() {
       ),
     );
 
-    // Add movement record
     setStockMovements([
       {
         id: `mv${Date.now()}`,
@@ -340,7 +389,7 @@ export default function Inventory() {
             <ArrowUp className="w-4 h-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{stockMovements.length}</div>
+            <div className="text-2xl font-bold">{movThisMonth}</div>
             <p className="text-xs text-muted-foreground mt-1">
               giriş/çıkış hareketi
             </p>
@@ -526,6 +575,45 @@ export default function Inventory() {
 
         {/* ── MOVEMENTS TAB ─────────────────────────────────────────────── */}
         <TabsContent value="movements" className="mt-6">
+          {/* Filter Bar */}
+          <div className="flex flex-wrap gap-2 mb-4">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+              <Input
+                data-ocid="inventory.movements.search_input"
+                value={movSearch}
+                onChange={(e) => setMovSearch(e.target.value)}
+                placeholder="Malzeme ara..."
+                className="pl-9 w-44 bg-card border-border"
+              />
+            </div>
+            <Select value={movType} onValueChange={setMovType}>
+              <SelectTrigger
+                data-ocid="inventory.movements_type.select"
+                className="w-32 bg-card border-border"
+              >
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent className="bg-card border-border">
+                <SelectItem value="Tümü">Tümü</SelectItem>
+                <SelectItem value="Giriş">Giriş</SelectItem>
+                <SelectItem value="Çıkış">Çıkış</SelectItem>
+              </SelectContent>
+            </Select>
+            <Select value={movPeriod} onValueChange={setMovPeriod}>
+              <SelectTrigger
+                data-ocid="inventory.movements_period.select"
+                className="w-36 bg-card border-border"
+              >
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent className="bg-card border-border">
+                <SelectItem value="Tümü">Tümü</SelectItem>
+                <SelectItem value="Bu Ay">Bu Ay</SelectItem>
+                <SelectItem value="Bu Hafta">Bu Hafta</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
           <Card className="bg-card border-border">
             <CardContent className="p-0 overflow-x-auto">
               <Table>
@@ -550,7 +638,7 @@ export default function Inventory() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {stockMovements.length === 0 ? (
+                  {filteredMovements.length === 0 ? (
                     <TableRow>
                       <TableCell
                         colSpan={6}
@@ -561,7 +649,7 @@ export default function Inventory() {
                       </TableCell>
                     </TableRow>
                   ) : (
-                    stockMovements.map((mov, idx) => (
+                    filteredMovements.map((mov, idx) => (
                       <TableRow
                         key={mov.id}
                         data-ocid={`inventory.movement.row.${idx + 1}`}
@@ -679,7 +767,13 @@ export default function Inventory() {
       </Tabs>
 
       {/* ── NEW STOCK ITEM DIALOG ─────────────────────────────────────────── */}
-      <Dialog open={newItemOpen} onOpenChange={setNewItemOpen}>
+      <Dialog
+        open={newItemOpen}
+        onOpenChange={(o) => {
+          setNewItemOpen(o);
+          if (!o) setItemErrors({});
+        }}
+      >
         <DialogContent
           data-ocid="inventory.new_item.dialog"
           className="bg-card border-border"
@@ -692,13 +786,18 @@ export default function Inventory() {
               <Label>Malzeme Adı</Label>
               <Input
                 data-ocid="inventory.new_item_name.input"
-                className="bg-background border-border mt-1"
+                className={`bg-background border-border mt-1 ${itemErrors.name ? "border-rose-500" : ""}`}
                 value={newItem.name}
-                onChange={(e) =>
-                  setNewItem((p) => ({ ...p, name: e.target.value }))
-                }
+                onChange={(e) => {
+                  setNewItem((p) => ({ ...p, name: e.target.value }));
+                  if (e.target.value.trim())
+                    setItemErrors((prev) => ({ ...prev, name: undefined }));
+                }}
                 placeholder="Malzeme adı"
               />
+              {itemErrors.name && (
+                <p className="text-rose-500 text-xs mt-1">{itemErrors.name}</p>
+              )}
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
@@ -728,13 +827,20 @@ export default function Inventory() {
                 <Label>Birim</Label>
                 <Input
                   data-ocid="inventory.new_item_unit.input"
-                  className="bg-background border-border mt-1"
+                  className={`bg-background border-border mt-1 ${itemErrors.unit ? "border-rose-500" : ""}`}
                   value={newItem.unit}
-                  onChange={(e) =>
-                    setNewItem((p) => ({ ...p, unit: e.target.value }))
-                  }
+                  onChange={(e) => {
+                    setNewItem((p) => ({ ...p, unit: e.target.value }));
+                    if (e.target.value.trim())
+                      setItemErrors((prev) => ({ ...prev, unit: undefined }));
+                  }}
                   placeholder="adet, kg, m²..."
                 />
+                {itemErrors.unit && (
+                  <p className="text-rose-500 text-xs mt-1">
+                    {itemErrors.unit}
+                  </p>
+                )}
               </div>
             </div>
             <div className="grid grid-cols-2 gap-3">
@@ -808,7 +914,10 @@ export default function Inventory() {
             <Button
               data-ocid="inventory.new_item.cancel_button"
               variant="outline"
-              onClick={() => setNewItemOpen(false)}
+              onClick={() => {
+                setNewItemOpen(false);
+                setItemErrors({});
+              }}
               className="border-border"
             >
               İptal

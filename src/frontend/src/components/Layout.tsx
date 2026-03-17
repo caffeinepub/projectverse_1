@@ -1,12 +1,15 @@
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent } from "@/components/ui/dialog";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { Input } from "@/components/ui/input";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { Sheet, SheetContent } from "@/components/ui/sheet";
 import {
   BarChart3,
@@ -24,14 +27,16 @@ import {
   Menu,
   MessageSquare,
   Package,
+  Search,
   Settings,
   Shield,
   ShoppingCart,
   User,
   Users,
+  Wrench,
   X,
 } from "lucide-react";
-import { type ReactNode, useState } from "react";
+import { type ReactNode, useMemo, useState } from "react";
 import { ROLE_HIERARCHY, useApp } from "../contexts/AppContext";
 import { useIsMobile } from "../hooks/use-mobile";
 import { LANGUAGES, type Lang } from "../i18n/translations";
@@ -61,6 +66,7 @@ const ROLE_DEFAULT_MODULES: Record<string, string[]> = {
     "inventory",
     "qualitySafety",
     "crm",
+    "subcontractors",
     "reporting",
     "settings",
   ],
@@ -94,7 +100,10 @@ const NAV_GROUPS: { label: string; keys: string[] }[] = [
     label: "ANA MENÜ",
     keys: ["dashboard", "projects", "fieldOps", "communication", "documents"],
   },
-  { label: "OPERASYONLAR", keys: ["hr", "finance", "purchasing", "inventory"] },
+  {
+    label: "OPERASYONLAR",
+    keys: ["hr", "finance", "purchasing", "inventory", "subcontractors"],
+  },
   { label: "ANALİTİK", keys: ["reporting", "qualitySafety", "crm"] },
 ];
 
@@ -189,11 +198,119 @@ export default function Layout({
     notifications,
     markNotificationRead,
     clearAllNotifications,
+    projects,
+    tasks,
+    hrPersonnel,
+    suppliers,
+    crmContacts,
+    stockItems,
   } = useApp();
   const unreadCount = notifications.filter((n) => !n.read).length;
   const isMobile = useIsMobile();
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [mobileSheetOpen, setMobileSheetOpen] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+
+  type SearchResult = {
+    category: string;
+    icon: string;
+    title: string;
+    subtitle: string;
+    href: string;
+  };
+  const searchResults = useMemo<SearchResult[]>(() => {
+    if (searchQuery.length < 2) return [];
+    const q = searchQuery.toLowerCase();
+    const out: SearchResult[] = [];
+    for (const p of projects) {
+      if (
+        p.title?.toLowerCase().includes(q) ||
+        p.description?.toLowerCase().includes(q)
+      )
+        out.push({
+          category: "Projeler",
+          icon: "📁",
+          title: p.title,
+          subtitle: "Projeler",
+          href: "#/projects",
+        });
+    }
+    for (const t of tasks) {
+      if (t.title?.toLowerCase().includes(q))
+        out.push({
+          category: "Görevler",
+          icon: "✅",
+          title: t.title,
+          subtitle: "Görevler",
+          href: "#/projects",
+        });
+    }
+    for (const p of hrPersonnel) {
+      if (
+        p.name?.toLowerCase().includes(q) ||
+        p.role?.toLowerCase().includes(q)
+      )
+        out.push({
+          category: "Personel",
+          icon: "👤",
+          title: p.name,
+          subtitle: p.role || "İnsan Kaynakları",
+          href: "#/hr",
+        });
+    }
+    for (const s of suppliers) {
+      if (s.name?.toLowerCase().includes(q))
+        out.push({
+          category: "Tedarikçiler",
+          icon: "🏭",
+          title: s.name,
+          subtitle: "Satın Alma",
+          href: "#/purchasing",
+        });
+    }
+    for (const c of crmContacts) {
+      if (
+        c.name?.toLowerCase().includes(q) ||
+        c.company?.toLowerCase().includes(q)
+      )
+        out.push({
+          category: "CRM Kişileri",
+          icon: "🤝",
+          title: c.name,
+          subtitle: c.company || "CRM",
+          href: "#/crm",
+        });
+    }
+    for (const s of stockItems) {
+      if (s.name?.toLowerCase().includes(q))
+        out.push({
+          category: "Stok",
+          icon: "📦",
+          title: s.name,
+          subtitle: "Envanter",
+          href: "#/inventory",
+        });
+    }
+    return out;
+  }, [
+    searchQuery,
+    projects,
+    tasks,
+    hrPersonnel,
+    suppliers,
+    crmContacts,
+    stockItems,
+  ]);
+
+  const searchGrouped = useMemo(() => {
+    const groups: Record<string, SearchResult[]> = {};
+    for (const r of searchResults) {
+      if (!groups[r.category]) groups[r.category] = [];
+      groups[r.category].push(r);
+    }
+    return groups;
+  }, [searchResults]);
 
   // Find current user's member entry for permission checks
   const memberEntry = currentCompany?.members?.find(
@@ -299,6 +416,13 @@ export default function Layout({
       icon: <Shield className="w-4 h-4" />,
       label: t.qualitySafety,
       href: "qualitySafety",
+      available: true,
+    },
+    {
+      key: "subcontractors",
+      icon: <Wrench className="w-4 h-4" />,
+      label: "Taşeron Yönetimi",
+      href: "subcontractors",
       available: true,
     },
     {
@@ -612,6 +736,16 @@ export default function Layout({
           </div>
 
           <div className="flex items-center gap-2 md:gap-3">
+            <Button
+              variant="ghost"
+              size="icon"
+              data-ocid="layout.search_button"
+              onClick={() => setSearchOpen(true)}
+              className="text-muted-foreground hover:text-foreground"
+            >
+              <Search className="w-4 h-4" />
+            </Button>
+
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button
@@ -798,6 +932,82 @@ export default function Layout({
 
         <main className="flex-1 overflow-y-auto p-4 md:p-6">{children}</main>
       </div>
+
+      {/* ─── Global Search Dialog ─── */}
+      <Dialog
+        open={searchOpen}
+        onOpenChange={(open) => {
+          setSearchOpen(open);
+          if (!open) setSearchQuery("");
+        }}
+      >
+        <DialogContent
+          data-ocid="layout.search_dialog"
+          className="p-0 gap-0 overflow-hidden max-w-xl"
+          style={{
+            background: "oklch(0.13 0.018 245)",
+            border: "1px solid oklch(0.22 0.018 245)",
+          }}
+        >
+          <div
+            className="flex items-center gap-2 px-4 py-3 border-b"
+            style={{ borderColor: "oklch(0.22 0.018 245)" }}
+          >
+            <Search className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+            <Input
+              data-ocid="layout.search_input"
+              autoFocus
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Proje, personel, tedarikçi ara..."
+              className="border-0 bg-transparent focus-visible:ring-0 focus-visible:ring-offset-0 text-sm h-8 p-0"
+            />
+          </div>
+          <ScrollArea className="max-h-[400px]">
+            {searchQuery.length < 2 ? (
+              <div className="py-10 text-center text-sm text-muted-foreground">
+                Aramak için en az 2 karakter girin
+              </div>
+            ) : searchResults.length === 0 ? (
+              <div className="py-10 text-center text-sm text-muted-foreground">
+                &quot;{searchQuery}&quot; için sonuç bulunamadı
+              </div>
+            ) : (
+              <div className="py-2">
+                {Object.entries(searchGrouped).map(([cat, items]) => (
+                  <div key={cat}>
+                    <div className="px-4 py-1.5 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                      {cat}
+                    </div>
+                    {items.map((item) => (
+                      <button
+                        type="button"
+                        key={`${item.category}-${item.title}`}
+                        className="w-full flex items-center gap-3 px-4 py-2.5 text-left hover:bg-muted/20 transition-colors"
+                        onClick={() => {
+                          window.location.href = item.href;
+                          setSearchOpen(false);
+                          setSearchQuery("");
+                        }}
+                      >
+                        <span className="text-base">{item.icon}</span>
+                        <div>
+                          <div className="text-sm font-medium text-foreground">
+                            {item.title}
+                          </div>
+                          <div className="text-xs text-muted-foreground">
+                            {item.subtitle}
+                          </div>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                ))}
+              </div>
+            )}
+          </ScrollArea>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

@@ -43,11 +43,12 @@ import {
   Upload,
   X,
 } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import AccessDenied from "../components/AccessDenied";
 import { useApp } from "../contexts/AppContext";
 
 import type {
+  AuditLog,
   Expense,
   ExpenseStatus,
   Invoice,
@@ -94,6 +95,8 @@ export default function Finance() {
     projects,
     user,
     addNotification,
+    addAuditLog,
+    auditLogs,
   } = useApp();
 
   const canEdit =
@@ -165,6 +168,25 @@ export default function Finance() {
     setNewInvoiceOpen(false);
   };
 
+  // Auto-flag overdue invoices on mount and when invoices change
+  // biome-ignore lint/correctness/useExhaustiveDependencies: intentional – only re-run on count change to avoid loop
+  useEffect(() => {
+    const today = new Date().toISOString().split("T")[0];
+    const hasOverdue = invoices.some(
+      (inv) => inv.status === "Bekliyor" && inv.dueDate && inv.dueDate < today,
+    );
+    if (hasOverdue) {
+      setInvoices(
+        invoices.map((inv) =>
+          inv.status === "Bekliyor" && inv.dueDate && inv.dueDate < today
+            ? { ...inv, status: "Gecikmiş" as const }
+            : inv,
+        ),
+      );
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [invoices.length]);
+
   if (!canView) return <AccessDenied />;
 
   const totalBudget = projectBudgets.reduce((s, b) => s + b.planned, 0);
@@ -185,15 +207,33 @@ export default function Finance() {
   };
 
   const handleApproveExpense = (id: string) => {
+    const expense = expenses.find((e) => e.id === id);
     setExpenses(
       expenses.map((e) => (e.id === id ? { ...e, status: "Onaylandı" } : e)),
     );
+    if (expense) {
+      addAuditLog({
+        module: "finance",
+        action: "Gider Onaylandı",
+        description: `${expense.amount} TL - ${expense.category}`,
+        performedBy: user?.name || "Kullanıcı",
+      });
+    }
   };
 
   const handleRejectExpense = (id: string) => {
+    const expense = expenses.find((e) => e.id === id);
     setExpenses(
       expenses.map((e) => (e.id === id ? { ...e, status: "Reddedildi" } : e)),
     );
+    if (expense) {
+      addAuditLog({
+        module: "finance",
+        action: "Gider Reddedildi",
+        description: `${expense.amount} TL - ${expense.category}`,
+        performedBy: user?.name || "Kullanıcı",
+      });
+    }
   };
 
   const handleAddExpense = () => {
@@ -209,6 +249,12 @@ export default function Finance() {
       createdBy: user?.name || "",
     };
     setExpenses([expense, ...expenses]);
+    addAuditLog({
+      module: "finance",
+      action: "Gider Eklendi",
+      description: `${expense.amount} TL - ${expense.category}`,
+      performedBy: user?.name || "Kullanıcı",
+    });
     // Notify if budget overrun
     const warn = getProjectBudgetWarning(expense.projectId);
     if (warn?.includes("aşılmış")) {
@@ -228,11 +274,20 @@ export default function Finance() {
   };
 
   const handleMarkInvoicePaid = (invoiceId: string) => {
+    const inv = invoices.find((i) => i.id === invoiceId);
     setInvoices(
       invoices.map((i) =>
         i.id === invoiceId ? { ...i, status: "Ödendi" as InvoiceStatus } : i,
       ),
     );
+    if (inv) {
+      addAuditLog({
+        module: "finance",
+        action: "Fatura Ödendi",
+        description: `${inv.supplier} - ${inv.amount} TL`,
+        performedBy: user?.name || "Kullanıcı",
+      });
+    }
   };
 
   const getProjectName = (id: string) =>
@@ -276,6 +331,13 @@ export default function Finance() {
           >
             <FileText className="h-4 w-4 mr-2" />
             Faturalar
+          </TabsTrigger>
+          <TabsTrigger
+            data-ocid="finance.audit.tab"
+            value="audit"
+            className="text-xs md:text-sm"
+          >
+            Denetim Logu
           </TabsTrigger>
         </TabsList>
 
@@ -981,6 +1043,69 @@ export default function Finance() {
               </Table>
             </CardContent>
           </Card>
+        </TabsContent>
+
+        <TabsContent value="audit" className="space-y-4">
+          <div className="rounded-xl border border-border overflow-hidden">
+            <table className="w-full text-sm">
+              <thead>
+                <tr
+                  className="border-b border-border"
+                  style={{ background: "oklch(0.15 0.018 245)" }}
+                >
+                  <th className="text-left px-4 py-3 font-medium text-muted-foreground">
+                    Tarih
+                  </th>
+                  <th className="text-left px-4 py-3 font-medium text-muted-foreground">
+                    İşlem
+                  </th>
+                  <th className="text-left px-4 py-3 font-medium text-muted-foreground">
+                    Açıklama
+                  </th>
+                  <th className="text-left px-4 py-3 font-medium text-muted-foreground">
+                    Yapan
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {auditLogs.filter((l) => l.module === "finance").length ===
+                0 ? (
+                  <tr>
+                    <td
+                      colSpan={4}
+                      className="text-center py-10 text-muted-foreground"
+                    >
+                      Henüz denetim kaydı bulunmuyor.
+                    </td>
+                  </tr>
+                ) : (
+                  auditLogs
+                    .filter((l) => l.module === "finance")
+                    .map((log) => (
+                      <tr
+                        key={log.id}
+                        className="border-b border-border/50 hover:bg-muted/10 transition-colors"
+                      >
+                        <td className="px-4 py-3 text-xs text-muted-foreground whitespace-nowrap">
+                          {new Date(log.timestamp).toLocaleString("tr-TR")}
+                        </td>
+                        <td className="px-4 py-3">
+                          <span className="px-2 py-0.5 rounded text-xs font-medium bg-amber-500/15 text-amber-400 border border-amber-500/30">
+                            {log.action}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 text-foreground/80">
+                          {log.description}
+                        </td>
+                        <td className="px-4 py-3 text-muted-foreground">
+                          {log.performedBy}
+                        </td>
+                      </tr>
+                    ))
+                )}
+              </tbody>
+            </table>
+          </div>
         </TabsContent>
       </Tabs>
     </div>

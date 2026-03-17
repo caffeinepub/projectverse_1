@@ -58,12 +58,14 @@ interface FileAttachment {
 export default function Communication() {
   const {
     activeRoleId,
+    activeCompanyId,
     channels,
     setChannels,
     appMessages: messages,
     setAppMessages: setMessages,
     projects,
     user,
+    hrPersonnel,
   } = useApp();
 
   const isSubcontractor = activeRoleId === "subcontractor";
@@ -91,11 +93,31 @@ export default function Communication() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  // biome-ignore lint/correctness/useExhaustiveDependencies: reset to first channel when channels list changes (visibleChannels derived from channels)
+  // Archived channels
+  const archivedKey = `pv_archived_channels_${activeCompanyId}`;
+  const [archivedIds, setArchivedIds] = useState<Set<string>>(() => {
+    try {
+      const stored = localStorage.getItem(
+        `pv_archived_channels_${activeCompanyId}`,
+      );
+      return stored ? new Set(JSON.parse(stored)) : new Set();
+    } catch {
+      return new Set();
+    }
+  });
+  const [showArchived, setShowArchived] = useState(false);
+
+  // @Mention dropdown
+  const [showMentions, setShowMentions] = useState(false);
+  const [mentionQuery, setMentionQuery] = useState("");
+  const mentionRef = useRef<HTMLDivElement>(null);
+
+  // biome-ignore lint/correctness/useExhaustiveDependencies: reset to first channel and unread counts when channels list or company changes
   useEffect(() => {
     const firstChannel = visibleChannels[0]?.id || "";
     setActiveChannelId(firstChannel);
-  }, [channels, isSubcontractor]);
+    setUnreadCounts({});
+  }, [channels, isSubcontractor, activeCompanyId]);
 
   const activeChannel = visibleChannels.find((c) => c.id === activeChannelId);
   const channelMessages = messages
@@ -181,6 +203,16 @@ export default function Communication() {
     };
     reader.readAsDataURL(file);
     if (fileInputRef.current) fileInputRef.current.value = "";
+  };
+
+  const toggleArchive = (channelId: string) => {
+    setArchivedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(channelId)) next.delete(channelId);
+      else next.add(channelId);
+      localStorage.setItem(archivedKey, JSON.stringify([...next]));
+      return next;
+    });
   };
 
   const handleAddChannel = () => {
@@ -329,41 +361,70 @@ export default function Communication() {
                   </p>
                   {visibleChannels
                     .filter((c) => c.section === section)
+                    .filter((c) => showArchived || !archivedIds.has(c.id))
                     .map((channel, idx) => (
-                      <button
-                        type="button"
-                        key={channel.id}
-                        data-ocid={`communication.channel.item.${idx + 1}`}
-                        onClick={() => {
-                          setActiveChannelId(channel.id);
-                          setMsgSearch("");
-                          setSearchOpen(false);
-                          setUnreadCounts((prev) => ({
-                            ...prev,
-                            [channel.id]: 0,
-                          }));
-                        }}
-                        className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-sm transition-all mb-0.5 ${
-                          activeChannelId === channel.id
-                            ? "gradient-bg text-white"
-                            : "text-muted-foreground hover:text-foreground hover:bg-white/5"
-                        }`}
-                      >
-                        <span className="flex items-center gap-2">
-                          <Hash className="h-3.5 w-3.5 flex-shrink-0" />
-                          <span className="truncate">{channel.name}</span>
-                        </span>
-                        {(unreadCounts[channel.id] || 0) > 0 && (
-                          <span className="ml-auto min-w-[18px] h-4 rounded-full bg-primary text-white text-[10px] font-bold flex items-center justify-center px-1">
-                            {unreadCounts[channel.id]}
+                      <div key={channel.id} className="relative group mb-0.5">
+                        <button
+                          type="button"
+                          data-ocid={`communication.channel.item.${idx + 1}`}
+                          onClick={() => {
+                            setActiveChannelId(channel.id);
+                            setMsgSearch("");
+                            setSearchOpen(false);
+                            setUnreadCounts((prev) => ({
+                              ...prev,
+                              [channel.id]: 0,
+                            }));
+                          }}
+                          className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-sm transition-all ${
+                            activeChannelId === channel.id
+                              ? "gradient-bg text-white"
+                              : archivedIds.has(channel.id)
+                                ? "text-muted-foreground/50 hover:bg-white/5"
+                                : "text-muted-foreground hover:text-foreground hover:bg-white/5"
+                          }`}
+                        >
+                          <span className="flex items-center gap-2 flex-1 min-w-0">
+                            <Hash className="h-3.5 w-3.5 flex-shrink-0" />
+                            <span className="truncate">{channel.name}</span>
                           </span>
-                        )}
-                      </button>
+                          {(unreadCounts[channel.id] || 0) > 0 && (
+                            <span className="ml-auto min-w-[18px] h-4 rounded-full bg-primary text-white text-[10px] font-bold flex items-center justify-center px-1">
+                              {unreadCounts[channel.id]}
+                            </span>
+                          )}
+                        </button>
+                        <button
+                          type="button"
+                          title={
+                            archivedIds.has(channel.id)
+                              ? "Arşivden Çıkar"
+                              : "Arşivle"
+                          }
+                          onClick={() => toggleArchive(channel.id)}
+                          className="absolute right-1 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded text-muted-foreground hover:text-foreground text-xs"
+                        >
+                          {archivedIds.has(channel.id) ? "↩" : "⋯"}
+                        </button>
+                      </div>
                     ))}
                 </div>
               ))}
             </div>
           </ScrollArea>
+          {archivedIds.size > 0 && (
+            <div className="p-2 border-t border-border">
+              <button
+                type="button"
+                onClick={() => setShowArchived((v) => !v)}
+                className="text-xs text-muted-foreground hover:text-foreground w-full text-left px-2 py-1"
+              >
+                {showArchived
+                  ? "Arşivlenenleri gizle"
+                  : `Arşivlenen kanalları göster (${archivedIds.size})`}
+              </button>
+            </div>
+          )}
         </div>
 
         {/* Main chat area */}
@@ -465,7 +526,19 @@ export default function Communication() {
                       </div>
                       {msg.text && (
                         <p className="text-sm text-foreground/90 mt-0.5 leading-relaxed">
-                          {msg.text}
+                          {msg.text.split(/(@\w+)/g).map((part, i) => {
+                            const k = `${msg.id}-part-${i}`;
+                            return /^@\w+/.test(part) ? (
+                              <span
+                                key={k}
+                                className="text-amber-400 font-medium"
+                              >
+                                {part}
+                              </span>
+                            ) : (
+                              <span key={k}>{part}</span>
+                            );
+                          })}
                         </p>
                       )}
                       {msg.attachment && (
@@ -547,21 +620,70 @@ export default function Communication() {
               >
                 <Paperclip className="h-4 w-4" />
               </Button>
-              <Input
-                data-ocid="communication.message_input"
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                onKeyDown={(e) =>
-                  e.key === "Enter" && !e.shiftKey && handleSend()
-                }
-                placeholder={
-                  activeChannel
-                    ? `#${activeChannel.name} kanalına mesaj yaz...`
-                    : "Kanal seçin..."
-                }
-                className="bg-background border-border flex-1"
-                disabled={!activeChannel}
-              />
+              <div className="relative flex-1">
+                <Input
+                  data-ocid="communication.message_input"
+                  value={input}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    setInput(val);
+                    // detect @mention trigger
+                    const match = val.match(/@(\w*)$/);
+                    if (match) {
+                      setMentionQuery(match[1]);
+                      setShowMentions(true);
+                    } else {
+                      setShowMentions(false);
+                    }
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === "Escape") setShowMentions(false);
+                    if (e.key === "Enter" && !e.shiftKey) {
+                      setShowMentions(false);
+                      handleSend();
+                    }
+                  }}
+                  placeholder={
+                    activeChannel
+                      ? `#${activeChannel.name} kanalına mesaj yaz...`
+                      : "Kanal seçin..."
+                  }
+                  className="bg-background border-border flex-1"
+                  disabled={!activeChannel}
+                />
+                {showMentions && hrPersonnel && hrPersonnel.length > 0 && (
+                  <div
+                    ref={mentionRef}
+                    className="absolute bottom-full mb-1 left-0 w-48 bg-card border border-border rounded-lg shadow-lg z-50 overflow-hidden"
+                  >
+                    {hrPersonnel
+                      .filter((p) =>
+                        p.name
+                          .toLowerCase()
+                          .includes(mentionQuery.toLowerCase()),
+                      )
+                      .slice(0, 5)
+                      .map((p) => (
+                        <button
+                          key={p.id}
+                          type="button"
+                          className="w-full text-left px-3 py-2 text-sm hover:bg-amber-500/10 text-foreground"
+                          onMouseDown={(e) => {
+                            e.preventDefault();
+                            const newVal = input.replace(
+                              /@\w*$/,
+                              `@${p.name} `,
+                            );
+                            setInput(newVal);
+                            setShowMentions(false);
+                          }}
+                        >
+                          @{p.name}
+                        </button>
+                      ))}
+                  </div>
+                )}
+              </div>
               <Button
                 data-ocid="communication.send_button"
                 onClick={handleSend}

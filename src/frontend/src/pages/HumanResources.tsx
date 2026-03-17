@@ -57,6 +57,7 @@ import type {
   Personnel,
   ShiftAssignment,
 } from "../contexts/AppContext";
+import type { AuditLog } from "../contexts/AppContext";
 import { useApp } from "../contexts/AppContext";
 
 const DAYS = ["Pzt", "Sal", "Çar", "Per", "Cum", "Cmt", "Paz"];
@@ -577,6 +578,8 @@ export default function HumanResources() {
     setHrShifts: setShifts,
     user,
     addNotification,
+    addAuditLog,
+    auditLogs,
   } = useApp();
 
   const isManager =
@@ -596,7 +599,7 @@ export default function HumanResources() {
     department: "Teknik",
     phone: "",
     email: "",
-    annualLeaveBalance: "14",
+    annualLeaveBalance: "20",
   });
   const [selectedPersonnel, setSelectedPersonnel] = useState<Personnel | null>(
     null,
@@ -662,6 +665,12 @@ export default function HumanResources() {
         title: "İzin Onaylandı",
         message: `${leave.name} adlı personelin izin talebi onaylandı.`,
       });
+      addAuditLog({
+        module: "hr",
+        action: "İzin Onaylandı",
+        description: `${leave.name} - ${leave.type}`,
+        performedBy: user?.name || "Yönetici",
+      });
     }
   };
 
@@ -677,6 +686,12 @@ export default function HumanResources() {
         type: "leave_rejected",
         title: "İzin Reddedildi",
         message: `${leave.name} adlı personelin izin talebi reddedildi.`,
+      });
+      addAuditLog({
+        module: "hr",
+        action: "İzin Reddedildi",
+        description: `${leave.name} - ${leave.type}`,
+        performedBy: user?.name || "Yönetici",
       });
     }
   };
@@ -708,7 +723,7 @@ export default function HumanResources() {
       status: "Aktif",
       initials,
       color,
-      annualLeaveBalance: Number(newPersonnel.annualLeaveBalance) || 14,
+      annualLeaveBalance: Number(newPersonnel.annualLeaveBalance) || 20,
     };
     setPersonnel([...personnel, newPerson]);
     setNewPersonnel({
@@ -717,7 +732,7 @@ export default function HumanResources() {
       department: "Teknik",
       phone: "",
       email: "",
-      annualLeaveBalance: "14",
+      annualLeaveBalance: "20",
     });
     setAddPersonnelOpen(false);
   };
@@ -849,6 +864,13 @@ export default function HumanResources() {
           </TabsTrigger>
           <TabsTrigger data-ocid="hr.overtime.tab" value="overtime">
             Mesai Takibi
+          </TabsTrigger>
+          <TabsTrigger
+            data-ocid="hr.audit.tab"
+            value="audit"
+            className="text-xs md:text-sm"
+          >
+            Denetim Logu
           </TabsTrigger>
         </TabsList>
 
@@ -992,7 +1014,7 @@ export default function HumanResources() {
                       <div>
                         <Label>Yıllık İzin (Gün)</Label>
                         <Input
-                          data-ocid="hr.personnel_leave_balance.input"
+                          data-ocid="hr.personnel.leave_balance.input"
                           type="number"
                           value={newPersonnel.annualLeaveBalance}
                           onChange={(e) =>
@@ -1002,7 +1024,7 @@ export default function HumanResources() {
                             }))
                           }
                           className="mt-1 bg-background border-border"
-                          placeholder="14"
+                          placeholder="20"
                         />
                       </div>
                     </div>
@@ -1131,7 +1153,7 @@ export default function HumanResources() {
                         }, 0);
                       const remainingLeave = Math.max(
                         0,
-                        (person.annualLeaveBalance ?? 14) - usedLeaveDays,
+                        (person.annualLeaveBalance ?? 20) - usedLeaveDays,
                       );
                       return (
                         <span className="text-xs text-muted-foreground">
@@ -1654,6 +1676,68 @@ export default function HumanResources() {
         {/* ─── OVERTIME TAB ─── */}
         <TabsContent value="overtime" className="mt-4 space-y-4">
           <OvertimeTab />
+        </TabsContent>
+
+        <TabsContent value="audit" className="mt-4 space-y-4">
+          <div className="rounded-xl border border-border overflow-hidden">
+            <table className="w-full text-sm">
+              <thead>
+                <tr
+                  className="border-b border-border"
+                  style={{ background: "oklch(0.15 0.018 245)" }}
+                >
+                  <th className="text-left px-4 py-3 font-medium text-muted-foreground">
+                    Tarih
+                  </th>
+                  <th className="text-left px-4 py-3 font-medium text-muted-foreground">
+                    İşlem
+                  </th>
+                  <th className="text-left px-4 py-3 font-medium text-muted-foreground">
+                    Açıklama
+                  </th>
+                  <th className="text-left px-4 py-3 font-medium text-muted-foreground">
+                    Yapan
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {auditLogs.filter((l) => l.module === "hr").length === 0 ? (
+                  <tr>
+                    <td
+                      colSpan={4}
+                      className="text-center py-10 text-muted-foreground"
+                    >
+                      Henüz denetim kaydı bulunmuyor.
+                    </td>
+                  </tr>
+                ) : (
+                  auditLogs
+                    .filter((l) => l.module === "hr")
+                    .map((log) => (
+                      <tr
+                        key={log.id}
+                        className="border-b border-border/50 hover:bg-muted/10 transition-colors"
+                      >
+                        <td className="px-4 py-3 text-xs text-muted-foreground whitespace-nowrap">
+                          {new Date(log.timestamp).toLocaleString("tr-TR")}
+                        </td>
+                        <td className="px-4 py-3">
+                          <span className="px-2 py-0.5 rounded text-xs font-medium bg-amber-500/15 text-amber-400 border border-amber-500/30">
+                            {log.action}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 text-foreground/80">
+                          {log.description}
+                        </td>
+                        <td className="px-4 py-3 text-muted-foreground">
+                          {log.performedBy}
+                        </td>
+                      </tr>
+                    ))
+                )}
+              </tbody>
+            </table>
+          </div>
         </TabsContent>
       </Tabs>
 

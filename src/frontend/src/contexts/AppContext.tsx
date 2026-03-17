@@ -646,6 +646,15 @@ function generateCode(length: number): string {
   ).join("");
 }
 
+export interface AuditLog {
+  id: string;
+  timestamp: string;
+  module: "finance" | "hr" | "purchasing" | "projects" | "fieldops";
+  action: string;
+  description: string;
+  performedBy: string;
+}
+
 interface AppState {
   lang: Lang;
   setLang: (l: Lang) => void;
@@ -780,6 +789,9 @@ interface AppState {
   updateCurrentUser: (
     fields: Partial<{ displayName: string; phone: string; avatar: string }>,
   ) => void;
+  // Audit Logs
+  auditLogs: AuditLog[];
+  addAuditLog: (entry: Omit<AuditLog, "id" | "timestamp">) => void;
 }
 
 const AppContext = createContext<AppState>(null!);
@@ -964,6 +976,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
       : INITIAL_CRM_CONTACTS,
   );
 
+  const [auditLogsState, setAuditLogsState] = useState<AuditLog[]>(() =>
+    initCid ? loadCompanyData(initCid, "audit_logs", []) : [],
+  );
+
   const [crmLeads, setCrmLeadsState] = useState<CrmLead[]>(() =>
     initCid
       ? loadCompanyData(initCid, "crm_leads", INITIAL_CRM_LEADS)
@@ -1068,6 +1084,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setCrmLeadsState(
       loadCompanyData(companyId, "crm_leads", INITIAL_CRM_LEADS),
     );
+    setAuditLogsState(loadCompanyData(companyId, "audit_logs", []));
     setProjectsState(loadCompanyData(companyId, "projects", MOCK_PROJECTS));
     setTasksState(loadCompanyData(companyId, "tasks", MOCK_TASKS));
     setWorkOrdersState(
@@ -1258,6 +1275,17 @@ export function AppProvider({ children }: { children: ReactNode }) {
   };
 
   // ─── Profile Update ──────────────────────────────────────────────────────────
+  const addAuditLog = (entry: Omit<AuditLog, "id" | "timestamp">) => {
+    const newLog: AuditLog = {
+      ...entry,
+      id: `al${Date.now()}`,
+      timestamp: new Date().toISOString(),
+    };
+    const updated = [newLog, ...auditLogsState].slice(0, 500);
+    setAuditLogsState(updated);
+    saveCompanyData(activeCompanyId, "audit_logs", updated);
+  };
+
   const updateCurrentUser = (
     fields: Partial<{ displayName: string; phone: string; avatar: string }>,
   ) => {
@@ -1775,6 +1803,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
         updateOrder,
         deductStock,
         updateCurrentUser,
+        auditLogs: auditLogsState,
+        addAuditLog,
       }}
     >
       {children}

@@ -127,7 +127,10 @@ export default function FieldOps({ onNavigate }: FieldOpsProps = {}) {
     stockItems,
     deductStock,
     user,
+    addAuditLog,
+    auditLogs,
     setFieldInspections,
+    hrPersonnel,
   } = useApp();
 
   const [woFilter, setWoFilter] = useState({
@@ -135,7 +138,12 @@ export default function FieldOps({ onNavigate }: FieldOpsProps = {}) {
     status: "all",
     priority: "all",
     project: "all",
+    assignedTo: "all",
   });
+  const [woErrors, setWoErrors] = useState<{
+    title?: string;
+    assignedTo?: string;
+  }>({});
   const [inspFilter, setInspFilter] = useState({
     search: "",
     type: "all",
@@ -211,6 +219,8 @@ export default function FieldOps({ onNavigate }: FieldOpsProps = {}) {
         return false;
       if (woFilter.project !== "all" && w.projectId !== woFilter.project)
         return false;
+      if (woFilter.assignedTo !== "all" && w.assignedTo !== woFilter.assignedTo)
+        return false;
       return true;
     });
   }, [workOrders, woFilter]);
@@ -262,8 +272,22 @@ export default function FieldOps({ onNavigate }: FieldOpsProps = {}) {
   };
 
   const handleCreateWO = () => {
-    if (!newWO.title || !newWO.projectId) return;
+    const errors: { title?: string; assignedTo?: string } = {};
+    if (!newWO.title.trim()) errors.title = "Bu alan zorunludur";
+    if (!newWO.assignedTo.trim()) errors.assignedTo = "Bu alan zorunludur";
+    if (Object.keys(errors).length > 0) {
+      setWoErrors(errors);
+      return;
+    }
+    if (!newWO.projectId) return;
+    setWoErrors({});
     addWorkOrder(newWO);
+    addAuditLog({
+      module: "fieldops",
+      action: "İş Emri Oluşturuldu",
+      description: `${newWO.title} iş emri oluşturuldu.`,
+      performedBy: user?.name || "",
+    });
     setShowNewWO(false);
     setNewWO({
       title: "",
@@ -288,6 +312,12 @@ export default function FieldOps({ onNavigate }: FieldOpsProps = {}) {
       }),
     );
     addFieldInspection({ ...newInsp, items, completedAt: undefined });
+    addAuditLog({
+      module: "fieldops",
+      action: "Denetim Oluşturuldu",
+      description: `${newInsp.title} denetimi oluşturuldu.`,
+      performedBy: user?.name || "",
+    });
     setShowNewInspection(false);
     setNewInsp({
       title: "",
@@ -305,6 +335,12 @@ export default function FieldOps({ onNavigate }: FieldOpsProps = {}) {
   const handleCompleteInspection = () => {
     if (!selectedInspection) return;
     completeInspection(selectedInspection.id, selectedInspection.notes);
+    addAuditLog({
+      module: "fieldops",
+      action: "Denetim Tamamlandı",
+      description: `${selectedInspection?.title || ""} denetimi tamamlandı.`,
+      performedBy: user?.name || "",
+    });
     setSelectedInspection(null);
   };
 
@@ -316,6 +352,12 @@ export default function FieldOps({ onNavigate }: FieldOpsProps = {}) {
       selectedInspection.notes,
     );
     setSelectedInspection(null);
+    addAuditLog({
+      module: "fieldops",
+      action: "Denetim Başarısız",
+      description: `${selectedInspection?.title || ""} denetimi başarısız: ${failureReason}.`,
+      performedBy: user?.name || "",
+    });
     setMarkingFailed(false);
     setFailureReason("");
   };
@@ -465,6 +507,13 @@ export default function FieldOps({ onNavigate }: FieldOpsProps = {}) {
             <ClipboardList className="w-4 h-4 mr-2" />
             {t.inspections}
           </TabsTrigger>
+          <TabsTrigger
+            value="audit"
+            data-ocid="fieldops.audit.tab"
+            className="data-[state=active]:bg-primary/20"
+          >
+            Denetim Logu
+          </TabsTrigger>
         </TabsList>
 
         {/* Work Orders Tab */}
@@ -524,6 +573,29 @@ export default function FieldOps({ onNavigate }: FieldOpsProps = {}) {
                   <SelectItem value="low">{t.low}</SelectItem>
                 </SelectContent>
               </Select>
+              {hrPersonnel && hrPersonnel.length > 0 && (
+                <Select
+                  value={woFilter.assignedTo}
+                  onValueChange={(v) =>
+                    setWoFilter((f) => ({ ...f, assignedTo: v }))
+                  }
+                >
+                  <SelectTrigger
+                    data-ocid="fieldops.workorder_personnel_select"
+                    className="w-40 bg-card border-border"
+                  >
+                    <SelectValue placeholder="Personel" />
+                  </SelectTrigger>
+                  <SelectContent className="bg-card border-border">
+                    <SelectItem value="all">Tüm Personel</SelectItem>
+                    {hrPersonnel.map((p) => (
+                      <SelectItem key={p.id} value={p.name}>
+                        {p.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
             </div>
             <Button
               data-ocid="fieldops.new_workorder_button"
@@ -769,6 +841,68 @@ export default function FieldOps({ onNavigate }: FieldOpsProps = {}) {
             </div>
           )}
         </TabsContent>
+        <TabsContent value="audit" className="space-y-4">
+          <div className="rounded-xl border border-border overflow-hidden">
+            <table className="w-full text-sm">
+              <thead>
+                <tr
+                  className="border-b border-border"
+                  style={{ background: "oklch(0.15 0.018 245)" }}
+                >
+                  <th className="text-left px-4 py-3 font-medium text-muted-foreground">
+                    Tarih
+                  </th>
+                  <th className="text-left px-4 py-3 font-medium text-muted-foreground">
+                    Kullanıcı
+                  </th>
+                  <th className="text-left px-4 py-3 font-medium text-muted-foreground">
+                    İşlem
+                  </th>
+                  <th className="text-left px-4 py-3 font-medium text-muted-foreground">
+                    Detay
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {auditLogs.filter((l) => l.module === "fieldops").length ===
+                0 ? (
+                  <tr>
+                    <td
+                      colSpan={4}
+                      className="text-center py-10 text-muted-foreground"
+                    >
+                      Henüz denetim kaydı bulunmuyor.
+                    </td>
+                  </tr>
+                ) : (
+                  auditLogs
+                    .filter((l) => l.module === "fieldops")
+                    .map((log) => (
+                      <tr
+                        key={log.id}
+                        className="border-b border-border/50 hover:bg-muted/10 transition-colors"
+                      >
+                        <td className="px-4 py-3 text-xs text-muted-foreground whitespace-nowrap">
+                          {new Date(log.timestamp).toLocaleString("tr-TR")}
+                        </td>
+                        <td className="px-4 py-3 text-muted-foreground">
+                          {log.performedBy}
+                        </td>
+                        <td className="px-4 py-3">
+                          <span className="px-2 py-0.5 rounded text-xs font-medium bg-amber-500/15 text-amber-400 border border-amber-500/30">
+                            {log.action}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 text-foreground/80">
+                          {log.description}
+                        </td>
+                      </tr>
+                    ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </TabsContent>
       </Tabs>
 
       {/* Work Order Detail Dialog */}
@@ -836,6 +970,12 @@ export default function FieldOps({ onNavigate }: FieldOpsProps = {}) {
                   onValueChange={(v) => {
                     const newStatus = v as WorkOrderStatus;
                     updateWorkOrderStatus(selectedWO.id, newStatus);
+                    addAuditLog({
+                      module: "fieldops",
+                      action: "İş Emri Durumu Güncellendi",
+                      description: `${selectedWO.title} iş emri durumu güncellendi: ${newStatus}.`,
+                      performedBy: user?.name || "",
+                    });
                     setSelectedWO({ ...selectedWO, status: newStatus });
                     if (newStatus === "completed") {
                       setPendingCompleteWO({
@@ -1375,7 +1515,13 @@ export default function FieldOps({ onNavigate }: FieldOpsProps = {}) {
       </Dialog>
 
       {/* New Work Order Dialog */}
-      <Dialog open={showNewWO} onOpenChange={setShowNewWO}>
+      <Dialog
+        open={showNewWO}
+        onOpenChange={(o) => {
+          setShowNewWO(o);
+          if (!o) setWoErrors({});
+        }}
+      >
         <DialogContent
           data-ocid="new_workorder.dialog"
           className="bg-card border-border max-w-md"
@@ -1388,11 +1534,16 @@ export default function FieldOps({ onNavigate }: FieldOpsProps = {}) {
               <Label className="text-xs text-muted-foreground">Başlık *</Label>
               <Input
                 value={newWO.title}
-                onChange={(e) =>
-                  setNewWO((p) => ({ ...p, title: e.target.value }))
-                }
-                className="bg-background border-border mt-1"
+                onChange={(e) => {
+                  setNewWO((p) => ({ ...p, title: e.target.value }));
+                  if (e.target.value.trim())
+                    setWoErrors((prev) => ({ ...prev, title: undefined }));
+                }}
+                className={`bg-background border-border mt-1 ${woErrors.title ? "border-rose-500" : ""}`}
               />
+              {woErrors.title && (
+                <p className="text-rose-500 text-xs mt-1">{woErrors.title}</p>
+              )}
             </div>
             <div>
               <Label className="text-xs text-muted-foreground">
@@ -1430,13 +1581,50 @@ export default function FieldOps({ onNavigate }: FieldOpsProps = {}) {
                 <Label className="text-xs text-muted-foreground">
                   {t.assignedTo}
                 </Label>
-                <Input
-                  value={newWO.assignedTo}
-                  onChange={(e) =>
-                    setNewWO((p) => ({ ...p, assignedTo: e.target.value }))
-                  }
-                  className="bg-background border-border mt-1"
-                />
+                {hrPersonnel && hrPersonnel.length > 0 ? (
+                  <Select
+                    value={newWO.assignedTo}
+                    onValueChange={(v) => {
+                      setNewWO((p) => ({ ...p, assignedTo: v }));
+                      if (v)
+                        setWoErrors((prev) => ({
+                          ...prev,
+                          assignedTo: undefined,
+                        }));
+                    }}
+                  >
+                    <SelectTrigger
+                      className={`bg-background border-border mt-1 ${woErrors.assignedTo ? "border-rose-500" : ""}`}
+                    >
+                      <SelectValue placeholder="Personel seçin" />
+                    </SelectTrigger>
+                    <SelectContent className="bg-card border-border">
+                      {hrPersonnel.map((p) => (
+                        <SelectItem key={p.id} value={p.name}>
+                          {p.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                ) : (
+                  <Input
+                    value={newWO.assignedTo}
+                    onChange={(e) => {
+                      setNewWO((p) => ({ ...p, assignedTo: e.target.value }));
+                      if (e.target.value.trim())
+                        setWoErrors((prev) => ({
+                          ...prev,
+                          assignedTo: undefined,
+                        }));
+                    }}
+                    className={`bg-background border-border mt-1 ${woErrors.assignedTo ? "border-rose-500" : ""}`}
+                  />
+                )}
+                {woErrors.assignedTo && (
+                  <p className="text-rose-500 text-xs mt-1">
+                    {woErrors.assignedTo}
+                  </p>
+                )}
               </div>
               <div>
                 <Label className="text-xs text-muted-foreground">
