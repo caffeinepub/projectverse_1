@@ -1,33 +1,32 @@
 # ProjectVerse
 
 ## Current State
-
-Full ERP frontend with 10+ modules. Authentication uses 16-character login codes stored in localStorage. Company creation and user management are fully localStorage-based. Backend has invite-links and RBAC components but no user/company persistence. All module data (projects, tasks, HR, finance, etc.) is in company-scoped localStorage.
+- All major ERP modules implemented and functional (HR, Finance, Communication, Documents, Field, Purchasing, Inventory, Reporting, Quality & Safety, CRM, Subcontractor Management)
+- RBAC covers all modules
+- Data persists in company-scoped localStorage
+- Audit logs exist in Finance and HR only
+- SubcontractorManagement: no audit log, no payment approval flow, no Finance integration, contracts use free-text project name
+- Inventory, CRM, QualitySafety: no audit log tabs
 
 ## Requested Changes (Diff)
 
 ### Add
-- Backend: User entity with id (Principal), name, loginCode (16-char), accountType, companyIds
-- Backend: Company entity with id, name, sector, ownerId, memberIds with roles
-- Backend: registerUser(name, loginCode, accountType) -> userId
-- Backend: loginWithCode(loginCode) -> optional User
-- Backend: createCompany(name, sector) -> companyId  
-- Backend: addMemberToCompany(companyId, userId, role) -> bool
-- Backend: getUserCompanies(userId) -> [Company]
-- Backend: getCompany(companyId) -> optional Company
-- Backend: generateInviteCode(companyId) -> 8-char code
-- Backend: joinWithInviteCode(inviteCode, userId) -> bool
+- SubcontractorManagement: payment approval flow (Bekliyor payments get Onayla/Reddet buttons), Finance integration (approved payment creates expense record), contract project linked to AppContext projects, audit log tab
+- Inventory: audit log tab tracking stock additions, movements, and edits
+- CRM: audit log tab tracking contact/lead changes
+- QualitySafety: audit log tab tracking inspection and incident changes
+- General UI polish: improved card visuals, empty state consistency
 
 ### Modify
-- AppContext: login/register functions call backend first, fall back to localStorage for offline
-- AppContext: on startup, try to sync user/company data from backend
-- Login.tsx: wire registration and login to backend calls
+- SubcontractorManagement: SubContract.projectId (string ID) instead of projectName; populate project dropdown from AppContext; approved payment triggers Finance expense record
 
 ### Remove
-- Nothing removed; all module data remains in localStorage for now
+- Nothing removed
 
 ## Implementation Plan
-
-1. Generate Motoko backend with user + company management
-2. Update AppContext to call backend for auth operations with localStorage fallback
-3. Update Login.tsx to handle async backend calls with loading states
+1. Add audit log infrastructure (shared AuditEntry type and helper) to each module
+2. Update SubcontractorManagement: payment approval buttons, Finance expense on payment approval, project ID linkage, audit log tab
+3. Add audit log tab to Inventory
+4. Add audit log tab to CRM
+5. Add audit log tab to QualitySafety
+6. UI polish pass: consistent empty states, card hover states, sidebar visual depth

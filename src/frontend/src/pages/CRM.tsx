@@ -31,7 +31,7 @@ import {
   User,
   Users,
 } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { type CrmContact, type CrmLead, useApp } from "../contexts/AppContext";
 
 type ContactType = CrmContact["type"];
@@ -94,7 +94,56 @@ export default function CRM() {
     setCrmContacts: setContacts,
     crmLeads: leads,
     setCrmLeads: setLeads,
+    activeCompanyId,
+    user: currentUser,
   } = useApp();
+
+  // ── Audit Log ─────────────────────────────────────────────────────────────
+  interface CrmAuditEntry {
+    id: string;
+    action: string;
+    details: string;
+    user: string;
+    timestamp: string;
+  }
+  const crmCompanyId = activeCompanyId || "default";
+  const [crmAuditLog, setCrmAuditLog] = useState<CrmAuditEntry[]>(() => {
+    try {
+      return JSON.parse(
+        localStorage.getItem(`pv_crm_audit_${crmCompanyId}`) || "[]",
+      );
+    } catch {
+      return [];
+    }
+  });
+  useEffect(() => {
+    try {
+      setCrmAuditLog(
+        JSON.parse(
+          localStorage.getItem(`pv_crm_audit_${crmCompanyId}`) || "[]",
+        ),
+      );
+    } catch {
+      setCrmAuditLog([]);
+    }
+  }, [crmCompanyId]);
+  const addCrmAudit = (action: string, details: string) => {
+    const entry: CrmAuditEntry = {
+      id: `crm_audit_${Date.now()}`,
+      action,
+      details,
+      user: currentUser?.name || "Kullanıcı",
+      timestamp: new Date().toISOString(),
+    };
+    setCrmAuditLog((prev) => {
+      const updated = [entry, ...prev];
+      localStorage.setItem(
+        `pv_crm_audit_${crmCompanyId}`,
+        JSON.stringify(updated),
+      );
+      return updated;
+    });
+  };
 
   const canEdit =
     activeRoleId === "owner" ||
@@ -144,6 +193,7 @@ export default function CRM() {
       type: "aday",
       notes: "",
     });
+    addCrmAudit("Kişi Eklendi", `${newContact.name}`);
     setNewContactOpen(false);
   };
 
@@ -184,19 +234,26 @@ export default function CRM() {
       expectedClose: "",
       notes: "",
     });
+    addCrmAudit("Fırsat Eklendi", `${newLead.title}`);
     setNewLeadOpen(false);
   };
 
   // Lead detail
-  const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
+  const [_selectedLead, setSelectedLead] = useState<Lead | null>(null);
   const [newNote, setNewNote] = useState("");
 
-  const moveLead = (id: string, status: LeadStatus) => {
+  const _moveLead = (id: string, status: LeadStatus) => {
+    const lead = leads.find((l) => l.id === id);
+    if (lead)
+      addCrmAudit(
+        "Aşama Değiştirildi",
+        `${lead.title}: ${lead.status} → ${status}`,
+      );
     setLeads(leads.map((l) => (l.id === id ? { ...l, status } : l)));
     setSelectedLead((prev) => (prev?.id === id ? { ...prev, status } : prev));
   };
 
-  const addInteraction = (id: string) => {
+  const _addInteraction = (id: string) => {
     if (!newNote.trim()) return;
     const interaction = {
       date: new Date().toISOString().split("T")[0],
@@ -220,8 +277,8 @@ export default function CRM() {
 
   // Contact detail
   const [selectedContact, setSelectedContact] = useState<Contact | null>(null);
-  const [editContactOpen, setEditContactOpen] = useState(false);
-  const [editContactData, setEditContactData] = useState<
+  const [_editContactOpen, setEditContactOpen] = useState(false);
+  const [editContactData, _setEditContactData] = useState<
     Omit<Contact, "id" | "createdAt">
   >({
     name: "",
@@ -231,9 +288,9 @@ export default function CRM() {
     type: "musteri",
     notes: "",
   });
-  const [deleteContactConfirm, setDeleteContactConfirm] = useState(false);
+  const [_deleteContactConfirm, setDeleteContactConfirm] = useState(false);
 
-  const handleEditContact = () => {
+  const _handleEditContact = () => {
     if (!selectedContact || !editContactData.name) return;
     setContacts(
       contacts.map((c) =>
@@ -246,8 +303,9 @@ export default function CRM() {
     setEditContactOpen(false);
   };
 
-  const handleDeleteContact = () => {
+  const _handleDeleteContact = () => {
     if (!selectedContact) return;
+    addCrmAudit("Kişi Silindi", `${selectedContact.name}`);
     setContacts(contacts.filter((c) => c.id !== selectedContact.id));
     setSelectedContact(null);
     setDeleteContactConfirm(false);
@@ -335,6 +393,9 @@ export default function CRM() {
           <TabsTrigger value="contacts" data-ocid="crm.contacts_tab">
             <Users className="w-4 h-4 mr-1.5" />
             Rehber
+          </TabsTrigger>
+          <TabsTrigger value="audit" data-ocid="crm.audit_tab">
+            Denetim Logu
           </TabsTrigger>
         </TabsList>
 
@@ -771,409 +832,63 @@ export default function CRM() {
             ))}
           </div>
         </TabsContent>
-      </Tabs>
 
-      {/* Lead Detail Modal */}
-      {selectedLead && (
-        <Dialog
-          open={!!selectedLead}
-          onOpenChange={() => setSelectedLead(null)}
-        >
-          <DialogContent
-            data-ocid="crm.lead_dialog"
-            className="bg-card border-border max-w-lg"
-          >
-            <DialogHeader>
-              <DialogTitle>{selectedLead.title}</DialogTitle>
-            </DialogHeader>
-            <div className="space-y-4">
-              <div className="flex gap-2 flex-wrap">
-                <Badge
-                  className={`text-xs border ${LEAD_STATUS_COLORS[selectedLead.status]}`}
-                >
-                  {LEAD_STATUS_LABELS[selectedLead.status]}
-                </Badge>
-                <Badge variant="outline" className="text-xs">
-                  {formatCurrency(selectedLead.value)}
-                </Badge>
-                {selectedLead.assignedTo && (
-                  <Badge variant="outline" className="text-xs">
-                    {selectedLead.assignedTo}
-                  </Badge>
-                )}
-                {selectedLead.expectedClose && (
-                  <Badge variant="outline" className="text-xs">
-                    Kapanış: {selectedLead.expectedClose}
-                  </Badge>
-                )}
-              </div>
-              {selectedLead.notes && (
-                <div>
-                  <p className="text-xs font-medium text-muted-foreground">
-                    Notlar
-                  </p>
-                  <p className="text-sm mt-1">{selectedLead.notes}</p>
-                </div>
-              )}
-              {canEdit && (
-                <div>
-                  <p className="text-xs font-medium text-muted-foreground mb-2">
-                    Aşamayı Güncelle
-                  </p>
-                  <div className="flex gap-1 flex-wrap">
-                    {(
-                      [
-                        "yeni",
-                        "iletisim",
-                        "teklif",
-                        "muzakere",
-                        "kazanildi",
-                        "kaybedildi",
-                      ] as LeadStatus[]
-                    ).map((s) => (
-                      <Button
-                        key={s}
-                        data-ocid={`crm.lead_status_${s}_button`}
-                        size="sm"
-                        variant={
-                          selectedLead.status === s ? "default" : "outline"
-                        }
-                        className={
-                          selectedLead.status === s ? "gradient-bg" : ""
-                        }
-                        onClick={() => moveLead(selectedLead.id, s)}
-                      >
-                        {LEAD_STATUS_LABELS[s]}
-                      </Button>
-                    ))}
-                  </div>
-                </div>
-              )}
-              <div>
-                <p className="text-xs font-medium text-muted-foreground mb-2">
-                  Görüşme Geçmişi
-                </p>
-                <div className="space-y-2 max-h-40 overflow-y-auto">
-                  {selectedLead.interactions.length === 0 && (
-                    <p className="text-xs text-muted-foreground">
-                      Henüz görüşme kaydı yok
-                    </p>
-                  )}
-                  {selectedLead.interactions.map((int, i) => (
-                    <div
-                      key={`${int.date}-${i}`}
-                      className="text-xs bg-muted/30 rounded p-2"
+        {/* Audit Log Tab */}
+        <TabsContent value="audit" className="mt-4">
+          {crmAuditLog.length === 0 ? (
+            <div className="text-center py-16 text-muted-foreground">
+              <p className="font-medium">Henüz denetim kaydı bulunmuyor.</p>
+            </div>
+          ) : (
+            <div className="rounded-xl border border-border overflow-hidden">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr
+                    className="border-b border-border"
+                    style={{ background: "oklch(0.15 0.018 245)" }}
+                  >
+                    <th className="text-left px-4 py-3 font-medium text-muted-foreground">
+                      Zaman
+                    </th>
+                    <th className="text-left px-4 py-3 font-medium text-muted-foreground">
+                      Kullanıcı
+                    </th>
+                    <th className="text-left px-4 py-3 font-medium text-muted-foreground">
+                      İşlem
+                    </th>
+                    <th className="text-left px-4 py-3 font-medium text-muted-foreground">
+                      Detay
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {crmAuditLog.map((entry) => (
+                    <tr
+                      key={entry.id}
+                      className="border-b border-border/50 hover:bg-muted/10 transition-colors"
                     >
-                      <span className="text-muted-foreground">
-                        {int.date} ·{" "}
-                      </span>
-                      {int.note}
-                    </div>
+                      <td className="px-4 py-3 text-muted-foreground text-xs">
+                        {new Date(entry.timestamp).toLocaleString("tr-TR")}
+                      </td>
+                      <td className="px-4 py-3 text-foreground/80">
+                        {entry.user}
+                      </td>
+                      <td className="px-4 py-3">
+                        <span className="px-2 py-0.5 rounded text-xs font-medium bg-amber-500/15 text-amber-400 border border-amber-500/30">
+                          {entry.action}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-foreground/80">
+                        {entry.details}
+                      </td>
+                    </tr>
                   ))}
-                </div>
-                {canEdit && (
-                  <div className="flex gap-2 mt-2">
-                    <Input
-                      data-ocid="crm.lead_note_input"
-                      value={newNote}
-                      onChange={(e) => setNewNote(e.target.value)}
-                      placeholder="Görüşme notu ekle..."
-                      className="bg-background border-border text-sm"
-                      onKeyDown={(e) =>
-                        e.key === "Enter" && addInteraction(selectedLead.id)
-                      }
-                    />
-                    <Button
-                      data-ocid="crm.lead_add_note_button"
-                      size="sm"
-                      className="gradient-bg"
-                      onClick={() => addInteraction(selectedLead.id)}
-                    >
-                      Ekle
-                    </Button>
-                  </div>
-                )}
-              </div>
+                </tbody>
+              </table>
             </div>
-            <DialogFooter>
-              <Button
-                data-ocid="crm.lead_close_button"
-                variant="outline"
-                onClick={() => setSelectedLead(null)}
-              >
-                Kapat
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-      )}
-
-      {/* Contact Detail Modal */}
-      {selectedContact && (
-        <Dialog
-          open={!!selectedContact}
-          onOpenChange={() => setSelectedContact(null)}
-        >
-          <DialogContent
-            data-ocid="crm.contact_dialog"
-            className="bg-card border-border"
-          >
-            <DialogHeader>
-              <DialogTitle className="flex items-center gap-2">
-                <User className="w-4 h-4" />
-                {selectedContact.name}
-              </DialogTitle>
-            </DialogHeader>
-            <div className="space-y-3">
-              <Badge
-                className={`text-xs border ${CONTACT_TYPE_COLORS[selectedContact.type]}`}
-              >
-                {CONTACT_TYPE_LABELS[selectedContact.type]}
-              </Badge>
-              <div className="space-y-2">
-                <div className="flex items-center gap-2 text-sm">
-                  <Building2 className="w-4 h-4 text-muted-foreground" />
-                  {selectedContact.company}
-                </div>
-                {selectedContact.email && (
-                  <div className="flex items-center gap-2 text-sm">
-                    <Mail className="w-4 h-4 text-muted-foreground" />
-                    {selectedContact.email}
-                  </div>
-                )}
-                {selectedContact.phone && (
-                  <div className="flex items-center gap-2 text-sm">
-                    <Phone className="w-4 h-4 text-muted-foreground" />
-                    {selectedContact.phone}
-                  </div>
-                )}
-              </div>
-              {selectedContact.notes && (
-                <div>
-                  <p className="text-xs font-medium text-muted-foreground">
-                    Notlar
-                  </p>
-                  <p className="text-sm mt-1">{selectedContact.notes}</p>
-                </div>
-              )}
-              <div>
-                <p className="text-xs font-medium text-muted-foreground mb-2">
-                  İlgili Fırsatlar
-                </p>
-                <div className="space-y-1">
-                  {leads
-                    .filter((l) => l.contactId === selectedContact.id)
-                    .map((lead) => (
-                      <div
-                        key={lead.id}
-                        className="flex items-center justify-between text-sm bg-muted/30 rounded p-2"
-                      >
-                        <span>{lead.title}</span>
-                        <Badge
-                          className={`text-xs border ${LEAD_STATUS_COLORS[lead.status]}`}
-                        >
-                          {LEAD_STATUS_LABELS[lead.status]}
-                        </Badge>
-                      </div>
-                    ))}
-                  {leads.filter((l) => l.contactId === selectedContact.id)
-                    .length === 0 && (
-                    <p className="text-xs text-muted-foreground">
-                      İlgili fırsat yok
-                    </p>
-                  )}
-                </div>
-              </div>
-            </div>
-            <DialogFooter className="flex flex-wrap gap-2 justify-between">
-              <div className="flex gap-2">
-                <Button
-                  data-ocid="crm.contact_edit_button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => {
-                    if (selectedContact) {
-                      setEditContactData({
-                        name: selectedContact.name,
-                        company: selectedContact.company,
-                        email: selectedContact.email,
-                        phone: selectedContact.phone,
-                        type: selectedContact.type,
-                        notes: selectedContact.notes,
-                      });
-                      setEditContactOpen(true);
-                    }
-                  }}
-                >
-                  Düzenle
-                </Button>
-                <Button
-                  data-ocid="crm.contact_delete_button"
-                  variant="outline"
-                  size="sm"
-                  className="text-rose-400 border-rose-500/30 hover:bg-rose-500/10"
-                  onClick={() => setDeleteContactConfirm(true)}
-                >
-                  Sil
-                </Button>
-              </div>
-              <Button
-                data-ocid="crm.contact_close_button"
-                variant="outline"
-                onClick={() => setSelectedContact(null)}
-              >
-                Kapat
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-      )}
-
-      {/* Edit Contact Dialog */}
-      <Dialog open={editContactOpen} onOpenChange={setEditContactOpen}>
-        <DialogContent
-          data-ocid="crm.contact_edit_dialog"
-          className="bg-card border-border"
-        >
-          <DialogHeader>
-            <DialogTitle>Müşteri Düzenle</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-3">
-            <div>
-              <p className="text-xs font-medium text-muted-foreground">
-                Ad Soyad
-              </p>
-              <input
-                data-ocid="crm.contact_edit_name.input"
-                className="w-full rounded-md border border-border bg-background p-2 text-sm mt-1 focus:outline-none focus:ring-1 focus:ring-primary"
-                value={editContactData.name}
-                onChange={(e) =>
-                  setEditContactData({
-                    ...editContactData,
-                    name: e.target.value,
-                  })
-                }
-              />
-            </div>
-            <div>
-              <p className="text-xs font-medium text-muted-foreground">
-                Şirket
-              </p>
-              <input
-                data-ocid="crm.contact_edit_company.input"
-                className="w-full rounded-md border border-border bg-background p-2 text-sm mt-1 focus:outline-none focus:ring-1 focus:ring-primary"
-                value={editContactData.company}
-                onChange={(e) =>
-                  setEditContactData({
-                    ...editContactData,
-                    company: e.target.value,
-                  })
-                }
-              />
-            </div>
-            <div>
-              <p className="text-xs font-medium text-muted-foreground">
-                E-posta
-              </p>
-              <input
-                data-ocid="crm.contact_edit_email.input"
-                className="w-full rounded-md border border-border bg-background p-2 text-sm mt-1 focus:outline-none focus:ring-1 focus:ring-primary"
-                value={editContactData.email}
-                onChange={(e) =>
-                  setEditContactData({
-                    ...editContactData,
-                    email: e.target.value,
-                  })
-                }
-              />
-            </div>
-            <div>
-              <p className="text-xs font-medium text-muted-foreground">
-                Telefon
-              </p>
-              <input
-                data-ocid="crm.contact_edit_phone.input"
-                className="w-full rounded-md border border-border bg-background p-2 text-sm mt-1 focus:outline-none focus:ring-1 focus:ring-primary"
-                value={editContactData.phone}
-                onChange={(e) =>
-                  setEditContactData({
-                    ...editContactData,
-                    phone: e.target.value,
-                  })
-                }
-              />
-            </div>
-            <div>
-              <p className="text-xs font-medium text-muted-foreground">
-                Notlar
-              </p>
-              <textarea
-                data-ocid="crm.contact_edit_notes.textarea"
-                className="w-full rounded-md border border-border bg-background p-2 text-sm mt-1 resize-none focus:outline-none focus:ring-1 focus:ring-primary"
-                rows={3}
-                value={editContactData.notes}
-                onChange={(e) =>
-                  setEditContactData({
-                    ...editContactData,
-                    notes: e.target.value,
-                  })
-                }
-              />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button
-              data-ocid="crm.contact_edit_cancel_button"
-              variant="outline"
-              onClick={() => setEditContactOpen(false)}
-            >
-              İptal
-            </Button>
-            <Button
-              data-ocid="crm.contact_edit_save_button"
-              className="gradient-bg text-white"
-              onClick={handleEditContact}
-            >
-              Kaydet
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Delete Confirm Dialog */}
-      <Dialog
-        open={deleteContactConfirm}
-        onOpenChange={setDeleteContactConfirm}
-      >
-        <DialogContent
-          data-ocid="crm.contact_delete_dialog"
-          className="bg-card border-border"
-        >
-          <DialogHeader>
-            <DialogTitle>Müşteriyi Sil</DialogTitle>
-          </DialogHeader>
-          <p className="text-sm text-muted-foreground">
-            <strong>{selectedContact?.name}</strong> müşterisini silmek
-            istediğinizden emin misiniz?
-          </p>
-          <DialogFooter>
-            <Button
-              data-ocid="crm.contact_delete_cancel_button"
-              variant="outline"
-              onClick={() => setDeleteContactConfirm(false)}
-            >
-              İptal
-            </Button>
-            <Button
-              data-ocid="crm.contact_delete_confirm_button"
-              className="bg-rose-600 hover:bg-rose-700 text-white"
-              onClick={handleDeleteContact}
-            >
-              Sil
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+          )}
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }

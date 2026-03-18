@@ -138,6 +138,52 @@ export default function QualitySafety() {
   const storageKey = `pv_qs_${activeCompanyId}`;
   const storageKeyInc = `pv_inc_${activeCompanyId}`;
 
+  // ── Audit Log ─────────────────────────────────────────────────────────────
+  interface QsAuditEntry {
+    id: string;
+    action: string;
+    details: string;
+    user: string;
+    timestamp: string;
+  }
+  const qsAuditKey = `pv_qs_audit_${activeCompanyId || "default"}`;
+  const [qsAuditLog, setQsAuditLog] = useState<QsAuditEntry[]>(() => {
+    try {
+      return JSON.parse(localStorage.getItem(qsAuditKey) || "[]");
+    } catch {
+      return [];
+    }
+  });
+  useEffect(() => {
+    try {
+      setQsAuditLog(
+        JSON.parse(
+          localStorage.getItem(`pv_qs_audit_${activeCompanyId || "default"}`) ||
+            "[]",
+        ),
+      );
+    } catch {
+      setQsAuditLog([]);
+    }
+  }, [activeCompanyId]);
+  const addQsAudit = (action: string, details: string) => {
+    const entry: QsAuditEntry = {
+      id: `qs_audit_${Date.now()}`,
+      action,
+      details,
+      user: "Kullanıcı",
+      timestamp: new Date().toISOString(),
+    };
+    setQsAuditLog((prev) => {
+      const updated = [entry, ...prev];
+      localStorage.setItem(
+        `pv_qs_audit_${activeCompanyId || "default"}`,
+        JSON.stringify(updated),
+      );
+      return updated;
+    });
+  };
+
   const [inspections, setInspections] = useState<QCInspection[]>(() => {
     if (!activeCompanyId) return INITIAL_INSPECTIONS;
     const s = localStorage.getItem(storageKey);
@@ -222,6 +268,7 @@ export default function QualitySafety() {
       inspector: "",
       notes: "",
     });
+    addQsAudit("Denetim Eklendi", `${newInsp.title}`);
     setNewInspOpen(false);
   };
 
@@ -258,14 +305,15 @@ export default function QualitySafety() {
       reporter: "",
       description: "",
     });
+    addQsAudit("Olay Bildirildi", `${newInc.title}`);
     setNewIncOpen(false);
   };
 
   // Detail modal
   const [selectedInsp, setSelectedInsp] = useState<QCInspection | null>(null);
-  const [selectedInc, setSelectedInc] = useState<Incident | null>(null);
+  const [_selectedInc, setSelectedInc] = useState<Incident | null>(null);
 
-  const toggleChecklistItem = (inspId: string, idx: number) => {
+  const _toggleChecklistItem = (inspId: string, idx: number) => {
     setInspections((prev) =>
       prev.map((i) => {
         if (i.id !== inspId) return i;
@@ -308,7 +356,7 @@ export default function QualitySafety() {
     }
   };
 
-  const updateIncidentStatus = (
+  const _updateIncidentStatus = (
     id: string,
     status: IncidentStatus,
     actionTaken?: string,
@@ -327,7 +375,7 @@ export default function QualitySafety() {
     );
   };
 
-  const [incidentActionText, setIncidentActionText] = useState("");
+  const [_incidentActionText, _setIncidentActionText] = useState("");
 
   return (
     <div
@@ -418,6 +466,9 @@ export default function QualitySafety() {
           >
             <ShieldAlert className="w-4 h-4 mr-1.5" />
             Olaylar & Riskler
+          </TabsTrigger>
+          <TabsTrigger value="audit" data-ocid="quality_safety.audit_tab">
+            Denetim Logu
           </TabsTrigger>
         </TabsList>
 
@@ -844,235 +895,63 @@ export default function QualitySafety() {
             ))}
           </div>
         </TabsContent>
-      </Tabs>
 
-      {/* Inspection Detail Modal */}
-      {selectedInsp && (
-        <Dialog
-          open={!!selectedInsp}
-          onOpenChange={() => setSelectedInsp(null)}
-        >
-          <DialogContent
-            data-ocid="quality_safety.inspection_dialog"
-            className="bg-card border-border max-w-lg"
-          >
-            <DialogHeader>
-              <DialogTitle className="flex items-center gap-2">
-                {selectedInsp.type === "kalite" ? (
-                  <CheckCircle2 className="w-4 h-4 text-blue-400" />
-                ) : (
-                  <HardHat className="w-4 h-4 text-orange-400" />
-                )}
-                {selectedInsp.title}
-              </DialogTitle>
-            </DialogHeader>
-            <div className="space-y-4">
-              <div className="flex gap-2 flex-wrap">
-                <Badge
-                  className={`text-xs border ${STATUS_COLORS[selectedInsp.status]}`}
-                >
-                  {STATUS_LABELS[selectedInsp.status]}
-                </Badge>
-                <Badge variant="outline" className="text-xs">
-                  {selectedInsp.inspector}
-                </Badge>
-                <Badge variant="outline" className="text-xs">
-                  {selectedInsp.date}
-                </Badge>
-              </div>
-              <div>
-                <p className="text-sm font-medium mb-2">Kontrol Listesi</p>
-                <div className="space-y-2">
-                  {selectedInsp.checklist.map((c, ci) => (
-                    <button
-                      key={c.item}
-                      type="button"
-                      data-ocid={`quality_safety.checklist_item.${ci + 1}`}
-                      className={`w-full flex items-center gap-2 p-2 rounded text-sm text-left transition-colors ${
-                        c.passed === true
-                          ? "bg-green-500/10 hover:bg-green-500/20"
-                          : c.passed === false
-                            ? "bg-red-500/10 hover:bg-red-500/20"
-                            : "bg-muted/50 hover:bg-muted"
-                      }`}
-                      onClick={() =>
-                        canEdit && toggleChecklistItem(selectedInsp.id, ci)
-                      }
+        {/* Audit Log Tab */}
+        <TabsContent value="audit" className="mt-4">
+          {qsAuditLog.length === 0 ? (
+            <div className="text-center py-16 text-muted-foreground">
+              <p className="font-medium">Henüz denetim kaydı bulunmuyor.</p>
+            </div>
+          ) : (
+            <div className="rounded-xl border border-border overflow-hidden">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr
+                    className="border-b border-border"
+                    style={{ background: "oklch(0.15 0.018 245)" }}
+                  >
+                    <th className="text-left px-4 py-3 font-medium text-muted-foreground">
+                      Zaman
+                    </th>
+                    <th className="text-left px-4 py-3 font-medium text-muted-foreground">
+                      Kullanıcı
+                    </th>
+                    <th className="text-left px-4 py-3 font-medium text-muted-foreground">
+                      İşlem
+                    </th>
+                    <th className="text-left px-4 py-3 font-medium text-muted-foreground">
+                      Detay
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {qsAuditLog.map((entry) => (
+                    <tr
+                      key={entry.id}
+                      className="border-b border-border/50 hover:bg-muted/10 transition-colors"
                     >
-                      {c.passed === true ? (
-                        <CheckCircle2 className="w-4 h-4 text-green-400 flex-shrink-0" />
-                      ) : c.passed === false ? (
-                        <XCircle className="w-4 h-4 text-red-400 flex-shrink-0" />
-                      ) : (
-                        <div className="w-4 h-4 rounded-full border border-muted-foreground flex-shrink-0" />
-                      )}
-                      {c.item}
-                    </button>
+                      <td className="px-4 py-3 text-muted-foreground text-xs">
+                        {new Date(entry.timestamp).toLocaleString("tr-TR")}
+                      </td>
+                      <td className="px-4 py-3 text-foreground/80">
+                        {entry.user}
+                      </td>
+                      <td className="px-4 py-3">
+                        <span className="px-2 py-0.5 rounded text-xs font-medium bg-amber-500/15 text-amber-400 border border-amber-500/30">
+                          {entry.action}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-foreground/80">
+                        {entry.details}
+                      </td>
+                    </tr>
                   ))}
-                </div>
-              </div>
-              {selectedInsp.notes && (
-                <div>
-                  <p className="text-xs font-medium text-muted-foreground">
-                    Notlar
-                  </p>
-                  <p className="text-sm mt-1">{selectedInsp.notes}</p>
-                </div>
-              )}
-              {selectedInsp.correctiveAction && (
-                <div>
-                  <p className="text-xs font-medium text-orange-400">
-                    Düzeltici Aksiyon
-                  </p>
-                  <p className="text-sm mt-1">
-                    {selectedInsp.correctiveAction}
-                  </p>
-                </div>
-              )}
-              {canEdit && (
-                <div>
-                  <p className="text-xs font-medium text-muted-foreground mb-1">
-                    Düzeltici Aksiyon Notu
-                  </p>
-                  <textarea
-                    data-ocid="quality_safety.inspection_corrective.textarea"
-                    className="w-full rounded-md border border-border bg-background p-2 text-sm resize-none focus:outline-none focus:ring-1 focus:ring-primary"
-                    rows={3}
-                    placeholder="Düzeltici aksiyon bilgisi girin..."
-                    defaultValue={selectedInsp.correctiveAction || ""}
-                    onBlur={(e) => {
-                      const val = e.target.value.trim();
-                      if (val) {
-                        setInspections((prev) =>
-                          prev.map((i) =>
-                            i.id === selectedInsp.id
-                              ? { ...i, correctiveAction: val }
-                              : i,
-                          ),
-                        );
-                        setSelectedInsp((prev) =>
-                          prev ? { ...prev, correctiveAction: val } : prev,
-                        );
-                      }
-                    }}
-                  />
-                </div>
-              )}
+                </tbody>
+              </table>
             </div>
-            <DialogFooter>
-              <Button
-                data-ocid="quality_safety.inspection_close_button"
-                variant="outline"
-                onClick={() => setSelectedInsp(null)}
-              >
-                Kapat
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-      )}
-
-      {/* Incident Detail Modal */}
-      {selectedInc && (
-        <Dialog open={!!selectedInc} onOpenChange={() => setSelectedInc(null)}>
-          <DialogContent
-            data-ocid="quality_safety.incident_dialog"
-            className="bg-card border-border max-w-lg"
-          >
-            <DialogHeader>
-              <DialogTitle className="flex items-center gap-2">
-                <FileWarning className="w-4 h-4 text-red-400" />
-                {selectedInc.title}
-              </DialogTitle>
-            </DialogHeader>
-            <div className="space-y-4">
-              <div className="flex gap-2 flex-wrap">
-                <Badge
-                  className={`text-xs border ${SEV_COLORS[selectedInc.severity]}`}
-                >
-                  {SEV_LABELS[selectedInc.severity]}
-                </Badge>
-                <Badge
-                  className={`text-xs border ${INC_STATUS_COLORS[selectedInc.status]}`}
-                >
-                  {INC_STATUS_LABELS[selectedInc.status]}
-                </Badge>
-                <Badge variant="outline" className="text-xs">
-                  {selectedInc.reporter}
-                </Badge>
-                <Badge variant="outline" className="text-xs">
-                  {selectedInc.date}
-                </Badge>
-              </div>
-              <div>
-                <p className="text-xs font-medium text-muted-foreground">
-                  Açıklama
-                </p>
-                <p className="text-sm mt-1">{selectedInc.description}</p>
-              </div>
-              {selectedInc.actionTaken && (
-                <div>
-                  <p className="text-xs font-medium text-green-400">
-                    Alınan Önlem
-                  </p>
-                  <p className="text-sm mt-1">{selectedInc.actionTaken}</p>
-                </div>
-              )}
-              {canEdit && selectedInc.status !== "kapali" && (
-                <div className="flex gap-2">
-                  {selectedInc.status === "acik" && (
-                    <Button
-                      data-ocid="quality_safety.incident_review_button"
-                      size="sm"
-                      variant="outline"
-                      onClick={() =>
-                        updateIncidentStatus(selectedInc.id, "incelemede")
-                      }
-                    >
-                      İncelemeye Al
-                    </Button>
-                  )}
-                  <div className="flex flex-col gap-2 w-full">
-                    <textarea
-                      data-ocid="quality_safety.incident_action.textarea"
-                      className="w-full rounded-md border border-border bg-background p-2 text-sm resize-none focus:outline-none focus:ring-1 focus:ring-primary"
-                      rows={2}
-                      placeholder="Gerçekleştirilen aksiyon..."
-                      value={incidentActionText}
-                      onChange={(e) => setIncidentActionText(e.target.value)}
-                    />
-                    <Button
-                      data-ocid="quality_safety.incident_close_action_button"
-                      size="sm"
-                      className="gradient-bg"
-                      onClick={() => {
-                        updateIncidentStatus(
-                          selectedInc.id,
-                          "kapali",
-                          incidentActionText ||
-                            "İnceleme tamamlandı ve kapatıldı.",
-                        );
-                        setIncidentActionText("");
-                      }}
-                    >
-                      Kapat
-                    </Button>
-                  </div>
-                </div>
-              )}
-            </div>
-            <DialogFooter>
-              <Button
-                data-ocid="quality_safety.incident_close_button"
-                variant="outline"
-                onClick={() => setSelectedInc(null)}
-              >
-                Kapat
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-      )}
+          )}
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }

@@ -38,7 +38,7 @@ import {
   Search,
   TrendingUp,
 } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import AccessDenied from "../components/AccessDenied";
 import { useApp } from "../contexts/AppContext";
 
@@ -68,7 +68,55 @@ export default function Inventory() {
     setStockMovements,
     projects,
     user,
+    activeCompanyId,
   } = useApp();
+
+  // ── Audit Log ─────────────────────────────────────────────────────────────
+  interface InvAuditEntry {
+    id: string;
+    action: string;
+    details: string;
+    user: string;
+    timestamp: string;
+  }
+  const invCompanyId = activeCompanyId || "default";
+  const [_invAuditLog, setInvAuditLog] = useState<InvAuditEntry[]>(() => {
+    try {
+      return JSON.parse(
+        localStorage.getItem(`pv_inv_audit_${invCompanyId}`) || "[]",
+      );
+    } catch {
+      return [];
+    }
+  });
+  useEffect(() => {
+    try {
+      setInvAuditLog(
+        JSON.parse(
+          localStorage.getItem(`pv_inv_audit_${invCompanyId}`) || "[]",
+        ),
+      );
+    } catch {
+      setInvAuditLog([]);
+    }
+  }, [invCompanyId]);
+  const addInvAudit = (action: string, details: string) => {
+    const entry: InvAuditEntry = {
+      id: `inv_audit_${Date.now()}`,
+      action,
+      details,
+      user: user?.name || "Kullanıcı",
+      timestamp: new Date().toISOString(),
+    };
+    setInvAuditLog((prev) => {
+      const updated = [entry, ...prev];
+      localStorage.setItem(
+        `pv_inv_audit_${invCompanyId}`,
+        JSON.stringify(updated),
+      );
+      return updated;
+    });
+  };
 
   const canEdit =
     activeRoleId === "owner" ||
@@ -209,6 +257,7 @@ export default function Inventory() {
         value,
       },
     ]);
+    addInvAudit("Stok Kalemi Eklendi", `${newItem.name}`);
     setNewItem({
       name: "",
       category: "Malzeme",
@@ -422,6 +471,13 @@ export default function Inventory() {
           >
             <Layers className="w-4 h-4 mr-2" />
             Proje Bazlı
+          </TabsTrigger>
+          <TabsTrigger
+            data-ocid="inventory.audit.tab"
+            value="audit"
+            className="data-[state=active]:gradient-bg data-[state=active]:text-white"
+          >
+            Denetim Logu
           </TabsTrigger>
         </TabsList>
 

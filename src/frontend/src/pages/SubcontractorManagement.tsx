@@ -21,15 +21,18 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Building2,
+  Check,
   DollarSign,
   FileText,
   Mail,
   Phone,
   Plus,
+  Shield,
   User,
   Wrench,
+  X as XIcon,
 } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useApp } from "../contexts/AppContext";
 
 interface Subcontractor {
@@ -98,7 +101,7 @@ function formatCurrency(v: number) {
 }
 
 export default function SubcontractorManagement() {
-  const { activeCompanyId } = useApp();
+  const { activeCompanyId, user: currentUser } = useApp();
   const companyId = activeCompanyId || "default";
 
   // ── State ─────────────────────────────────────────────────────────────────
@@ -145,6 +148,50 @@ export default function SubcontractorManagement() {
     localStorage.setItem(`pv_subcontracts_${companyId}`, JSON.stringify(data));
   };
 
+  // ── Audit Log ─────────────────────────────────────────────────────────────
+  interface AuditEntry {
+    id: string;
+    action: string;
+    details: string;
+    user: string;
+    timestamp: string;
+  }
+  const [auditLog, setAuditLog] = useState<AuditEntry[]>(() => {
+    try {
+      return JSON.parse(
+        localStorage.getItem(`pv_sub_audit_${companyId}`) || "[]",
+      );
+    } catch {
+      return [];
+    }
+  });
+  useEffect(() => {
+    try {
+      setAuditLog(
+        JSON.parse(localStorage.getItem(`pv_sub_audit_${companyId}`) || "[]"),
+      );
+    } catch {
+      setAuditLog([]);
+    }
+  }, [companyId]);
+  const addAuditEntry = (action: string, details: string) => {
+    const entry: AuditEntry = {
+      id: `audit_${Date.now()}`,
+      action,
+      details,
+      user: currentUser?.name || "Kullanıcı",
+      timestamp: new Date().toISOString(),
+    };
+    setAuditLog((prev) => {
+      const updated = [entry, ...prev];
+      localStorage.setItem(
+        `pv_sub_audit_${companyId}`,
+        JSON.stringify(updated),
+      );
+      return updated;
+    });
+  };
+
   const savePayments = (data: SubPayment[]) => {
     setPayments(data);
     localStorage.setItem(`pv_subpayments_${companyId}`, JSON.stringify(data));
@@ -170,6 +217,7 @@ export default function SubcontractorManagement() {
       createdAt: new Date().toISOString().split("T")[0],
     };
     saveSubcontractors([sub, ...subcontractors]);
+    addAuditEntry("Taşeron Eklendi", `${sub.name} firmasi eklendi`);
     setNewSubOpen(false);
     setNewSub({
       name: "",
@@ -209,6 +257,10 @@ export default function SubcontractorManagement() {
       status: newContract.status,
     };
     saveContracts([contract, ...contracts]);
+    addAuditEntry(
+      "Sözleşme Eklendi",
+      `${subMap[contract.subcontractorId] || contract.subcontractorId} - ${contract.projectName}`,
+    );
     setNewContractOpen(false);
     setNewContract({
       subcontractorId: "",
@@ -241,6 +293,10 @@ export default function SubcontractorManagement() {
       status: newPayment.status,
     };
     savePayments([payment, ...payments]);
+    addAuditEntry(
+      "Ödeme Eklendi",
+      `${subMap[payment.subcontractorId] || payment.subcontractorId} - ${payment.amount} ₺`,
+    );
     setNewPaymentOpen(false);
     setNewPayment({
       subcontractorId: "",
@@ -249,6 +305,56 @@ export default function SubcontractorManagement() {
       description: "",
       status: "Bekliyor",
     });
+  };
+
+  // ── Payment Approval ──────────────────────────────────────────────────────
+  const handleApprovePayment = (paymentId: string) => {
+    const payment = payments.find((p) => p.id === paymentId);
+    if (!payment) return;
+    const updated = payments.map((p) =>
+      p.id === paymentId
+        ? { ...p, status: "Ödendi" as SubPayment["status"] }
+        : p,
+    );
+    savePayments(updated);
+    // Create Finance expense
+    try {
+      const expenses = JSON.parse(
+        localStorage.getItem(`pv_expenses_${companyId}`) || "[]",
+      );
+      expenses.push({
+        id: `exp_sub_${Date.now()}`,
+        projectId: payment.subcontractorId,
+        description: `Taşeron Ödemesi: ${subMap[payment.subcontractorId] || ""}`,
+        amount: payment.amount,
+        date: payment.date,
+        status: "Onaylandı",
+        category: "taseron",
+        createdBy: currentUser?.name || "Sistem",
+      });
+      localStorage.setItem(
+        `pv_expenses_${companyId}`,
+        JSON.stringify(expenses),
+      );
+    } catch {}
+    addAuditEntry(
+      "Ödeme Onaylandı",
+      `${subMap[payment.subcontractorId] || ""} - ${payment.amount} ₺`,
+    );
+  };
+  const handleRejectPayment = (paymentId: string) => {
+    const payment = payments.find((p) => p.id === paymentId);
+    if (!payment) return;
+    const updated = payments.map((p) =>
+      p.id === paymentId
+        ? { ...p, status: "Gecikmiş" as SubPayment["status"] }
+        : p,
+    );
+    savePayments(updated);
+    addAuditEntry(
+      "Ödeme Reddedildi",
+      `${subMap[payment.subcontractorId] || ""} - ${payment.amount} ₺`,
+    );
   };
 
   // ── KPIs ──────────────────────────────────────────────────────────────────
@@ -492,6 +598,13 @@ export default function SubcontractorManagement() {
             className="data-[state=active]:bg-amber-500/20 data-[state=active]:text-amber-300"
           >
             Ödemeler
+          </TabsTrigger>
+          <TabsTrigger
+            value="audit"
+            data-ocid="subcontractor.audit.tab"
+            className="data-[state=active]:bg-amber-500/20 data-[state=active]:text-amber-300"
+          >
+            Denetim Logu
           </TabsTrigger>
         </TabsList>
 
@@ -979,6 +1092,9 @@ export default function SubcontractorManagement() {
                     <th className="text-left px-4 py-3 font-medium text-muted-foreground">
                       Durum
                     </th>
+                    <th className="text-left px-4 py-3 font-medium text-muted-foreground">
+                      İşlem
+                    </th>
                   </tr>
                 </thead>
                 <tbody>
@@ -1008,6 +1124,85 @@ export default function SubcontractorManagement() {
                         >
                           {payment.status}
                         </span>
+                      </td>
+                      <td className="px-4 py-3">
+                        {payment.status === "Bekliyor" && (
+                          <div className="flex gap-1">
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="h-7 px-2 text-emerald-400 hover:text-emerald-300 hover:bg-emerald-500/10"
+                              onClick={() => handleApprovePayment(payment.id)}
+                            >
+                              <Check className="w-3.5 h-3.5" />
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="h-7 px-2 text-rose-400 hover:text-rose-300 hover:bg-rose-500/10"
+                              onClick={() => handleRejectPayment(payment.id)}
+                            >
+                              <XIcon className="w-3.5 h-3.5" />
+                            </Button>
+                          </div>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </TabsContent>
+
+        {/* Audit Log Tab */}
+        <TabsContent value="audit" className="mt-6">
+          {auditLog.length === 0 ? (
+            <div className="text-center py-16 text-muted-foreground">
+              <Shield className="w-12 h-12 mx-auto mb-4 opacity-30" />
+              <p className="font-medium">Henüz denetim kaydı bulunmuyor.</p>
+            </div>
+          ) : (
+            <div className="rounded-xl border border-border overflow-hidden">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr
+                    className="border-b border-border"
+                    style={{ background: "oklch(0.15 0.018 245)" }}
+                  >
+                    <th className="text-left px-4 py-3 font-medium text-muted-foreground">
+                      Zaman
+                    </th>
+                    <th className="text-left px-4 py-3 font-medium text-muted-foreground">
+                      Kullanıcı
+                    </th>
+                    <th className="text-left px-4 py-3 font-medium text-muted-foreground">
+                      İşlem
+                    </th>
+                    <th className="text-left px-4 py-3 font-medium text-muted-foreground">
+                      Detay
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {auditLog.map((entry) => (
+                    <tr
+                      key={entry.id}
+                      className="border-b border-border/50 hover:bg-muted/10 transition-colors"
+                    >
+                      <td className="px-4 py-3 text-muted-foreground text-xs">
+                        {new Date(entry.timestamp).toLocaleString("tr-TR")}
+                      </td>
+                      <td className="px-4 py-3 text-foreground/80">
+                        {entry.user}
+                      </td>
+                      <td className="px-4 py-3">
+                        <span className="px-2 py-0.5 rounded text-xs font-medium bg-amber-500/15 text-amber-400 border border-amber-500/30">
+                          {entry.action}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-foreground/80">
+                        {entry.details}
                       </td>
                     </tr>
                   ))}
