@@ -6,6 +6,7 @@ import {
   AppProvider,
   type Company,
   type Role,
+  type User,
   useApp,
 } from "./contexts/AppContext";
 import AccountTypeSelect from "./pages/AccountTypeSelect";
@@ -69,8 +70,8 @@ function Inner() {
     setActiveRole,
     pendingInvites,
     inviteCodes,
-    user,
   } = useApp();
+
   const [screen, setScreen] = useState<Screen>(() => {
     if (!localStorage.getItem("pv_lang")) return "lang";
     const userStr = localStorage.getItem("pv_user");
@@ -106,25 +107,8 @@ function Inner() {
     }
   };
 
-  const handleLogin = () => {
-    const companiesStr = localStorage.getItem("pv_companies");
-    const companiesList = companiesStr ? JSON.parse(companiesStr) : [];
-    const userStr = localStorage.getItem("pv_user");
-    const u = userStr ? JSON.parse(userStr) : null;
-    if (u && companiesList.length > 0) {
-      const userCompanies = companiesList.filter((c: Company) =>
-        c.members.some((m: { userId: string }) => m.userId === u.id),
-      );
-      if (userCompanies.length > 0) {
-        setActiveCompany(userCompanies[0].id);
-        const member = userCompanies[0].members.find(
-          (m: { userId: string; roleIds: string[] }) => m.userId === u.id,
-        );
-        if (member?.roleIds?.includes("owner")) {
-          setActiveRole("owner");
-        }
-      }
-    }
+  const handleLogin = (loggedInUser: User) => {
+    void loggedInUser;
     setScreen("company");
   };
 
@@ -175,7 +159,10 @@ function Inner() {
   const handleLogout = () => {
     setCurrentCompany(null);
     setCurrentRole(null);
-    setScreen("company");
+    localStorage.removeItem("pv_user");
+    localStorage.removeItem("pv_current_company");
+    localStorage.removeItem("pv_current_role");
+    setScreen("accountTypeSelect");
   };
 
   const handlePendingLogout = () => {
@@ -220,7 +207,6 @@ function Inner() {
   };
 
   void inviteCodes;
-  void user;
 
   if (screen === "lang") return <LanguageSelect onSelect={handleLangSelect} />;
   if (screen === "accountTypeSelect")
@@ -233,8 +219,7 @@ function Inner() {
         onJoined={handleInviteJoin}
       />
     );
-  if (screen === "login")
-    return <Login onLogin={handleLogin} accountType={selectedAccountType} />;
+  if (screen === "login") return <Login onLogin={handleLogin} />;
   if (screen === "pendingApproval")
     return (
       <PendingApproval

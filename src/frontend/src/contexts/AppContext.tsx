@@ -6,6 +6,7 @@ import {
   useState,
 } from "react";
 import { type Lang, translations } from "../i18n/translations";
+import { backendService } from "../services/backendService";
 
 export type AccountType = "owner" | "manager" | "personnel" | "subcontractor";
 
@@ -1468,6 +1469,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
     };
     const updatedCompanies = [...companies, newC];
     setCompanies(updatedCompanies);
+    // Save to backend (non-blocking)
+    backendService.saveCompany(newC, user?.id || "").catch(() => {});
     return newC;
   };
 
