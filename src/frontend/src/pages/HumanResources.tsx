@@ -57,7 +57,12 @@ import type {
   Personnel,
   ShiftAssignment,
 } from "../contexts/AppContext";
-import type { AuditLog } from "../contexts/AppContext";
+import type {
+  AuditLog,
+  Certificate,
+  PayrollRecord,
+  TrainingRecord,
+} from "../contexts/AppContext";
 import { useApp } from "../contexts/AppContext";
 
 const DAYS = ["Pzt", "Sal", "Çar", "Per", "Cum", "Cmt", "Paz"];
@@ -222,6 +227,747 @@ function getCalendarDays(year: number, month: number) {
 
 function dateStr(year: number, month: number, day: number) {
   return `${year}-${String(month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+}
+
+function TrainingCertificateTab() {
+  const {
+    certificates,
+    setCertificates,
+    trainingRecords,
+    setTrainingRecords,
+    hrPersonnel,
+    user,
+    activeCompanyId,
+  } = useApp();
+
+  const today = new Date().toISOString().slice(0, 10);
+  const in30 = new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10);
+
+  const [certOpen, setCertOpen] = useState(false);
+  const [certForm, setCertForm] = useState({
+    personnelId: "",
+    name: "",
+    issuingBody: "",
+    issueDate: "",
+    expiryDate: "",
+  });
+
+  const handleSaveCert = () => {
+    if (!certForm.personnelId || !certForm.name.trim()) return;
+    const p = hrPersonnel.find((x) => x.id === certForm.personnelId);
+    const newC: Certificate = {
+      id: Date.now().toString(),
+      ...certForm,
+      personnelName: p?.name || "",
+      companyId: activeCompanyId || "",
+    };
+    setCertificates([...certificates, newC]);
+    setCertOpen(false);
+    setCertForm({
+      personnelId: "",
+      name: "",
+      issuingBody: "",
+      issueDate: "",
+      expiryDate: "",
+    });
+  };
+
+  const [trainOpen, setTrainOpen] = useState(false);
+  const [trainForm, setTrainForm] = useState({
+    personnelId: "",
+    title: "",
+    date: "",
+    duration: "",
+    description: "",
+  });
+
+  const handleSaveTrain = () => {
+    if (!trainForm.personnelId || !trainForm.title.trim()) return;
+    const p = hrPersonnel.find((x) => x.id === trainForm.personnelId);
+    const newT: TrainingRecord = {
+      id: Date.now().toString(),
+      personnelId: trainForm.personnelId,
+      personnelName: p?.name || "",
+      title: trainForm.title,
+      date: trainForm.date,
+      duration: Number(trainForm.duration) || 0,
+      description: trainForm.description,
+      companyId: activeCompanyId || "",
+    };
+    setTrainingRecords([...trainingRecords, newT]);
+    setTrainOpen(false);
+    setTrainForm({
+      personnelId: "",
+      title: "",
+      date: "",
+      duration: "",
+      description: "",
+    });
+  };
+
+  void user;
+
+  return (
+    <div className="space-y-8">
+      {/* Certificates */}
+      <div className="space-y-3">
+        <div className="flex items-center justify-between">
+          <h3 className="text-base font-semibold">Sertifikalar</h3>
+          <Dialog open={certOpen} onOpenChange={setCertOpen}>
+            <DialogTrigger asChild>
+              <Button
+                data-ocid="hr.cert.add_button"
+                size="sm"
+                className="bg-primary text-primary-foreground hover:bg-primary/90"
+              >
+                <Plus className="h-3.5 w-3.5 mr-1.5" />
+                Yeni Sertifika
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="bg-card border-border">
+              <DialogHeader>
+                <DialogTitle>Sertifika Ekle</DialogTitle>
+              </DialogHeader>
+              <div className="space-y-3 py-2">
+                <div className="space-y-1">
+                  <Label>Personel *</Label>
+                  <Select
+                    value={certForm.personnelId}
+                    onValueChange={(v) =>
+                      setCertForm((p) => ({ ...p, personnelId: v }))
+                    }
+                  >
+                    <SelectTrigger
+                      data-ocid="hr.cert.personnel_select"
+                      className="bg-background border-border"
+                    >
+                      <SelectValue placeholder="Personel seç..." />
+                    </SelectTrigger>
+                    <SelectContent className="bg-card border-border">
+                      {hrPersonnel.map((p) => (
+                        <SelectItem key={p.id} value={p.id}>
+                          {p.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1">
+                  <Label>Belge Adı *</Label>
+                  <Input
+                    data-ocid="hr.cert.name_input"
+                    value={certForm.name}
+                    onChange={(e) =>
+                      setCertForm((p) => ({ ...p, name: e.target.value }))
+                    }
+                    placeholder="örn. İş Güvenliği Sertifikası"
+                    className="bg-background border-border"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label>Veren Kurum</Label>
+                  <Input
+                    data-ocid="hr.cert.issuer_input"
+                    value={certForm.issuingBody}
+                    onChange={(e) =>
+                      setCertForm((p) => ({
+                        ...p,
+                        issuingBody: e.target.value,
+                      }))
+                    }
+                    className="bg-background border-border"
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <Label>Alınış Tarihi</Label>
+                    <Input
+                      data-ocid="hr.cert.issueDate_input"
+                      type="date"
+                      value={certForm.issueDate}
+                      onChange={(e) =>
+                        setCertForm((p) => ({
+                          ...p,
+                          issueDate: e.target.value,
+                        }))
+                      }
+                      className="bg-background border-border"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label>Son Kullanma</Label>
+                    <Input
+                      data-ocid="hr.cert.expiryDate_input"
+                      type="date"
+                      value={certForm.expiryDate}
+                      onChange={(e) =>
+                        setCertForm((p) => ({
+                          ...p,
+                          expiryDate: e.target.value,
+                        }))
+                      }
+                      className="bg-background border-border"
+                    />
+                  </div>
+                </div>
+              </div>
+              <DialogFooter>
+                <Button
+                  variant="outline"
+                  onClick={() => setCertOpen(false)}
+                  className="border-border"
+                >
+                  İptal
+                </Button>
+                <Button
+                  data-ocid="hr.cert.save_button"
+                  onClick={handleSaveCert}
+                  className="bg-primary text-primary-foreground"
+                >
+                  Ekle
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        </div>
+
+        {certificates.length === 0 ? (
+          <div
+            data-ocid="hr.certificates.empty_state"
+            className="flex flex-col items-center justify-center py-10 text-center border border-border rounded-xl"
+          >
+            <FileText className="h-10 w-10 text-muted-foreground/30 mb-2" />
+            <p className="text-muted-foreground text-sm">
+              Henüz sertifika kaydı yok.
+            </p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+            {certificates.map((c, idx) => {
+              const expired = c.expiryDate && c.expiryDate < today;
+              const nearExpiry =
+                !expired && c.expiryDate && c.expiryDate <= in30;
+              return (
+                <div
+                  key={c.id}
+                  data-ocid={`hr.cert.item.${idx + 1}`}
+                  className="rounded-xl border border-border bg-card p-4 space-y-1.5"
+                >
+                  <div className="font-medium text-sm">{c.name}</div>
+                  <div className="text-xs text-muted-foreground">
+                    {c.personnelName}
+                  </div>
+                  {c.issuingBody && (
+                    <div className="text-xs text-muted-foreground">
+                      {c.issuingBody}
+                    </div>
+                  )}
+                  {c.expiryDate && (
+                    <div
+                      className={`text-xs font-medium ${expired ? "text-red-400" : nearExpiry ? "text-amber-400" : "text-muted-foreground"}`}
+                    >
+                      Son: {c.expiryDate}
+                      {expired && " ⚠ Süresi Dolmuş"}
+                      {!expired && nearExpiry && " ⚠ Yakında Dolacak"}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      {/* Training Records */}
+      <div className="space-y-3">
+        <div className="flex items-center justify-between">
+          <h3 className="text-base font-semibold">Eğitim Geçmişi</h3>
+          <Dialog open={trainOpen} onOpenChange={setTrainOpen}>
+            <DialogTrigger asChild>
+              <Button
+                data-ocid="hr.training.add_button"
+                size="sm"
+                className="bg-primary text-primary-foreground hover:bg-primary/90"
+              >
+                <Plus className="h-3.5 w-3.5 mr-1.5" />
+                Yeni Eğitim
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="bg-card border-border">
+              <DialogHeader>
+                <DialogTitle>Eğitim Kaydı Ekle</DialogTitle>
+              </DialogHeader>
+              <div className="space-y-3 py-2">
+                <div className="space-y-1">
+                  <Label>Personel *</Label>
+                  <Select
+                    value={trainForm.personnelId}
+                    onValueChange={(v) =>
+                      setTrainForm((p) => ({ ...p, personnelId: v }))
+                    }
+                  >
+                    <SelectTrigger
+                      data-ocid="hr.training.personnel_select"
+                      className="bg-background border-border"
+                    >
+                      <SelectValue placeholder="Personel seç..." />
+                    </SelectTrigger>
+                    <SelectContent className="bg-card border-border">
+                      {hrPersonnel.map((p) => (
+                        <SelectItem key={p.id} value={p.id}>
+                          {p.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1">
+                  <Label>Başlık *</Label>
+                  <Input
+                    data-ocid="hr.training.title_input"
+                    value={trainForm.title}
+                    onChange={(e) =>
+                      setTrainForm((p) => ({ ...p, title: e.target.value }))
+                    }
+                    placeholder="Eğitim adı"
+                    className="bg-background border-border"
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <Label>Tarih</Label>
+                    <Input
+                      data-ocid="hr.training.date_input"
+                      type="date"
+                      value={trainForm.date}
+                      onChange={(e) =>
+                        setTrainForm((p) => ({ ...p, date: e.target.value }))
+                      }
+                      className="bg-background border-border"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label>Süre (saat)</Label>
+                    <Input
+                      data-ocid="hr.training.duration_input"
+                      type="number"
+                      value={trainForm.duration}
+                      onChange={(e) =>
+                        setTrainForm((p) => ({
+                          ...p,
+                          duration: e.target.value,
+                        }))
+                      }
+                      className="bg-background border-border"
+                    />
+                  </div>
+                </div>
+                <div className="space-y-1">
+                  <Label>Açıklama</Label>
+                  <Textarea
+                    data-ocid="hr.training.description_input"
+                    value={trainForm.description}
+                    onChange={(e) =>
+                      setTrainForm((p) => ({
+                        ...p,
+                        description: e.target.value,
+                      }))
+                    }
+                    className="bg-background border-border"
+                  />
+                </div>
+              </div>
+              <DialogFooter>
+                <Button
+                  variant="outline"
+                  onClick={() => setTrainOpen(false)}
+                  className="border-border"
+                >
+                  İptal
+                </Button>
+                <Button
+                  data-ocid="hr.training.save_button"
+                  onClick={handleSaveTrain}
+                  className="bg-primary text-primary-foreground"
+                >
+                  Ekle
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        </div>
+
+        {trainingRecords.length === 0 ? (
+          <div
+            data-ocid="hr.training.empty_state"
+            className="flex flex-col items-center justify-center py-10 text-center border border-border rounded-xl"
+          >
+            <Users className="h-10 w-10 text-muted-foreground/30 mb-2" />
+            <p className="text-muted-foreground text-sm">
+              Henüz eğitim kaydı yok.
+            </p>
+          </div>
+        ) : (
+          <div className="rounded-xl border border-border overflow-hidden">
+            <table className="w-full text-sm">
+              <thead>
+                <tr
+                  className="border-b border-border"
+                  style={{ background: "oklch(0.15 0.018 245)" }}
+                >
+                  <th className="text-left px-4 py-3 font-medium text-muted-foreground">
+                    Personel
+                  </th>
+                  <th className="text-left px-4 py-3 font-medium text-muted-foreground">
+                    Eğitim
+                  </th>
+                  <th className="text-left px-4 py-3 font-medium text-muted-foreground">
+                    Tarih
+                  </th>
+                  <th className="text-left px-4 py-3 font-medium text-muted-foreground">
+                    Süre
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {trainingRecords.map((t, idx) => (
+                  <tr
+                    key={t.id}
+                    data-ocid={`hr.training.item.${idx + 1}`}
+                    className="border-b border-border/50 hover:bg-muted/10 transition-colors"
+                  >
+                    <td className="px-4 py-3">{t.personnelName}</td>
+                    <td className="px-4 py-3 font-medium">{t.title}</td>
+                    <td className="px-4 py-3 text-muted-foreground">
+                      {t.date}
+                    </td>
+                    <td className="px-4 py-3 text-muted-foreground">
+                      {t.duration}s
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function PayrollTab() {
+  const {
+    payrollRecords,
+    setPayrollRecords,
+    hrPersonnel,
+    user,
+    activeCompanyId,
+  } = useApp();
+  const [month, setMonth] = useState(() =>
+    new Date().toISOString().slice(0, 7),
+  );
+  const [addOpen, setAddOpen] = useState(false);
+  const [form, setForm] = useState({
+    personnelId: "",
+    grossSalary: "",
+    deductions: "",
+  });
+
+  const handleSave = () => {
+    if (!form.personnelId || !form.grossSalary) return;
+    const p = hrPersonnel.find((x) => x.id === form.personnelId);
+    const gross = Number(form.grossSalary);
+    const ded = Number(form.deductions) || 0;
+    const newR: PayrollRecord = {
+      id: Date.now().toString(),
+      personnelId: form.personnelId,
+      personnelName: p?.name || "",
+      month,
+      grossSalary: gross,
+      deductions: ded,
+      netSalary: gross - ded,
+      status: "pending",
+      companyId: activeCompanyId || "",
+    };
+    setPayrollRecords([...payrollRecords, newR]);
+    setAddOpen(false);
+    setForm({ personnelId: "", grossSalary: "", deductions: "" });
+  };
+
+  const handleApprove = (id: string) => {
+    setPayrollRecords(
+      payrollRecords.map((r) =>
+        r.id === id ? { ...r, status: "approved" as const } : r,
+      ),
+    );
+  };
+  const handlePaid = (id: string) => {
+    setPayrollRecords(
+      payrollRecords.map((r) =>
+        r.id === id
+          ? { ...r, status: "paid" as const, paidAt: new Date().toISOString() }
+          : r,
+      ),
+    );
+  };
+
+  const filtered = payrollRecords.filter((r) => r.month === month);
+  const totalNet = filtered.reduce((s, r) => s + r.netSalary, 0);
+  const paidNet = filtered
+    .filter((r) => r.status === "paid")
+    .reduce((s, r) => s + r.netSalary, 0);
+  const pendingNet = filtered
+    .filter((r) => r.status !== "paid")
+    .reduce((s, r) => s + r.netSalary, 0);
+
+  void user;
+
+  const fmt = (n: number) =>
+    `${n.toLocaleString("tr-TR", { minimumFractionDigits: 0 })} ₺`;
+
+  return (
+    <div className="space-y-4">
+      {/* KPI row */}
+      <div className="grid grid-cols-3 gap-4">
+        <div className="rounded-xl border border-border bg-card p-4">
+          <div className="text-xs text-muted-foreground mb-1">
+            Toplam Aylık Bordro
+          </div>
+          <div className="text-xl font-bold text-foreground">
+            {fmt(totalNet)}
+          </div>
+        </div>
+        <div className="rounded-xl border border-border bg-card p-4">
+          <div className="text-xs text-muted-foreground mb-1">Ödenen</div>
+          <div className="text-xl font-bold text-emerald-400">
+            {fmt(paidNet)}
+          </div>
+        </div>
+        <div className="rounded-xl border border-border bg-card p-4">
+          <div className="text-xs text-muted-foreground mb-1">Bekleyen</div>
+          <div className="text-xl font-bold text-amber-400">
+            {fmt(pendingNet)}
+          </div>
+        </div>
+      </div>
+
+      <div className="flex items-center justify-between gap-3 flex-wrap">
+        <div className="flex items-center gap-2">
+          <Label className="text-sm">Dönem:</Label>
+          <Input
+            data-ocid="hr.payroll.month_input"
+            type="month"
+            value={month}
+            onChange={(e) => setMonth(e.target.value)}
+            className="h-8 w-40 bg-card border-border text-sm"
+          />
+        </div>
+        <Dialog open={addOpen} onOpenChange={setAddOpen}>
+          <DialogTrigger asChild>
+            <Button
+              data-ocid="hr.payroll.add_button"
+              size="sm"
+              className="bg-primary text-primary-foreground hover:bg-primary/90"
+            >
+              <Plus className="h-3.5 w-3.5 mr-1.5" />
+              Yeni Bordro Kaydı
+            </Button>
+          </DialogTrigger>
+          <DialogContent className="bg-card border-border">
+            <DialogHeader>
+              <DialogTitle>Bordro Kaydı Ekle</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-3 py-2">
+              <div className="space-y-1">
+                <Label>Personel *</Label>
+                <Select
+                  value={form.personnelId}
+                  onValueChange={(v) =>
+                    setForm((p) => ({ ...p, personnelId: v }))
+                  }
+                >
+                  <SelectTrigger
+                    data-ocid="hr.payroll.personnel_select"
+                    className="bg-background border-border"
+                  >
+                    <SelectValue placeholder="Personel seç..." />
+                  </SelectTrigger>
+                  <SelectContent className="bg-card border-border">
+                    {hrPersonnel.map((p) => (
+                      <SelectItem key={p.id} value={p.id}>
+                        {p.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <Label>Brüt Maaş (₺) *</Label>
+                  <Input
+                    data-ocid="hr.payroll.gross_input"
+                    type="number"
+                    value={form.grossSalary}
+                    onChange={(e) =>
+                      setForm((p) => ({ ...p, grossSalary: e.target.value }))
+                    }
+                    className="bg-background border-border"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label>Kesintiler (₺)</Label>
+                  <Input
+                    data-ocid="hr.payroll.deductions_input"
+                    type="number"
+                    value={form.deductions}
+                    onChange={(e) =>
+                      setForm((p) => ({ ...p, deductions: e.target.value }))
+                    }
+                    className="bg-background border-border"
+                  />
+                </div>
+              </div>
+              {form.grossSalary && (
+                <div className="rounded-lg bg-muted/20 border border-border px-4 py-2 text-sm">
+                  Net Maaş:{" "}
+                  <span className="font-bold text-emerald-400">
+                    {fmt(
+                      (Number(form.grossSalary) || 0) -
+                        (Number(form.deductions) || 0),
+                    )}
+                  </span>
+                </div>
+              )}
+            </div>
+            <DialogFooter>
+              <Button
+                variant="outline"
+                onClick={() => setAddOpen(false)}
+                className="border-border"
+              >
+                İptal
+              </Button>
+              <Button
+                data-ocid="hr.payroll.save_button"
+                onClick={handleSave}
+                className="bg-primary text-primary-foreground"
+              >
+                Ekle
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      </div>
+
+      {filtered.length === 0 ? (
+        <div
+          data-ocid="hr.payroll.empty_state"
+          className="flex flex-col items-center justify-center py-10 text-center border border-border rounded-xl"
+        >
+          <Users className="h-10 w-10 text-muted-foreground/30 mb-2" />
+          <p className="text-muted-foreground text-sm">
+            Bu dönem için bordro kaydı yok.
+          </p>
+        </div>
+      ) : (
+        <div className="rounded-xl border border-border overflow-hidden">
+          <table className="w-full text-sm">
+            <thead>
+              <tr
+                className="border-b border-border"
+                style={{ background: "oklch(0.15 0.018 245)" }}
+              >
+                <th className="text-left px-4 py-3 font-medium text-muted-foreground">
+                  Personel
+                </th>
+                <th className="text-left px-4 py-3 font-medium text-muted-foreground">
+                  Dönem
+                </th>
+                <th className="text-right px-4 py-3 font-medium text-muted-foreground">
+                  Brüt
+                </th>
+                <th className="text-right px-4 py-3 font-medium text-muted-foreground">
+                  Kesinti
+                </th>
+                <th className="text-right px-4 py-3 font-medium text-muted-foreground">
+                  Net
+                </th>
+                <th className="text-left px-4 py-3 font-medium text-muted-foreground">
+                  Durum
+                </th>
+                <th className="text-left px-4 py-3 font-medium text-muted-foreground">
+                  İşlem
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.map((r, idx) => (
+                <tr
+                  key={r.id}
+                  data-ocid={`hr.payroll.item.${idx + 1}`}
+                  className="border-b border-border/50 hover:bg-muted/10 transition-colors"
+                >
+                  <td className="px-4 py-3 font-medium">{r.personnelName}</td>
+                  <td className="px-4 py-3 text-muted-foreground">{r.month}</td>
+                  <td className="px-4 py-3 text-right">{fmt(r.grossSalary)}</td>
+                  <td className="px-4 py-3 text-right text-red-400">
+                    -{fmt(r.deductions)}
+                  </td>
+                  <td className="px-4 py-3 text-right font-semibold text-emerald-400">
+                    {fmt(r.netSalary)}
+                  </td>
+                  <td className="px-4 py-3">
+                    <Badge
+                      variant="outline"
+                      className={
+                        r.status === "paid"
+                          ? "bg-emerald-500/15 text-emerald-400 border-emerald-500/30 text-xs"
+                          : r.status === "approved"
+                            ? "bg-blue-500/15 text-blue-400 border-blue-500/30 text-xs"
+                            : "bg-amber-500/15 text-amber-400 border-amber-500/30 text-xs"
+                      }
+                    >
+                      {r.status === "paid"
+                        ? "Ödendi"
+                        : r.status === "approved"
+                          ? "Onaylandı"
+                          : "Bekliyor"}
+                    </Badge>
+                  </td>
+                  <td className="px-4 py-3">
+                    <div className="flex gap-1.5">
+                      {r.status === "pending" && (
+                        <Button
+                          data-ocid={`hr.payroll.approve_button.${idx + 1}`}
+                          size="sm"
+                          variant="outline"
+                          className="h-7 text-xs border-blue-500/30 text-blue-400 hover:bg-blue-500/10"
+                          onClick={() => handleApprove(r.id)}
+                        >
+                          Onayla
+                        </Button>
+                      )}
+                      {r.status === "approved" && (
+                        <Button
+                          data-ocid={`hr.payroll.paid_button.${idx + 1}`}
+                          size="sm"
+                          variant="outline"
+                          className="h-7 text-xs border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/10"
+                          onClick={() => handlePaid(r.id)}
+                        >
+                          Ödendi
+                        </Button>
+                      )}
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
 }
 
 function OvertimeTab() {
@@ -871,6 +1617,20 @@ export default function HumanResources() {
             className="text-xs md:text-sm"
           >
             Denetim Logu
+          </TabsTrigger>
+          <TabsTrigger
+            data-ocid="hr.training.tab"
+            value="training"
+            className="text-xs md:text-sm"
+          >
+            Eğitim & Sertifika
+          </TabsTrigger>
+          <TabsTrigger
+            data-ocid="hr.payroll.tab"
+            value="payroll"
+            className="text-xs md:text-sm"
+          >
+            Bordro
           </TabsTrigger>
         </TabsList>
 
@@ -1738,6 +2498,16 @@ export default function HumanResources() {
               </tbody>
             </table>
           </div>
+        </TabsContent>
+
+        {/* ─── TRAINING & CERTIFICATE TAB ─── */}
+        <TabsContent value="training" className="mt-4 space-y-6">
+          <TrainingCertificateTab />
+        </TabsContent>
+
+        {/* ─── PAYROLL TAB ─── */}
+        <TabsContent value="payroll" className="mt-4 space-y-4">
+          <PayrollTab />
         </TabsContent>
       </Tabs>
 

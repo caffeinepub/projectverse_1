@@ -650,10 +650,100 @@ function generateCode(length: number): string {
 export interface AuditLog {
   id: string;
   timestamp: string;
-  module: "finance" | "hr" | "purchasing" | "projects" | "fieldops";
+  module:
+    | "finance"
+    | "hr"
+    | "purchasing"
+    | "projects"
+    | "fieldops"
+    | "equipment"
+    | "quotes";
   action: string;
   description: string;
   performedBy: string;
+}
+
+export type EquipmentStatus = "active" | "maintenance" | "broken" | "idle";
+export interface Equipment {
+  id: string;
+  name: string;
+  type: string;
+  brand: string;
+  model: string;
+  serial: string;
+  status: EquipmentStatus;
+  projectId?: string;
+  purchaseDate?: string;
+  lastMaintenanceDate?: string;
+  nextMaintenanceDate?: string;
+  companyId: string;
+  createdAt: string;
+}
+export interface MaintenanceFault {
+  id: string;
+  equipmentId: string;
+  type: "maintenance" | "fault";
+  description: string;
+  date: string;
+  resolvedAt?: string;
+  status: "open" | "resolved";
+  reportedBy: string;
+}
+export interface Certificate {
+  id: string;
+  personnelId: string;
+  personnelName: string;
+  name: string;
+  issuingBody: string;
+  issueDate: string;
+  expiryDate: string;
+  companyId: string;
+}
+export interface TrainingRecord {
+  id: string;
+  personnelId: string;
+  personnelName: string;
+  title: string;
+  date: string;
+  duration: number;
+  description: string;
+  companyId: string;
+}
+export interface PayrollRecord {
+  id: string;
+  personnelId: string;
+  personnelName: string;
+  month: string;
+  grossSalary: number;
+  deductions: number;
+  netSalary: number;
+  status: "pending" | "approved" | "paid";
+  paidAt?: string;
+  companyId: string;
+}
+
+export interface QuoteItem {
+  id: string;
+  description: string;
+  unit: string;
+  quantity: number;
+  unitPrice: number;
+  total: number;
+}
+
+export interface Quote {
+  id: string;
+  title: string;
+  leadId?: string;
+  contactId?: string;
+  items: QuoteItem[];
+  totalAmount: number;
+  status: "draft" | "sent" | "accepted" | "rejected";
+  validUntil: string;
+  notes: string;
+  companyId: string;
+  createdAt: string;
+  createdBy: string;
 }
 
 interface AppState {
@@ -770,6 +860,17 @@ interface AppState {
   setCrmContacts: (c: CrmContact[]) => void;
   crmLeads: CrmLead[];
   setCrmLeads: (l: CrmLead[]) => void;
+  equipment: Equipment[];
+  setEquipment: (e: Equipment[]) => void;
+  maintenanceFaults: MaintenanceFault[];
+  setMaintenanceFaults: (m: MaintenanceFault[]) => void;
+  certificates: Certificate[];
+  setCertificates: (c: Certificate[]) => void;
+  trainingRecords: TrainingRecord[];
+  setTrainingRecords: (t: TrainingRecord[]) => void;
+  payrollRecords: PayrollRecord[];
+  setPayrollRecords: (p: PayrollRecord[]) => void;
+
   // Notifications
   notifications: Notification[];
   addNotification: (n: Omit<Notification, "id" | "timestamp" | "read">) => void;
@@ -790,6 +891,9 @@ interface AppState {
   updateCurrentUser: (
     fields: Partial<{ displayName: string; phone: string; avatar: string }>,
   ) => void;
+  // Quotes
+  quotes: Quote[];
+  setQuotes: (q: Quote[]) => void;
   // Audit Logs
   auditLogs: AuditLog[];
   addAuditLog: (entry: Omit<AuditLog, "id" | "timestamp">) => void;
@@ -892,7 +996,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }
 
   function saveCompanyData<T>(cid: string | null, key: string, data: T) {
-    if (cid) localStorage.setItem(`pv_${key}_${cid}`, JSON.stringify(data));
+    if (cid) {
+      localStorage.setItem(`pv_${key}_${cid}`, JSON.stringify(data));
+      backendService.saveData(`${key}:${cid}`, data as any[]).catch(() => {});
+    }
   }
 
   const initCid = localStorage.getItem("pv_active_company") || null;
@@ -981,10 +1088,30 @@ export function AppProvider({ children }: { children: ReactNode }) {
     initCid ? loadCompanyData(initCid, "audit_logs", []) : [],
   );
 
+  const [equipmentState, setEquipmentState] = useState<Equipment[]>(() =>
+    initCid ? loadCompanyData(initCid, "equipment", []) : [],
+  );
+  const [maintenanceFaultsState, setMaintenanceFaultsState] = useState<
+    MaintenanceFault[]
+  >(() => (initCid ? loadCompanyData(initCid, "maint_faults", []) : []));
+  const [certificatesState, setCertificatesState] = useState<Certificate[]>(
+    () => (initCid ? loadCompanyData(initCid, "certificates", []) : []),
+  );
+  const [trainingRecordsState, setTrainingRecordsState] = useState<
+    TrainingRecord[]
+  >(() => (initCid ? loadCompanyData(initCid, "training", []) : []));
+  const [payrollRecordsState, setPayrollRecordsState] = useState<
+    PayrollRecord[]
+  >(() => (initCid ? loadCompanyData(initCid, "payroll", []) : []));
+
   const [crmLeads, setCrmLeadsState] = useState<CrmLead[]>(() =>
     initCid
       ? loadCompanyData(initCid, "crm_leads", INITIAL_CRM_LEADS)
       : INITIAL_CRM_LEADS,
+  );
+
+  const [quotesState, setQuotesState] = useState<Quote[]>(() =>
+    initCid ? loadCompanyData(initCid, "quotes", []) : [],
   );
 
   const [notifications, setNotificationsState] = useState<Notification[]>(() =>
@@ -1082,12 +1209,84 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setCrmContactsState(
       loadCompanyData(companyId, "crm_contacts", INITIAL_CRM_CONTACTS),
     );
+    setEquipmentState(loadCompanyData(companyId, "equipment", []));
+    setMaintenanceFaultsState(loadCompanyData(companyId, "maint_faults", []));
+    setCertificatesState(loadCompanyData(companyId, "certificates", []));
+    setTrainingRecordsState(loadCompanyData(companyId, "training", []));
+    setPayrollRecordsState(loadCompanyData(companyId, "payroll", []));
     setCrmLeadsState(
       loadCompanyData(companyId, "crm_leads", INITIAL_CRM_LEADS),
     );
+    setQuotesState(loadCompanyData(companyId, "quotes", []));
     setAuditLogsState(loadCompanyData(companyId, "audit_logs", []));
     setProjectsState(loadCompanyData(companyId, "projects", MOCK_PROJECTS));
     setTasksState(loadCompanyData(companyId, "tasks", MOCK_TASKS));
+    // Async backend sync — overwrites local if backend has data
+    backendService
+      .loadData(`projects:${companyId}`)
+      .then((data) => {
+        if (data && data.length > 0) {
+          setProjectsState(data);
+          localStorage.setItem(
+            `pv_projects_${companyId}`,
+            JSON.stringify(data),
+          );
+        }
+      })
+      .catch(() => {});
+    backendService
+      .loadData(`tasks:${companyId}`)
+      .then((data) => {
+        if (data && data.length > 0) {
+          setTasksState(data);
+          localStorage.setItem(`pv_tasks_${companyId}`, JSON.stringify(data));
+        }
+      })
+      .catch(() => {});
+    // Sync all other modules from backend
+    const moduleSyncs: [string, (d: any) => void][] = [
+      ["hr_personnel", setHrPersonnelState],
+      ["hr_leaves", setHrLeavesState],
+      ["hr_shifts", setHrShiftsState],
+      ["hr_overtime", setOvertimeRecordsState],
+      ["milestones", setMilestonesState],
+      ["expenses", setExpensesState],
+      ["invoices", setInvoicesState],
+      ["channels", setChannelsState],
+      ["messages", setAppMessagesState],
+      ["suppliers", setSuppliersState],
+      ["purchase_requests", setPurchaseRequestsState],
+      ["orders", setOrdersState],
+      ["stock_items", setStockItemsState],
+      ["stock_movements", setStockMovementsState],
+      ["doc_folders", setDocFoldersState],
+      ["doc_files", setDocFilesState],
+      ["crm_contacts", setCrmContactsState],
+      ["crm_leads", setCrmLeadsState],
+      ["equipment", setEquipmentState],
+      ["maint_faults", setMaintenanceFaultsState],
+      ["certificates", setCertificatesState],
+      ["training", setTrainingRecordsState],
+      ["payroll", setPayrollRecordsState],
+      ["quotes", setQuotesState],
+      ["audit_logs", setAuditLogsState],
+      ["work_orders", setWorkOrdersState],
+      ["inspections", setFieldInspectionsState],
+    ];
+    for (const [moduleKey, setter] of moduleSyncs) {
+      backendService
+        .loadData(`${moduleKey}:${companyId}`)
+        .then((data) => {
+          if (data && data.length > 0) {
+            setter(data);
+            localStorage.setItem(
+              `pv_${moduleKey}_${companyId}`,
+              JSON.stringify(data),
+            );
+          }
+        })
+        .catch(() => {});
+    }
     setWorkOrdersState(
       loadCompanyData(companyId, "work_orders", MOCK_WORK_ORDERS),
     );
@@ -1213,9 +1412,35 @@ export function AppProvider({ children }: { children: ReactNode }) {
     saveCompanyData(activeCompanyId, "crm_contacts", c);
   };
 
+  const setEquipment = (e: Equipment[]) => {
+    setEquipmentState(e);
+    saveCompanyData(activeCompanyId, "equipment", e);
+  };
+  const setMaintenanceFaults = (m: MaintenanceFault[]) => {
+    setMaintenanceFaultsState(m);
+    saveCompanyData(activeCompanyId, "maint_faults", m);
+  };
+  const setCertificates = (c: Certificate[]) => {
+    setCertificatesState(c);
+    saveCompanyData(activeCompanyId, "certificates", c);
+  };
+  const setTrainingRecords = (t: TrainingRecord[]) => {
+    setTrainingRecordsState(t);
+    saveCompanyData(activeCompanyId, "training", t);
+  };
+  const setPayrollRecords = (p: PayrollRecord[]) => {
+    setPayrollRecordsState(p);
+    saveCompanyData(activeCompanyId, "payroll", p);
+  };
+
   const setCrmLeads = (l: CrmLead[]) => {
     setCrmLeadsState(l);
     saveCompanyData(activeCompanyId, "crm_leads", l);
+  };
+
+  const setQuotes = (q: Quote[]) => {
+    setQuotesState(q);
+    saveCompanyData(activeCompanyId, "quotes", q);
   };
 
   // ─── Notifications ─────────────────────────────────────────────────────────
@@ -1806,6 +2031,18 @@ export function AppProvider({ children }: { children: ReactNode }) {
         updateOrder,
         deductStock,
         updateCurrentUser,
+        equipment: equipmentState,
+        setEquipment,
+        maintenanceFaults: maintenanceFaultsState,
+        setMaintenanceFaults,
+        certificates: certificatesState,
+        setCertificates,
+        trainingRecords: trainingRecordsState,
+        setTrainingRecords,
+        payrollRecords: payrollRecordsState,
+        setPayrollRecords,
+        quotes: quotesState,
+        setQuotes,
         auditLogs: auditLogsState,
         addAuditLog,
       }}

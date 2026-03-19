@@ -16,6 +16,8 @@ import CompanySelect from "./pages/CompanySelect";
 import CompanySettings from "./pages/CompanySettings";
 import Dashboard from "./pages/Dashboard";
 import Documents from "./pages/Documents";
+import Drawings from "./pages/Drawings";
+import Equipment from "./pages/Equipment";
 import FieldOps from "./pages/FieldOps";
 import Finance from "./pages/Finance";
 import HumanResources from "./pages/HumanResources";
@@ -23,15 +25,21 @@ import Inventory from "./pages/Inventory";
 import InviteJoin from "./pages/InviteJoin";
 import LanguageSelect from "./pages/LanguageSelect";
 import Login from "./pages/Login";
+import Meetings from "./pages/Meetings";
 import PendingApproval from "./pages/PendingApproval";
 import Profile from "./pages/Profile";
 import ProjectDetail from "./pages/ProjectDetail";
 import Projects from "./pages/Projects";
+import PunchList from "./pages/PunchList";
 import Purchasing from "./pages/Purchasing";
 import QualitySafety from "./pages/QualitySafety";
+import Quotes from "./pages/Quotes";
 import Reporting from "./pages/Reporting";
+import ResourceCalendar from "./pages/ResourceCalendar";
+import RiskRegister from "./pages/RiskRegister";
 import RoleSelect from "./pages/RoleSelect";
 import RoleSettings from "./pages/RoleSettings";
+import SiteLog from "./pages/SiteLog";
 import SubcontractorManagement from "./pages/SubcontractorManagement";
 
 type Screen =
@@ -60,7 +68,15 @@ type AppPage =
   | "reporting"
   | "qualitySafety"
   | "crm"
-  | "subcontractors";
+  | "subcontractors"
+  | "equipment"
+  | "quotes"
+  | "siteLog"
+  | "drawings"
+  | "meetings"
+  | "punchList"
+  | "resourceCalendar"
+  | "riskRegister";
 
 function Inner() {
   const {
@@ -198,6 +214,14 @@ function Inner() {
     else if (p === "qualitySafety") setPage("qualitySafety");
     else if (p === "crm") setPage("crm");
     else if (p === "subcontractors") setPage("subcontractors");
+    else if (p === "equipment") setPage("equipment");
+    else if (p === "quotes") setPage("quotes");
+    else if (p === "siteLog") setPage("siteLog");
+    else if (p === "drawings") setPage("drawings");
+    else if (p === "meetings") setPage("meetings");
+    else if (p === "punchList") setPage("punchList");
+    else if (p === "resourceCalendar") setPage("resourceCalendar");
+    else if (p === "riskRegister") setPage("riskRegister");
     else setPage(p as AppPage);
   };
 
@@ -263,6 +287,14 @@ function Inner() {
       {page === "qualitySafety" && <QualitySafety />}
       {page === "crm" && <CRM />}
       {page === "subcontractors" && <SubcontractorManagement />}
+      {page === "equipment" && <Equipment />}
+      {page === "quotes" && <Quotes />}
+      {page === "siteLog" && <SiteLog />}
+      {page === "drawings" && <Drawings />}
+      {page === "meetings" && <Meetings />}
+      {page === "punchList" && <PunchList />}
+      {page === "resourceCalendar" && <ResourceCalendar />}
+      {page === "riskRegister" && <RiskRegister />}
     </Layout>
   );
 }

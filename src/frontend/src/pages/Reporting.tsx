@@ -95,6 +95,10 @@ export default function Reporting() {
     workOrders,
     overtimeRecords,
     milestones,
+    equipment,
+    maintenanceFaults,
+    payrollRecords,
+    quotes,
   } = useApp();
 
   const canView =
@@ -199,6 +203,28 @@ export default function Reporting() {
   const openFindings = qsInspections.filter(
     (i: { status: string }) => i.status === "Düzeltici Aksiyon Gerekiyor",
   ).length;
+
+  // Equipment analytics
+  const companyEquipment = equipment.filter(
+    (e) => e.companyId === activeCompanyId,
+  );
+  const companyFaults = maintenanceFaults.filter((f) => {
+    const eq = equipment.find((e) => e.id === f.equipmentId);
+    return eq?.companyId === activeCompanyId;
+  });
+  const openFaults = companyFaults.filter(
+    (f) => (f as { status: string }).status === "open",
+  );
+
+  // Payroll analytics
+  const companyPayroll = payrollRecords.filter(
+    (r) => (r as { companyId: string }).companyId === activeCompanyId,
+  );
+
+  // Quote analytics
+  const companyQuotes = quotes.filter(
+    (q) => (q as { companyId: string }).companyId === activeCompanyId,
+  );
 
   if (!canView) return <AccessDenied />;
 
@@ -1160,6 +1186,503 @@ export default function Reporting() {
                     </tbody>
                   </table>
                 </div>
+              )}
+            </CardContent>
+          </Card>
+          {/* E. Equipment Analytics */}
+          <Card
+            data-ocid="reporting.equipment.card"
+            className="bg-[oklch(0.18_0.02_264)] border border-border xl:col-span-2"
+          >
+            <CardHeader className="pb-3">
+              <CardTitle className="flex items-center gap-2 text-base">
+                <Layers className="h-4 w-4 text-amber-400" />
+                Ekipman Analizi
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid grid-cols-4 gap-3">
+                {[
+                  {
+                    label: "Toplam",
+                    value: companyEquipment.length,
+                    color: "text-foreground",
+                  },
+                  {
+                    label: "Aktif",
+                    value: companyEquipment.filter((e) => e.status === "active")
+                      .length,
+                    color: "text-emerald-400",
+                  },
+                  {
+                    label: "Bakımda",
+                    value: companyEquipment.filter(
+                      (e) => e.status === "maintenance",
+                    ).length,
+                    color: "text-amber-400",
+                  },
+                  {
+                    label: "Arızalı",
+                    value: companyEquipment.filter((e) => e.status === "broken")
+                      .length,
+                    color: "text-rose-400",
+                  },
+                ].map((kpi) => (
+                  <div
+                    key={kpi.label}
+                    className="rounded-lg bg-white/5 p-3 text-center"
+                  >
+                    <p className={`text-xl font-bold ${kpi.color}`}>
+                      {kpi.value}
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      {kpi.label}
+                    </p>
+                  </div>
+                ))}
+              </div>
+              {companyEquipment.length === 0 ? (
+                <div
+                  data-ocid="reporting.equipment.empty_state"
+                  className="text-center py-8 text-muted-foreground"
+                >
+                  <Layers className="h-8 w-8 mx-auto mb-2 opacity-20" />
+                  <p className="text-sm">Henüz ekipman kaydı bulunmuyor.</p>
+                </div>
+              ) : (
+                <ResponsiveContainer width="100%" height={180}>
+                  <BarChart
+                    data={[
+                      {
+                        durum: "Aktif",
+                        adet: companyEquipment.filter(
+                          (e) => e.status === "active",
+                        ).length,
+                      },
+                      {
+                        durum: "Bakımda",
+                        adet: companyEquipment.filter(
+                          (e) => e.status === "maintenance",
+                        ).length,
+                      },
+                      {
+                        durum: "Arızalı",
+                        adet: companyEquipment.filter(
+                          (e) => e.status === "broken",
+                        ).length,
+                      },
+                      {
+                        durum: "Boşta",
+                        adet: companyEquipment.filter(
+                          (e) => e.status === "idle",
+                        ).length,
+                      },
+                    ]}
+                    margin={{ top: 4, right: 8, left: 0, bottom: 4 }}
+                  >
+                    <CartesianGrid
+                      strokeDasharray="3 3"
+                      stroke="oklch(0.3 0.01 264)"
+                    />
+                    <XAxis
+                      dataKey="durum"
+                      tick={{ fill: "oklch(0.7 0.02 264)", fontSize: 11 }}
+                      axisLine={false}
+                      tickLine={false}
+                    />
+                    <YAxis
+                      tick={{ fill: "oklch(0.7 0.02 264)", fontSize: 11 }}
+                      axisLine={false}
+                      tickLine={false}
+                    />
+                    <Tooltip
+                      contentStyle={{
+                        backgroundColor: "oklch(0.18 0.02 264)",
+                        border: "1px solid oklch(0.3 0.02 264)",
+                        borderRadius: "8px",
+                      }}
+                    />
+                    <Bar
+                      dataKey="adet"
+                      radius={[4, 4, 0, 0]}
+                      name="Ekipman Sayısı"
+                    >
+                      {[
+                        "oklch(0.6 0.18 160)",
+                        "oklch(0.7 0.18 60)",
+                        "oklch(0.6 0.2 10)",
+                        "oklch(0.55 0.02 264)",
+                      ].map((color) => (
+                        <Cell key={color} fill={color} />
+                      ))}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              )}
+              {openFaults.length > 0 && (
+                <div>
+                  <p className="text-xs font-medium text-muted-foreground mb-2">
+                    Açık Arızalar / Bakımlar
+                  </p>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="border-b border-border">
+                          <th className="text-left py-1.5 pr-3 text-muted-foreground font-medium text-xs">
+                            Ekipman
+                          </th>
+                          <th className="text-left py-1.5 pr-3 text-muted-foreground font-medium text-xs">
+                            Tür
+                          </th>
+                          <th className="text-left py-1.5 text-muted-foreground font-medium text-xs">
+                            Açıklama
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {openFaults.slice(0, 5).map((fault, idx) => {
+                          const eq = companyEquipment.find(
+                            (e) =>
+                              e.id ===
+                              (fault as { equipmentId: string }).equipmentId,
+                          );
+                          return (
+                            <tr
+                              key={(fault as { id: string }).id || String(idx)}
+                              className="border-b border-border/40"
+                            >
+                              <td className="py-1.5 pr-3 font-medium text-xs">
+                                {eq?.name || "—"}
+                              </td>
+                              <td className="py-1.5 pr-3 text-xs text-amber-400">
+                                {(fault as { type: string }).type ===
+                                "maintenance"
+                                  ? "Bakım"
+                                  : "Arıza"}
+                              </td>
+                              <td className="py-1.5 text-xs text-muted-foreground truncate max-w-[160px]">
+                                {(fault as { description: string }).description}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* F. Payroll Summary */}
+          <Card
+            data-ocid="reporting.payroll.card"
+            className="bg-[oklch(0.18_0.02_264)] border border-border"
+          >
+            <CardHeader className="pb-3">
+              <CardTitle className="flex items-center gap-2 text-base">
+                <DollarSign className="h-4 w-4 text-emerald-400" />
+                Bordro Özeti
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid grid-cols-2 gap-3">
+                {[
+                  {
+                    label: "Toplam Kayıt",
+                    value: companyPayroll.length,
+                    color: "text-foreground",
+                  },
+                  {
+                    label: "Ödenen",
+                    value: companyPayroll.filter(
+                      (r) => (r as { status: string }).status === "paid",
+                    ).length,
+                    color: "text-emerald-400",
+                  },
+                  {
+                    label: "Onaylanan",
+                    value: companyPayroll.filter(
+                      (r) => (r as { status: string }).status === "approved",
+                    ).length,
+                    color: "text-blue-400",
+                  },
+                  {
+                    label: "Bekleyen",
+                    value: companyPayroll.filter(
+                      (r) => (r as { status: string }).status === "pending",
+                    ).length,
+                    color: "text-amber-400",
+                  },
+                ].map((kpi) => (
+                  <div
+                    key={kpi.label}
+                    className="rounded-lg bg-white/5 p-3 text-center"
+                  >
+                    <p className={`text-xl font-bold ${kpi.color}`}>
+                      {kpi.value}
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      {kpi.label}
+                    </p>
+                  </div>
+                ))}
+              </div>
+              <div className="rounded-lg bg-emerald-500/10 border border-emerald-500/20 p-3 text-center">
+                <p className="text-lg font-bold text-emerald-400">
+                  ₺
+                  {companyPayroll
+                    .filter((r) => (r as { status: string }).status === "paid")
+                    .reduce(
+                      (s, r) =>
+                        s + ((r as { netSalary: number }).netSalary || 0),
+                      0,
+                    )
+                    .toLocaleString("tr-TR")}
+                </p>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Toplam Ödenen Net Maaş
+                </p>
+              </div>
+              {companyPayroll.length === 0 ? (
+                <div
+                  data-ocid="reporting.payroll.empty_state"
+                  className="text-center py-6 text-muted-foreground"
+                >
+                  <DollarSign className="h-8 w-8 mx-auto mb-2 opacity-20" />
+                  <p className="text-sm">Henüz bordro kaydı bulunmuyor.</p>
+                </div>
+              ) : (
+                <ResponsiveContainer width="100%" height={180}>
+                  <LineChart
+                    data={(() => {
+                      const monthMap: Record<string, number> = {};
+                      for (const r of companyPayroll) {
+                        const rec = r as { month: string; netSalary: number };
+                        monthMap[rec.month] =
+                          (monthMap[rec.month] || 0) + rec.netSalary;
+                      }
+                      return Object.entries(monthMap)
+                        .sort(([a], [b]) => a.localeCompare(b))
+                        .slice(-6)
+                        .map(([month, total]) => ({
+                          ay: month,
+                          toplam: total,
+                        }));
+                    })()}
+                    margin={{ top: 4, right: 8, left: 0, bottom: 4 }}
+                  >
+                    <CartesianGrid
+                      strokeDasharray="3 3"
+                      stroke="oklch(0.3 0.01 264)"
+                    />
+                    <XAxis
+                      dataKey="ay"
+                      tick={{ fill: "oklch(0.7 0.02 264)", fontSize: 10 }}
+                      axisLine={false}
+                      tickLine={false}
+                    />
+                    <YAxis
+                      tick={{ fill: "oklch(0.7 0.02 264)", fontSize: 10 }}
+                      axisLine={false}
+                      tickLine={false}
+                      tickFormatter={(v: number) => `${(v / 1000).toFixed(0)}K`}
+                    />
+                    <Tooltip
+                      contentStyle={{
+                        backgroundColor: "oklch(0.18 0.02 264)",
+                        border: "1px solid oklch(0.3 0.02 264)",
+                        borderRadius: "8px",
+                      }}
+                      formatter={(v: number) => `₺${v.toLocaleString("tr-TR")}`}
+                    />
+                    <Line
+                      type="monotone"
+                      dataKey="toplam"
+                      stroke="oklch(0.6 0.18 160)"
+                      strokeWidth={2}
+                      dot={{ fill: "oklch(0.6 0.18 160)", r: 3 }}
+                      name="Net Maaş Toplamı"
+                    />
+                  </LineChart>
+                </ResponsiveContainer>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* G. Quote & Discovery */}
+          <Card
+            data-ocid="reporting.quotes.card"
+            className="bg-[oklch(0.18_0.02_264)] border border-border"
+          >
+            <CardHeader className="pb-3">
+              <CardTitle className="flex items-center gap-2 text-base">
+                <TrendingUp className="h-4 w-4 text-violet-400" />
+                Teklif & Keşif
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid grid-cols-2 gap-3">
+                {[
+                  {
+                    label: "Toplam Teklif",
+                    value: companyQuotes.length,
+                    color: "text-foreground",
+                  },
+                  {
+                    label: "Kabul Edilen",
+                    value: companyQuotes.filter(
+                      (q) => (q as { status: string }).status === "accepted",
+                    ).length,
+                    color: "text-emerald-400",
+                  },
+                  {
+                    label: "Gönderilen",
+                    value: companyQuotes.filter(
+                      (q) => (q as { status: string }).status === "sent",
+                    ).length,
+                    color: "text-blue-400",
+                  },
+                  {
+                    label: "Reddedilen",
+                    value: companyQuotes.filter(
+                      (q) => (q as { status: string }).status === "rejected",
+                    ).length,
+                    color: "text-rose-400",
+                  },
+                ].map((kpi) => (
+                  <div
+                    key={kpi.label}
+                    className="rounded-lg bg-white/5 p-3 text-center"
+                  >
+                    <p className={`text-xl font-bold ${kpi.color}`}>
+                      {kpi.value}
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      {kpi.label}
+                    </p>
+                  </div>
+                ))}
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="rounded-lg bg-emerald-500/10 border border-emerald-500/20 p-3 text-center">
+                  <p className="text-lg font-bold text-emerald-400">
+                    ₺
+                    {companyQuotes
+                      .filter(
+                        (q) => (q as { status: string }).status === "accepted",
+                      )
+                      .reduce(
+                        (s, q) =>
+                          s + ((q as { totalAmount: number }).totalAmount || 0),
+                        0,
+                      )
+                      .toLocaleString("tr-TR")}
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    Kabul Edilen Toplam
+                  </p>
+                </div>
+                <div className="rounded-lg bg-violet-500/10 border border-violet-500/20 p-3 text-center">
+                  <p className="text-lg font-bold text-violet-400">
+                    {(() => {
+                      const accepted = companyQuotes.filter(
+                        (q) => (q as { status: string }).status === "accepted",
+                      ).length;
+                      const denom = companyQuotes.filter((q) =>
+                        ["sent", "accepted", "rejected"].includes(
+                          (q as { status: string }).status,
+                        ),
+                      ).length;
+                      return denom > 0
+                        ? `%${Math.round((accepted / denom) * 100)}`
+                        : "—";
+                    })()}
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    Kabul Oranı
+                  </p>
+                </div>
+              </div>
+              {companyQuotes.length === 0 ? (
+                <div
+                  data-ocid="reporting.quotes.empty_state"
+                  className="text-center py-6 text-muted-foreground"
+                >
+                  <TrendingUp className="h-8 w-8 mx-auto mb-2 opacity-20" />
+                  <p className="text-sm">Henüz teklif kaydı bulunmuyor.</p>
+                </div>
+              ) : (
+                <ResponsiveContainer width="100%" height={160}>
+                  <BarChart
+                    data={[
+                      {
+                        durum: "Taslak",
+                        adet: companyQuotes.filter(
+                          (q) => (q as { status: string }).status === "draft",
+                        ).length,
+                      },
+                      {
+                        durum: "Gönderilen",
+                        adet: companyQuotes.filter(
+                          (q) => (q as { status: string }).status === "sent",
+                        ).length,
+                      },
+                      {
+                        durum: "Kabul",
+                        adet: companyQuotes.filter(
+                          (q) =>
+                            (q as { status: string }).status === "accepted",
+                        ).length,
+                      },
+                      {
+                        durum: "Reddedilen",
+                        adet: companyQuotes.filter(
+                          (q) =>
+                            (q as { status: string }).status === "rejected",
+                        ).length,
+                      },
+                    ]}
+                    margin={{ top: 4, right: 8, left: 0, bottom: 4 }}
+                  >
+                    <CartesianGrid
+                      strokeDasharray="3 3"
+                      stroke="oklch(0.3 0.01 264)"
+                    />
+                    <XAxis
+                      dataKey="durum"
+                      tick={{ fill: "oklch(0.7 0.02 264)", fontSize: 10 }}
+                      axisLine={false}
+                      tickLine={false}
+                    />
+                    <YAxis
+                      tick={{ fill: "oklch(0.7 0.02 264)", fontSize: 10 }}
+                      axisLine={false}
+                      tickLine={false}
+                    />
+                    <Tooltip
+                      contentStyle={{
+                        backgroundColor: "oklch(0.18 0.02 264)",
+                        border: "1px solid oklch(0.3 0.02 264)",
+                        borderRadius: "8px",
+                      }}
+                    />
+                    <Bar
+                      dataKey="adet"
+                      radius={[4, 4, 0, 0]}
+                      name="Teklif Sayısı"
+                    >
+                      {[
+                        "oklch(0.55 0.02 264)",
+                        "oklch(0.55 0.18 230)",
+                        "oklch(0.6 0.18 160)",
+                        "oklch(0.6 0.2 10)",
+                      ].map((color) => (
+                        <Cell key={color} fill={color} />
+                      ))}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
               )}
             </CardContent>
           </Card>

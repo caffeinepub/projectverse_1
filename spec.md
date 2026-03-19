@@ -1,32 +1,31 @@
 # ProjectVerse
 
 ## Current State
-Fully functional ERP SaaS frontend with 10+ modules (HR, Finance, Field, Purchasing, Inventory, CRM, Quality, Subcontractor, Reporting, Communication, Documents). All data stored in device-specific localStorage. Users identified by 16-character login codes. Companies stored in `pv_companies`, users in `pv_users`, module data in `pv_{module}_{companyId}` keys.
+ProjectVerse is a comprehensive multi-tenant ERP SaaS platform for construction/field operations. v42 includes: Projects, Tasks, Field Ops (work orders, inspections), HR (leave, overtime, payroll, certifications), Finance, Purchasing, Inventory, Communication, Documents, Quality & Safety, CRM, Subcontractor Management, Equipment Management, Quotes/Discovery, Reporting, Global Search, Audit Logs, RBAC, multi-language. User/company/project/task records are backend-synced; other data uses localStorage.
 
 ## Requested Changes (Diff)
 
 ### Add
-- Motoko backend: User registry (loginCode → user data as JSON text)
-- Motoko backend: Company registry (companyId → company data as JSON text)
-- Motoko backend: User-company membership index (userId → [companyId])
-- Frontend: BackendService layer (`src/services/backendService.ts`) that wraps backend actor calls
-- Frontend: On login, fetch user from backend first; fall back to localStorage if backend unavailable
-- Frontend: On user creation (invite), save user to backend
-- Frontend: On company create/update, save to backend AND localStorage
-- Frontend: On login success, fetch all user's companies from backend and merge into localStorage
+1. **Günlük Şantiye Logu** (`/siteLog`) - Daily site log per project: date, weather, personnel count, work summary, issues encountered, photos notes, weather status (sunny/cloudy/rainy/snowy/windy). List view with filter by project and date.
+2. **Çizim & Plan Yönetimi** (`/drawings`) - Technical drawing management with revision tracking: drawing number, title, discipline (architectural/structural/mechanical/electrical/plumbing), revision number, status (active/superseded/draft/for_review), upload date, uploaded by, notes. Can add new revision to existing drawing.
+3. **Toplantı Tutanakları** (`/meetings`) - Meeting minutes: meeting title, date, location, attendees (multi-select from personnel), agenda, decisions made, action items (task, responsible person, due date, status). Print/export view.
+4. **Punch List / Kusur Takibi** (`/punchList`) - Defect and snagging list: item description, location, discipline, priority (critical/high/medium/low), responsible party, due date, status (open/in_progress/completed/closed), photo notes.
+5. **Kaynak Takvimi** (`/resourceCalendar`) - Visual weekly/monthly resource calendar: shows which personnel and equipment are assigned to which project on which dates. Matrix view (rows=resources, cols=dates). Can add assignment: resource, project, start date, end date.
+6. **Risk Kaydı** (`/riskRegister`) - Risk register: risk title, category (technical/financial/schedule/safety/environmental/subcontractor), probability (1-5), impact (1-5), risk score (auto-calculated), owner, mitigation plan, status (open/mitigated/closed/accepted), review date.
 
 ### Modify
-- `src/backend/main.mo`: Add user and company storage functions (keep existing invite/RSVP functions intact)
-- `src/frontend/src/pages/Login.tsx`: After local auth success, trigger backend sync
-- `src/frontend/src/contexts/AppContext.tsx`: createCompany writes to backend; invite code generation saves user to backend
+- `Layout.tsx`: Add 6 new nav items in appropriate groups. Add new nav group "PROJE KONTROLü" with: siteLog, drawings, meetings, punchList. Add resourceCalendar to OPERASYONLAR group. Add riskRegister to ANALİTİK group.
+- `App.tsx`: Add imports and routing for 6 new pages.
 
 ### Remove
-- Nothing removed
+Nothing removed.
 
 ## Implementation Plan
-1. Extend main.mo with minimal stable var Text maps for users and companies; add CRUD functions
-2. Generate updated backend bindings
-3. Create `backendService.ts` with async helpers (getUser, saveUser, getCompanies, saveCompany) that never throw — always fall back gracefully
-4. Update Login.tsx to call backendService.syncUserFromBackend after successful local login
-5. Update AppContext createCompany to also call backendService.saveCompany
-6. Update CompanySettings personnel creation to call backendService.saveUser when generating invite codes
+1. Create `SiteLog.tsx` - daily site log CRUD with project filter, date filter, weather icons
+2. Create `Drawings.tsx` - drawing register with revision management, discipline badges, status tracking
+3. Create `Meetings.tsx` - meeting minutes with attendees, agenda, decisions, action items table
+4. Create `PunchList.tsx` - punch list with priority colors, status tracking, KPI summary
+5. Create `ResourceCalendar.tsx` - grid calendar with person/equipment rows, project-colored cells
+6. Create `RiskRegister.tsx` - risk matrix table, probability×impact score, color-coded risk levels
+7. Update `Layout.tsx` - new nav group, 6 new nav items with icons
+8. Update `App.tsx` - imports, AppPage type additions, routing handlers, page renders

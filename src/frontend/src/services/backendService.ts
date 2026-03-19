@@ -71,4 +71,28 @@ export const backendService = {
       return [];
     }
   },
+
+  async saveData(key: string, data: any[]): Promise<void> {
+    try {
+      const actor = await getActor();
+      if (!actor) return;
+      await (actor as any).kvSet(key, JSON.stringify(data));
+    } catch {
+      /* silent fail */
+    }
+  },
+
+  async loadData(key: string): Promise<any[] | null> {
+    try {
+      const actor = await getActor();
+      if (!actor) return null;
+      const result = await (actor as any).kvGet(key);
+      if (result && result.__kind__ === "Some") {
+        return JSON.parse(result.value);
+      }
+      return null;
+    } catch {
+      return null;
+    }
+  },
 };

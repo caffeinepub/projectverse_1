@@ -48,7 +48,7 @@ import {
   Trash2,
 } from "lucide-react";
 import { useState } from "react";
-import type { Milestone } from "../contexts/AppContext";
+import type { Milestone, Project } from "../contexts/AppContext";
 import {
   type Task,
   type TaskPriority,
@@ -282,6 +282,269 @@ function MilestonesTab({ projectId }: { projectId: string }) {
   );
 }
 
+// ─── GANTT TAB ────────────────────────────────────────────────────────────────
+function GanttTab({
+  project,
+  tasks,
+  projectMilestones,
+}: {
+  project: Project;
+  tasks: Task[];
+  projectMilestones: Milestone[];
+}) {
+  const [tooltip, setTooltip] = useState<{
+    x: number;
+    y: number;
+    text: string;
+  } | null>(null);
+
+  const startDate = project.startDate ? new Date(project.startDate) : null;
+  const endDate = project.endDate ? new Date(project.endDate) : null;
+
+  if (!startDate || !endDate || endDate <= startDate) {
+    return (
+      <div className="flex flex-col items-center justify-center py-16 text-muted-foreground">
+        <Calendar className="w-12 h-12 mb-3 opacity-40" />
+        <p className="text-sm">
+          Gantt grafiği için proje başlangıç ve bitiş tarihi gerekli.
+        </p>
+        <p className="text-xs mt-1 opacity-70">
+          Proje ayarlarından tarih aralığı tanımlayın.
+        </p>
+      </div>
+    );
+  }
+
+  const totalDays = Math.ceil(
+    (endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24),
+  );
+  const minCellWidth = 28;
+  const totalWidth = Math.max(totalDays * minCellWidth, 600);
+
+  const getX = (date: Date) => {
+    const diff = Math.max(
+      0,
+      (date.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24),
+    );
+    return (diff / totalDays) * totalWidth;
+  };
+
+  const getWidth = (start: Date, end: Date) => {
+    const clampedStart = start < startDate ? startDate : start;
+    const clampedEnd = end > endDate ? endDate : end;
+    if (clampedEnd <= clampedStart) return minCellWidth;
+    return Math.max(
+      minCellWidth,
+      ((clampedEnd.getTime() - clampedStart.getTime()) /
+        (1000 * 60 * 60 * 24) /
+        totalDays) *
+        totalWidth,
+    );
+  };
+
+  const STATUS_COLORS: Record<string, string> = {
+    todo: "oklch(0.55 0.04 240)",
+    in_progress: "oklch(0.72 0.18 50)",
+    done: "oklch(0.65 0.18 145)",
+  };
+
+  // Generate week markers
+  const weekMarkers: { label: string; x: number }[] = [];
+  let cur = new Date(startDate);
+  while (cur <= endDate) {
+    weekMarkers.push({
+      label: `${cur.getDate()}/${cur.getMonth() + 1}`,
+      x: getX(cur),
+    });
+    cur = new Date(cur.getTime() + 7 * 24 * 60 * 60 * 1000);
+  }
+
+  const rowHeight = 40;
+  const headerHeight = 36;
+  const labelWidth = 180;
+
+  const tasksWithDates = tasks.filter((t) => t.dueDate);
+  const allRows = [
+    ...tasksWithDates.map((t) => ({ type: "task" as const, data: t })),
+    ...projectMilestones.map((m) => ({ type: "milestone" as const, data: m })),
+  ];
+
+  if (allRows.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center py-16 text-muted-foreground">
+        <Calendar className="w-12 h-12 mb-3 opacity-40" />
+        <p className="text-sm">Görüntülenecek görev veya kilometre taşı yok.</p>
+        <p className="text-xs mt-1 opacity-70">
+          Görev ve kilometre taşı ekleyerek Gantt grafiğini doldurun.
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="relative">
+      {tooltip && (
+        <div
+          className="fixed z-50 bg-popover border border-border rounded-lg px-3 py-2 text-xs shadow-lg pointer-events-none"
+          style={{ left: tooltip.x + 12, top: tooltip.y - 10 }}
+        >
+          {tooltip.text.split("\n").map((line, tooltipIdx) => (
+            <div
+              key={line || tooltipIdx}
+              className={
+                tooltipIdx === 0
+                  ? "font-semibold text-foreground"
+                  : "text-muted-foreground mt-0.5"
+              }
+            >
+              {line}
+            </div>
+          ))}
+        </div>
+      )}
+      <div className="overflow-x-auto rounded-lg border border-border">
+        <div style={{ minWidth: labelWidth + totalWidth + 32 }}>
+          {/* Header row */}
+          <div className="flex" style={{ height: headerHeight }}>
+            <div
+              className="flex-shrink-0 bg-card border-r border-b border-border flex items-center px-3 text-xs font-semibold text-muted-foreground"
+              style={{ width: labelWidth }}
+            >
+              Görev / Kilometre Taşı
+            </div>
+            <div
+              className="relative bg-card border-b border-border flex-1"
+              style={{ height: headerHeight }}
+            >
+              {weekMarkers.map((wm) => (
+                <div
+                  key={wm.label + wm.x}
+                  className="absolute top-0 flex flex-col items-start"
+                  style={{ left: wm.x, height: headerHeight }}
+                >
+                  <div className="h-full border-l border-border/40" />
+                  <span className="absolute top-2 left-1 text-[10px] text-muted-foreground whitespace-nowrap">
+                    {wm.label}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Data rows */}
+          {allRows.map((row, idx) => {
+            const isTask = row.type === "task";
+            const label = row.data.title;
+            const rowBg = idx % 2 === 0 ? "bg-background" : "bg-card";
+
+            if (isTask) {
+              const task = row.data as Task;
+              const due = new Date(task.dueDate!);
+              const taskStart = new Date(
+                due.getTime() - 7 * 24 * 60 * 60 * 1000,
+              );
+              const barX = getX(taskStart < startDate ? startDate : taskStart);
+              const barW = getWidth(taskStart, due);
+              const color = STATUS_COLORS[task.status] || STATUS_COLORS.todo;
+              const tooltipText = `${task.title}\nAtanan: ${task.assignee || "-"}\nDurum: ${task.status === "todo" ? "Yapılacak" : task.status === "in_progress" ? "Devam Ediyor" : "Tamamlandı"}\nBitiş: ${task.dueDate}`;
+
+              return (
+                <div
+                  key={task.id}
+                  className={`flex border-b border-border/30 ${rowBg}`}
+                  style={{ height: rowHeight }}
+                >
+                  <div
+                    className="flex-shrink-0 border-r border-border/40 flex items-center px-3 text-xs text-foreground truncate"
+                    style={{ width: labelWidth }}
+                  >
+                    <div
+                      className="w-2 h-2 rounded-full mr-2 flex-shrink-0"
+                      style={{ backgroundColor: color }}
+                    />
+                    {label}
+                  </div>
+                  <div
+                    className="relative flex-1"
+                    style={{ height: rowHeight }}
+                  >
+                    <div
+                      className="absolute top-1/2 -translate-y-1/2 rounded cursor-pointer transition-opacity hover:opacity-80"
+                      style={{
+                        left: barX,
+                        width: barW,
+                        height: 20,
+                        backgroundColor: color,
+                        opacity: 0.85,
+                      }}
+                      onMouseEnter={(e) =>
+                        setTooltip({
+                          x: e.clientX,
+                          y: e.clientY,
+                          text: tooltipText,
+                        })
+                      }
+                      onMouseLeave={() => setTooltip(null)}
+                    />
+                  </div>
+                </div>
+              );
+            }
+            {
+              const ms = row.data as Milestone;
+              const msDate = new Date(ms.targetDate);
+              const diamondX = getX(msDate);
+              const tooltipText = `◆ ${ms.title}\nTarih: ${ms.targetDate}\nDurum: ${ms.completed ? "Tamamlandı" : "Bekliyor"}`;
+
+              return (
+                <div
+                  key={ms.id}
+                  className={`flex border-b border-border/30 ${rowBg}`}
+                  style={{ height: rowHeight }}
+                >
+                  <div
+                    className="flex-shrink-0 border-r border-border/40 flex items-center px-3 text-xs text-foreground truncate"
+                    style={{ width: labelWidth }}
+                  >
+                    <span className="mr-2 text-amber-400">◆</span>
+                    {label}
+                  </div>
+                  <div
+                    className="relative flex-1"
+                    style={{ height: rowHeight }}
+                  >
+                    <div
+                      className="absolute top-1/2 -translate-y-1/2 cursor-pointer transition-opacity hover:opacity-80 flex items-center justify-center"
+                      style={{
+                        left: Math.max(0, diamondX - 10),
+                        width: 20,
+                        height: 20,
+                        transform: "translateY(-50%) rotate(45deg)",
+                        backgroundColor: ms.completed
+                          ? "oklch(0.65 0.18 145)"
+                          : "oklch(0.72 0.18 50)",
+                        borderRadius: 2,
+                      }}
+                      onMouseEnter={(e) =>
+                        setTooltip({
+                          x: e.clientX,
+                          y: e.clientY,
+                          text: tooltipText,
+                        })
+                      }
+                      onMouseLeave={() => setTooltip(null)}
+                    />
+                  </div>
+                </div>
+              );
+            }
+          })}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function ProjectDetail({
   projectId,
   onBack,
@@ -290,6 +553,7 @@ export default function ProjectDetail({
     t,
     projects,
     tasks,
+    milestones,
     addTask,
     updateTaskStatus,
     hrPersonnel,
@@ -391,6 +655,9 @@ export default function ProjectDetail({
           </TabsTrigger>
           <TabsTrigger data-ocid="project_detail.tab.4" value="milestones">
             Kilometre Taşları
+          </TabsTrigger>
+          <TabsTrigger data-ocid="project_detail.tab.5" value="gantt">
+            Gantt
           </TabsTrigger>
         </TabsList>
 
@@ -658,6 +925,17 @@ export default function ProjectDetail({
         {/* ─── MILESTONES TAB ─── */}
         <TabsContent value="milestones" className="mt-4">
           <MilestonesTab projectId={project.id} />
+        </TabsContent>
+
+        {/* ─── GANTT TAB ─── */}
+        <TabsContent value="gantt" className="mt-4">
+          <GanttTab
+            project={project}
+            tasks={projectTasks}
+            projectMilestones={milestones.filter(
+              (m) => m.projectId === project.id,
+            )}
+          />
         </TabsContent>
       </Tabs>
 

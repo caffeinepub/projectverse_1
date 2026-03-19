@@ -12,11 +12,17 @@ import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Sheet, SheetContent } from "@/components/ui/sheet";
 import {
+  AlertTriangle,
   BarChart3,
   Bell,
   Building2,
+  CalendarCheck,
+  CalendarRange,
+  CheckSquare,
   ChevronRight,
+  ClipboardList,
   DollarSign,
+  FileSignature,
   FileText,
   FolderKanban,
   Globe,
@@ -27,10 +33,12 @@ import {
   Menu,
   MessageSquare,
   Package,
+  PenTool,
   Search,
   Settings,
   Shield,
   ShoppingCart,
+  Truck,
   User,
   Users,
   Wrench,
@@ -67,6 +75,8 @@ const ROLE_DEFAULT_MODULES: Record<string, string[]> = {
     "qualitySafety",
     "crm",
     "subcontractors",
+    "resourceCalendar",
+    "equipment",
     "reporting",
     "settings",
   ],
@@ -102,9 +112,24 @@ const NAV_GROUPS: { label: string; keys: string[] }[] = [
   },
   {
     label: "OPERASYONLAR",
-    keys: ["hr", "finance", "purchasing", "inventory", "subcontractors"],
+    keys: [
+      "hr",
+      "finance",
+      "purchasing",
+      "inventory",
+      "equipment",
+      "subcontractors",
+      "resourceCalendar",
+    ],
   },
-  { label: "ANALİTİK", keys: ["reporting", "qualitySafety", "crm"] },
+  {
+    label: "PROJE KONTROLÜ",
+    keys: ["siteLog", "drawings", "meetings", "punchList"],
+  },
+  {
+    label: "ANALİTİK",
+    keys: ["reporting", "qualitySafety", "crm", "riskRegister"],
+  },
 ];
 
 interface NavItem {
@@ -384,6 +409,13 @@ export default function Layout({
       available: true,
     },
     {
+      key: "quotes",
+      icon: <FileSignature className="w-4 h-4" />,
+      label: "Teklif & Keşif",
+      href: "quotes",
+      available: true,
+    },
+    {
       key: "hr",
       icon: <Users className="w-4 h-4" />,
       label: t.hr,
@@ -419,6 +451,13 @@ export default function Layout({
       available: true,
     },
     {
+      key: "equipment",
+      icon: <Truck className="w-4 h-4" />,
+      label: "Araç & Ekipman",
+      href: "equipment",
+      available: true,
+    },
+    {
       key: "subcontractors",
       icon: <Wrench className="w-4 h-4" />,
       label: "Taşeron Yönetimi",
@@ -437,6 +476,48 @@ export default function Layout({
       icon: <BarChart3 className="w-4 h-4" />,
       label: t.reports,
       href: "reporting",
+      available: true,
+    },
+    {
+      key: "siteLog",
+      icon: <ClipboardList className="w-4 h-4" />,
+      label: "Şantiye Logu",
+      href: "siteLog",
+      available: true,
+    },
+    {
+      key: "drawings",
+      icon: <PenTool className="w-4 h-4" />,
+      label: "Çizim & Planlar",
+      href: "drawings",
+      available: true,
+    },
+    {
+      key: "meetings",
+      icon: <CalendarCheck className="w-4 h-4" />,
+      label: "Toplantı Tutanakları",
+      href: "meetings",
+      available: true,
+    },
+    {
+      key: "punchList",
+      icon: <CheckSquare className="w-4 h-4" />,
+      label: "Punch List",
+      href: "punchList",
+      available: true,
+    },
+    {
+      key: "resourceCalendar",
+      icon: <CalendarRange className="w-4 h-4" />,
+      label: "Kaynak Takvimi",
+      href: "resourceCalendar",
+      available: true,
+    },
+    {
+      key: "riskRegister",
+      icon: <AlertTriangle className="w-4 h-4" />,
+      label: "Risk Kaydı",
+      href: "riskRegister",
       available: true,
     },
   ];
