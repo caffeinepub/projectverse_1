@@ -1326,7 +1326,60 @@ export default function HumanResources() {
     addNotification,
     addAuditLog,
     auditLogs,
+    attendanceRecords,
+    setAttendanceRecords,
   } = useApp();
+
+  // ─── Puantaj State ───────────────────────────────────────────────────────────
+  const [attendanceFilter, setAttendanceFilter] = useState({
+    year: String(new Date().getFullYear()),
+    month: String(new Date().getMonth() + 1).padStart(2, "0"),
+    personnelId: "all",
+  });
+  const [attendanceDialogOpen, setAttendanceDialogOpen] = useState(false);
+  const [newAttendance, setNewAttendance] = useState({
+    personnelId: "",
+    date: new Date().toISOString().split("T")[0],
+    checkIn: "08:00",
+    checkOut: "17:00",
+    breakMinutes: 60,
+    status: "Normal" as
+      | "Normal"
+      | "Eksik"
+      | "Fazla Mesai"
+      | "İzinli"
+      | "Devamsız",
+    notes: "",
+  });
+
+  const handleAddAttendance = () => {
+    if (!newAttendance.personnelId) return;
+    const p = personnel.find((p) => p.id === newAttendance.personnelId);
+    const record = {
+      id: `att${Date.now()}`,
+      companyId: "",
+      personnelId: newAttendance.personnelId,
+      personnelName: p?.name || "",
+      date: newAttendance.date,
+      checkIn: newAttendance.checkIn,
+      checkOut: newAttendance.checkOut,
+      breakMinutes: Number(newAttendance.breakMinutes),
+      status: newAttendance.status,
+      approvedBy: "",
+      notes: newAttendance.notes,
+    };
+    setAttendanceRecords([record, ...attendanceRecords]);
+    setAttendanceDialogOpen(false);
+    setNewAttendance({
+      personnelId: "",
+      date: new Date().toISOString().split("T")[0],
+      checkIn: "08:00",
+      checkOut: "17:00",
+      breakMinutes: 60,
+      status: "Normal",
+      notes: "",
+    });
+  };
 
   const isManager =
     activeRoleId === "owner" ||
@@ -1631,6 +1684,13 @@ export default function HumanResources() {
             className="text-xs md:text-sm"
           >
             Bordro
+          </TabsTrigger>
+          <TabsTrigger
+            data-ocid="hr.attendance.tab"
+            value="attendance"
+            className="text-xs md:text-sm"
+          >
+            Puantaj
           </TabsTrigger>
         </TabsList>
 
@@ -2508,6 +2568,380 @@ export default function HumanResources() {
         {/* ─── PAYROLL TAB ─── */}
         <TabsContent value="payroll" className="mt-4 space-y-4">
           <PayrollTab />
+        </TabsContent>
+        {/* ─── PUANTAJ TAB ─── */}
+        <TabsContent value="attendance" className="mt-4 space-y-4">
+          <div className="flex items-center justify-between flex-wrap gap-3">
+            <div className="flex items-center gap-2 flex-wrap">
+              <Select
+                value={attendanceFilter.year}
+                onValueChange={(v) =>
+                  setAttendanceFilter({ ...attendanceFilter, year: v })
+                }
+              >
+                <SelectTrigger
+                  data-ocid="hr.attendance.year.select"
+                  className="w-24"
+                >
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {[2024, 2025, 2026].map((y) => (
+                    <SelectItem key={y} value={String(y)}>
+                      {y}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Select
+                value={attendanceFilter.month}
+                onValueChange={(v) =>
+                  setAttendanceFilter({ ...attendanceFilter, month: v })
+                }
+              >
+                <SelectTrigger
+                  data-ocid="hr.attendance.month.select"
+                  className="w-28"
+                >
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {[
+                    "01",
+                    "02",
+                    "03",
+                    "04",
+                    "05",
+                    "06",
+                    "07",
+                    "08",
+                    "09",
+                    "10",
+                    "11",
+                    "12",
+                  ].map((m, i) => (
+                    <SelectItem key={m} value={m}>
+                      {
+                        [
+                          "Ocak",
+                          "Şubat",
+                          "Mart",
+                          "Nisan",
+                          "Mayıs",
+                          "Haziran",
+                          "Temmuz",
+                          "Ağustos",
+                          "Eylül",
+                          "Ekim",
+                          "Kasım",
+                          "Aralık",
+                        ][i]
+                      }
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Select
+                value={attendanceFilter.personnelId}
+                onValueChange={(v) =>
+                  setAttendanceFilter({ ...attendanceFilter, personnelId: v })
+                }
+              >
+                <SelectTrigger
+                  data-ocid="hr.attendance.personnel.select"
+                  className="w-40"
+                >
+                  <SelectValue placeholder="Tüm Personel" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Tüm Personel</SelectItem>
+                  {personnel.map((p) => (
+                    <SelectItem key={p.id} value={p.id}>
+                      {p.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            {isManager && (
+              <Dialog
+                open={attendanceDialogOpen}
+                onOpenChange={setAttendanceDialogOpen}
+              >
+                <DialogTrigger asChild>
+                  <Button
+                    data-ocid="hr.attendance.open_modal_button"
+                    className="gradient-bg text-white"
+                  >
+                    <Plus className="h-4 w-4 mr-2" />
+                    Giriş/Çıkış Ekle
+                  </Button>
+                </DialogTrigger>
+                <DialogContent
+                  data-ocid="hr.attendance.dialog"
+                  className="max-w-md"
+                >
+                  <DialogHeader>
+                    <DialogTitle>Devam Kaydı Ekle</DialogTitle>
+                  </DialogHeader>
+                  <div className="space-y-3">
+                    <div className="space-y-1">
+                      <Label>Personel</Label>
+                      <Select
+                        value={newAttendance.personnelId}
+                        onValueChange={(v) =>
+                          setNewAttendance({ ...newAttendance, personnelId: v })
+                        }
+                      >
+                        <SelectTrigger data-ocid="hr.attendance.personnel2.select">
+                          <SelectValue placeholder="Personel seçin" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {personnel.map((p) => (
+                            <SelectItem key={p.id} value={p.id}>
+                              {p.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-1">
+                      <Label>Tarih</Label>
+                      <Input
+                        data-ocid="hr.attendance.date.input"
+                        type="date"
+                        value={newAttendance.date}
+                        onChange={(e) =>
+                          setNewAttendance({
+                            ...newAttendance,
+                            date: e.target.value,
+                          })
+                        }
+                      />
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="space-y-1">
+                        <Label>Giriş Saati</Label>
+                        <Input
+                          data-ocid="hr.attendance.checkin.input"
+                          type="time"
+                          value={newAttendance.checkIn}
+                          onChange={(e) =>
+                            setNewAttendance({
+                              ...newAttendance,
+                              checkIn: e.target.value,
+                            })
+                          }
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <Label>Çıkış Saati</Label>
+                        <Input
+                          data-ocid="hr.attendance.checkout.input"
+                          type="time"
+                          value={newAttendance.checkOut}
+                          onChange={(e) =>
+                            setNewAttendance({
+                              ...newAttendance,
+                              checkOut: e.target.value,
+                            })
+                          }
+                        />
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="space-y-1">
+                        <Label>Mola (dk)</Label>
+                        <Input
+                          data-ocid="hr.attendance.break.input"
+                          type="number"
+                          value={newAttendance.breakMinutes}
+                          onChange={(e) =>
+                            setNewAttendance({
+                              ...newAttendance,
+                              breakMinutes: Number(e.target.value),
+                            })
+                          }
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <Label>Durum</Label>
+                        <Select
+                          value={newAttendance.status}
+                          onValueChange={(v) =>
+                            setNewAttendance({
+                              ...newAttendance,
+                              status: v as typeof newAttendance.status,
+                            })
+                          }
+                        >
+                          <SelectTrigger data-ocid="hr.attendance.status.select">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="Normal">Normal</SelectItem>
+                            <SelectItem value="Fazla Mesai">
+                              Fazla Mesai
+                            </SelectItem>
+                            <SelectItem value="Eksik">Eksik</SelectItem>
+                            <SelectItem value="İzinli">İzinli</SelectItem>
+                            <SelectItem value="Devamsız">Devamsız</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+                    <div className="space-y-1">
+                      <Label>Notlar</Label>
+                      <Input
+                        data-ocid="hr.attendance.notes.input"
+                        value={newAttendance.notes}
+                        onChange={(e) =>
+                          setNewAttendance({
+                            ...newAttendance,
+                            notes: e.target.value,
+                          })
+                        }
+                        placeholder="İsteğe bağlı not"
+                      />
+                    </div>
+                  </div>
+                  <DialogFooter>
+                    <Button
+                      data-ocid="hr.attendance.cancel_button"
+                      variant="outline"
+                      onClick={() => setAttendanceDialogOpen(false)}
+                    >
+                      İptal
+                    </Button>
+                    <Button
+                      data-ocid="hr.attendance.submit_button"
+                      className="gradient-bg text-white"
+                      onClick={handleAddAttendance}
+                    >
+                      Kaydet
+                    </Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
+            )}
+          </div>
+
+          {/* Attendance Table */}
+          {(() => {
+            const periodStr = `${attendanceFilter.year}-${attendanceFilter.month}`;
+            const filtered = attendanceRecords.filter((r) => {
+              const matchPeriod = r.date.startsWith(periodStr);
+              const matchPerson =
+                attendanceFilter.personnelId === "all" ||
+                r.personnelId === attendanceFilter.personnelId;
+              return matchPeriod && matchPerson;
+            });
+            const grouped: Record<string, typeof filtered> = {};
+            for (const r of filtered) {
+              if (!grouped[r.personnelName]) grouped[r.personnelName] = [];
+              grouped[r.personnelName].push(r);
+            }
+            const days = Array.from({ length: 31 }, (_, i) =>
+              String(i + 1).padStart(2, "0"),
+            );
+
+            return filtered.length === 0 ? (
+              <div
+                data-ocid="hr.attendance.empty_state"
+                className="py-10 text-center text-muted-foreground"
+              >
+                <p>Bu dönem için devam kaydı yok.</p>
+                <p className="text-xs mt-1">
+                  Giriş/çıkış kaydı ekleyerek başlayın.
+                </p>
+              </div>
+            ) : (
+              <div className="overflow-x-auto rounded-lg border border-border">
+                <table className="text-xs min-w-max">
+                  <thead className="bg-muted/30">
+                    <tr>
+                      <th className="text-left px-3 py-2 font-medium sticky left-0 bg-muted/30 min-w-36">
+                        Personel
+                      </th>
+                      {days.map((d) => (
+                        <th
+                          key={d}
+                          className="px-1 py-2 font-medium text-center w-10"
+                        >
+                          {Number(d)}
+                        </th>
+                      ))}
+                      <th className="px-2 py-2 font-medium text-right">
+                        Toplam
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {Object.entries(grouped).map(([name, records], idx) => {
+                      const dayMap: Record<string, (typeof records)[0]> = {};
+                      for (const r of records) {
+                        const day = r.date.split("-")[2];
+                        dayMap[day] = r;
+                      }
+                      const workDays = records.filter(
+                        (r) => r.status !== "Devamsız" && r.status !== "İzinli",
+                      ).length;
+                      return (
+                        <tr
+                          key={name}
+                          data-ocid={`hr.attendance.row.${idx + 1}`}
+                          className="border-t border-border"
+                        >
+                          <td className="px-3 py-2 font-medium sticky left-0 bg-card">
+                            {name}
+                          </td>
+                          {days.map((d) => {
+                            const r = dayMap[d];
+                            if (!r)
+                              return (
+                                <td
+                                  key={d}
+                                  className="px-1 py-2 text-center text-muted-foreground/30"
+                                >
+                                  -
+                                </td>
+                              );
+                            const label =
+                              r.status === "İzinli"
+                                ? "İ"
+                                : r.status === "Devamsız"
+                                  ? "D"
+                                  : r.status === "Fazla Mesai"
+                                    ? "M"
+                                    : `${r.checkIn?.slice(0, 5) || ""}`;
+                            const color =
+                              r.status === "Devamsız"
+                                ? "text-red-400"
+                                : r.status === "İzinli"
+                                  ? "text-blue-400"
+                                  : r.status === "Fazla Mesai"
+                                    ? "text-amber-400"
+                                    : "text-green-400";
+                            return (
+                              <td
+                                key={d}
+                                className={`px-1 py-2 text-center ${color} font-medium`}
+                              >
+                                {label}
+                              </td>
+                            );
+                          })}
+                          <td className="px-2 py-2 text-right font-medium">
+                            {workDays}g
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            );
+          })()}
         </TabsContent>
       </Tabs>
 

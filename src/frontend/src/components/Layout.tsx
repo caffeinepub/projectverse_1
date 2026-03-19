@@ -37,6 +37,7 @@ import {
   Search,
   Settings,
   Shield,
+  ShieldCheck,
   ShoppingCart,
   Truck,
   User,
@@ -120,6 +121,8 @@ const NAV_GROUPS: { label: string; keys: string[] }[] = [
       "equipment",
       "subcontractors",
       "resourceCalendar",
+      "isg",
+      "quotes",
     ],
   },
   {
@@ -229,8 +232,156 @@ export default function Layout({
     suppliers,
     crmContacts,
     stockItems,
+    certificates,
+    invoices,
+    hakedisItems,
+    isgKkd,
   } = useApp();
-  const unreadCount = notifications.filter((n) => !n.read).length;
+
+  // Smart auto-alerts derived from context data
+  const smartAlerts = useMemo(() => {
+    if (!currentCompany) return [];
+    const companyId = currentCompany.id;
+    const today = new Date();
+    const in30 = new Date(today);
+    in30.setDate(today.getDate() + 30);
+    const alerts: Array<{
+      id: string;
+      icon: string;
+      message: string;
+      type: string;
+    }> = [];
+
+    // Certificate expiry (30 days)
+    if (Array.isArray(certificates)) {
+      for (const cert of certificates) {
+        if (cert.companyId !== companyId) continue;
+        if (!cert.expiryDate) continue;
+        const exp = new Date(cert.expiryDate);
+        if (exp > today && exp <= in30) {
+          const daysLeft = Math.ceil(
+            (exp.getTime() - today.getTime()) / (1000 * 60 * 60 * 24),
+          );
+          alerts.push({
+            id: `cert_${cert.id}`,
+            icon: "⚠️",
+            message: `${cert.personnelName || "Personel"} sertifikası ${daysLeft} gün içinde sona eriyor`,
+            type: "warning",
+          });
+        }
+      }
+    }
+
+    // Overdue tasks
+    if (Array.isArray(tasks)) {
+      for (const task of tasks) {
+        if (task.status === "done") continue;
+        if (!task.dueDate) continue;
+        if (new Date(task.dueDate) < today) {
+          alerts.push({
+            id: `task_${task.id}`,
+            icon: "🔴",
+            message: `"${task.title}" görevi gecikti`,
+            type: "error",
+          });
+        }
+      }
+    }
+
+    // Pending invoices (status: "Bekliyor")
+    if (Array.isArray(invoices)) {
+      for (const inv of invoices) {
+        if (inv.status === "Bekliyor") {
+          alerts.push({
+            id: `inv_${inv.id}`,
+            icon: "💳",
+            message: `${inv.supplier || "Fatura"} - ${inv.amount ? `₺${inv.amount.toLocaleString("tr-TR")}` : ""} onay bekliyor`,
+            type: "info",
+          });
+        }
+      }
+    }
+
+    // Pending hakediş
+    if (Array.isArray(hakedisItems)) {
+      for (const hak of hakedisItems) {
+        if (hak.companyId !== companyId) continue;
+        if (hak.status === "Onay Bekliyor") {
+          alerts.push({
+            id: `hak_${hak.id}`,
+            icon: "📋",
+            message: `"${hak.projectName || "Proje"}" hakedişi onay bekliyor`,
+            type: "info",
+          });
+        }
+      }
+    }
+
+    // KKD expiry (30 days)
+    if (Array.isArray(isgKkd)) {
+      for (const kkd of isgKkd) {
+        if (kkd.companyId !== companyId) continue;
+        if (!kkd.expiryDate) continue;
+        const exp = new Date(kkd.expiryDate);
+        if (exp > today && exp <= in30) {
+          alerts.push({
+            id: `kkd_${kkd.id}`,
+            icon: "🦺",
+            message: `${kkd.personnelName || "Personel"} KKD'si yenilenmeli`,
+            type: "warning",
+          });
+        }
+      }
+    }
+
+    // Critical stock
+    if (Array.isArray(stockItems)) {
+      for (const item of stockItems) {
+        if (item.threshold != null && item.quantity <= item.threshold) {
+          alerts.push({
+            id: `stock_${item.id}`,
+            icon: "📦",
+            message: `"${item.name}" kritik stok seviyesinde (${item.quantity} ${item.unit || "adet"})`,
+            type: "warning",
+          });
+        }
+      }
+    }
+
+    return alerts;
+  }, [
+    currentCompany,
+    certificates,
+    tasks,
+    invoices,
+    hakedisItems,
+    isgKkd,
+    stockItems,
+  ]);
+
+  // Read alert IDs from localStorage
+  const alertReadKey = `readNotifications_${currentCompany?.id || "default"}`;
+  const [readAlertIds, setReadAlertIds] = useState<string[]>(() => {
+    try {
+      const saved = localStorage.getItem(alertReadKey);
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
+
+  const unreadSmartCount = smartAlerts.filter(
+    (a) => !readAlertIds.includes(a.id),
+  ).length;
+  const unreadCount =
+    notifications.filter((n) => !n.read).length + unreadSmartCount;
+
+  const markAllAlertsRead = () => {
+    const allIds = smartAlerts.map((a) => a.id);
+    setReadAlertIds(allIds);
+    localStorage.setItem(alertReadKey, JSON.stringify(allIds));
+    clearAllNotifications();
+  };
   const isMobile = useIsMobile();
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [mobileSheetOpen, setMobileSheetOpen] = useState(false);
@@ -511,6 +662,13 @@ export default function Layout({
       icon: <CalendarRange className="w-4 h-4" />,
       label: "Kaynak Takvimi",
       href: "resourceCalendar",
+      available: true,
+    },
+    {
+      key: "isg",
+      icon: <ShieldCheck className="w-4 h-4" />,
+      label: "İSG",
+      href: "isg",
       available: true,
     },
     {
@@ -873,101 +1031,154 @@ export default function Layout({
               <DropdownMenuContent
                 data-ocid="layout.notifications_dropdown"
                 align="end"
-                className="bg-card border-border w-80 max-h-96 overflow-y-auto"
+                className="bg-card border-border w-80 overflow-hidden p-0"
               >
-                <div className="px-3 py-2 flex items-center justify-between border-b border-border">
+                {/* Header */}
+                <div className="px-3 py-2.5 flex items-center justify-between border-b border-border sticky top-0 bg-card z-10">
                   <span className="text-sm font-semibold text-foreground">
                     Bildirimler
+                    {unreadCount > 0 && (
+                      <span
+                        className="ml-2 text-xs px-1.5 py-0.5 rounded-full font-bold"
+                        style={{
+                          background: "oklch(0.65 0.22 25 / 0.2)",
+                          color: "oklch(0.65 0.22 25)",
+                        }}
+                      >
+                        {unreadCount}
+                      </span>
+                    )}
                   </span>
-                  {notifications.length > 0 && (
+                  {(smartAlerts.length > 0 || notifications.length > 0) && (
                     <button
                       type="button"
-                      onClick={clearAllNotifications}
-                      className="text-xs text-muted-foreground hover:text-foreground"
+                      onClick={markAllAlertsRead}
+                      data-ocid="layout.notifications_mark_read.button"
+                      className="text-xs text-muted-foreground hover:text-foreground transition-colors"
                     >
-                      Tümünü temizle
+                      Tümünü okundu işaretle
                     </button>
                   )}
                 </div>
-                {notifications.length === 0 ? (
-                  <div className="px-3 py-6 text-center text-sm text-muted-foreground">
-                    Bildirim yok
-                  </div>
-                ) : (
-                  (() => {
-                    const now = new Date();
-                    const startOfToday = new Date(
-                      now.getFullYear(),
-                      now.getMonth(),
-                      now.getDate(),
-                    );
-                    const startOfWeek = new Date(startOfToday);
-                    startOfWeek.setDate(startOfToday.getDate() - 7);
-                    const groups: {
-                      label: string;
-                      items: typeof notifications;
-                    }[] = [
-                      {
-                        label: "Bugün",
-                        items: notifications.filter(
-                          (n) => new Date(n.timestamp) >= startOfToday,
-                        ),
-                      },
-                      {
-                        label: "Bu Hafta",
-                        items: notifications.filter(
-                          (n) =>
-                            new Date(n.timestamp) >= startOfWeek &&
-                            new Date(n.timestamp) < startOfToday,
-                        ),
-                      },
-                      {
-                        label: "Daha Önce",
-                        items: notifications.filter(
-                          (n) => new Date(n.timestamp) < startOfWeek,
-                        ),
-                      },
-                    ].filter((g) => g.items.length > 0);
-                    return groups.map((group) => (
-                      <div key={group.label}>
-                        <div className="px-3 py-1.5 flex items-center gap-2">
-                          <span className="text-[10px] font-semibold text-muted-foreground/60 uppercase tracking-wider">
-                            {group.label}
-                          </span>
-                          <div className="flex-1 h-px bg-border/40" />
-                        </div>
-                        {group.items.slice(0, 5).map((n) => (
+                <div className="max-h-96 overflow-y-auto">
+                  {/* Smart alerts */}
+                  {smartAlerts.length > 0 && (
+                    <div>
+                      <div className="px-3 py-1.5 flex items-center gap-2">
+                        <span className="text-[10px] font-semibold text-muted-foreground/60 uppercase tracking-wider">
+                          Otomatik Uyarılar
+                        </span>
+                        <div className="flex-1 h-px bg-border/40" />
+                      </div>
+                      {smartAlerts.slice(0, 8).map((alert) => {
+                        const isRead = readAlertIds.includes(alert.id);
+                        return (
                           <DropdownMenuItem
-                            key={n.id}
-                            onClick={() => markNotificationRead(n.id)}
-                            className={`cursor-pointer flex flex-col items-start gap-0.5 py-2.5 px-3 ${!n.read ? "bg-primary/5" : ""}`}
+                            key={alert.id}
+                            className={`cursor-pointer flex items-start gap-2 py-2.5 px-3 ${!isRead ? "bg-primary/5" : ""}`}
+                            onClick={() => {
+                              const newIds = [...readAlertIds, alert.id];
+                              setReadAlertIds(newIds);
+                              localStorage.setItem(
+                                alertReadKey,
+                                JSON.stringify(newIds),
+                              );
+                            }}
+                            data-ocid="layout.smart_alert.item"
                           >
-                            <div className="flex items-center gap-2 w-full">
-                              {!n.read && (
-                                <span className="w-1.5 h-1.5 rounded-full bg-primary flex-shrink-0" />
-                              )}
-                              <span className="text-xs font-semibold text-foreground truncate flex-1">
-                                {n.title}
-                              </span>
-                              <span className="text-[10px] text-muted-foreground flex-shrink-0">
-                                {new Date(n.timestamp).toLocaleDateString(
-                                  "tr-TR",
-                                  {
-                                    day: "2-digit",
-                                    month: "short",
-                                  },
-                                )}
-                              </span>
-                            </div>
-                            <span className="text-xs text-muted-foreground line-clamp-2 pl-3.5">
-                              {n.message}
+                            {!isRead && (
+                              <span className="w-1.5 h-1.5 rounded-full bg-primary flex-shrink-0 mt-1.5" />
+                            )}
+                            <span className="text-base flex-shrink-0">
+                              {alert.icon}
+                            </span>
+                            <span className="text-xs text-foreground leading-relaxed flex-1">
+                              {alert.message}
                             </span>
                           </DropdownMenuItem>
-                        ))}
-                      </div>
-                    ));
-                  })()
-                )}
+                        );
+                      })}
+                    </div>
+                  )}
+
+                  {/* Manual notifications */}
+                  {notifications.length > 0 &&
+                    (() => {
+                      const now = new Date();
+                      const startOfToday = new Date(
+                        now.getFullYear(),
+                        now.getMonth(),
+                        now.getDate(),
+                      );
+                      const startOfWeek = new Date(startOfToday);
+                      startOfWeek.setDate(startOfToday.getDate() - 7);
+                      const groups = [
+                        {
+                          label: "Bugün",
+                          items: notifications.filter(
+                            (n) => new Date(n.timestamp) >= startOfToday,
+                          ),
+                        },
+                        {
+                          label: "Bu Hafta",
+                          items: notifications.filter(
+                            (n) =>
+                              new Date(n.timestamp) >= startOfWeek &&
+                              new Date(n.timestamp) < startOfToday,
+                          ),
+                        },
+                        {
+                          label: "Daha Önce",
+                          items: notifications.filter(
+                            (n) => new Date(n.timestamp) < startOfWeek,
+                          ),
+                        },
+                      ].filter((g) => g.items.length > 0);
+                      return groups.map((group) => (
+                        <div key={group.label}>
+                          <div className="px-3 py-1.5 flex items-center gap-2">
+                            <span className="text-[10px] font-semibold text-muted-foreground/60 uppercase tracking-wider">
+                              {group.label}
+                            </span>
+                            <div className="flex-1 h-px bg-border/40" />
+                          </div>
+                          {group.items.slice(0, 5).map((n) => (
+                            <DropdownMenuItem
+                              key={n.id}
+                              onClick={() => markNotificationRead(n.id)}
+                              className={`cursor-pointer flex flex-col items-start gap-0.5 py-2.5 px-3 ${!n.read ? "bg-primary/5" : ""}`}
+                            >
+                              <div className="flex items-center gap-2 w-full">
+                                {!n.read && (
+                                  <span className="w-1.5 h-1.5 rounded-full bg-primary flex-shrink-0" />
+                                )}
+                                <span className="text-xs font-semibold text-foreground truncate flex-1">
+                                  {n.title}
+                                </span>
+                                <span className="text-[10px] text-muted-foreground flex-shrink-0">
+                                  {new Date(n.timestamp).toLocaleDateString(
+                                    "tr-TR",
+                                    { day: "2-digit", month: "short" },
+                                  )}
+                                </span>
+                              </div>
+                              <span className="text-xs text-muted-foreground line-clamp-2 pl-3.5">
+                                {n.message}
+                              </span>
+                            </DropdownMenuItem>
+                          ))}
+                        </div>
+                      ));
+                    })()}
+
+                  {/* Empty state */}
+                  {smartAlerts.length === 0 && notifications.length === 0 && (
+                    <div className="px-3 py-8 text-center text-sm text-muted-foreground">
+                      <Bell className="w-6 h-6 mx-auto mb-2 opacity-30" />
+                      Bildirim yok
+                    </div>
+                  )}
+                </div>
               </DropdownMenuContent>
             </DropdownMenu>
 

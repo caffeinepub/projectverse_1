@@ -746,6 +746,97 @@ export interface Quote {
   createdBy: string;
 }
 
+// ─── Hakediş ────────────────────────────────────────────────────────────────
+export interface HakedisLineItem {
+  id: string;
+  name: string;
+  unit: string;
+  quantity: number;
+  unitPrice: number;
+  completion: number;
+}
+
+export interface HakedisItem {
+  id: string;
+  companyId: string;
+  projectId: string;
+  projectName: string;
+  period: string;
+  items: HakedisLineItem[];
+  status: "Taslak" | "Onay Bekliyor" | "Onaylandı" | "Reddedildi";
+  deductions: number;
+  stopaj: number;
+  createdAt: string;
+  createdBy: string;
+}
+
+// ─── İSG ────────────────────────────────────────────────────────────────────
+export interface IsgIncident {
+  id: string;
+  companyId: string;
+  type: "Kaza" | "Ramak Kala" | "Hastalık";
+  date: string;
+  location: string;
+  description: string;
+  injuredPerson: string;
+  severity: "Düşük" | "Orta" | "Yüksek" | "Kritik";
+  status: "Açık" | "Soruşturuluyor" | "Kapatıldı";
+  assignedTo: string;
+}
+
+export interface KkdRecord {
+  id: string;
+  companyId: string;
+  personnelId: string;
+  personnelName: string;
+  item: string;
+  size: string;
+  issuedDate: string;
+  expiryDate: string;
+  status: "Aktif" | "İade Edildi" | "Hasar Görmüş";
+}
+
+export interface ToolboxTalk {
+  id: string;
+  companyId: string;
+  date: string;
+  topic: string;
+  trainer: string;
+  attendees: string[];
+  projectId: string;
+  notes: string;
+}
+
+// ─── Tedarikçi Performans ───────────────────────────────────────────────────
+export interface SupplierEvaluation {
+  id: string;
+  companyId: string;
+  supplierId: string;
+  supplierName: string;
+  period: string;
+  deliveryScore: number;
+  qualityScore: number;
+  priceScore: number;
+  communicationScore: number;
+  notes: string;
+  createdAt: string;
+}
+
+// ─── Puantaj ────────────────────────────────────────────────────────────────
+export interface AttendanceRecord {
+  id: string;
+  companyId: string;
+  personnelId: string;
+  personnelName: string;
+  date: string;
+  checkIn: string;
+  checkOut: string;
+  breakMinutes: number;
+  status: "Normal" | "Eksik" | "Fazla Mesai" | "İzinli" | "Devamsız";
+  approvedBy: string;
+  notes: string;
+}
+
 interface AppState {
   lang: Lang;
   setLang: (l: Lang) => void;
@@ -897,6 +988,22 @@ interface AppState {
   // Audit Logs
   auditLogs: AuditLog[];
   addAuditLog: (entry: Omit<AuditLog, "id" | "timestamp">) => void;
+  // Hakediş
+  hakedisItems: HakedisItem[];
+  setHakedisItems: (h: HakedisItem[]) => void;
+  // İSG
+  isgIncidents: IsgIncident[];
+  setIsgIncidents: (i: IsgIncident[]) => void;
+  isgKkd: KkdRecord[];
+  setIsgKkd: (k: KkdRecord[]) => void;
+  isgToolboxTalks: ToolboxTalk[];
+  setIsgToolboxTalks: (t: ToolboxTalk[]) => void;
+  // Tedarikçi Performans
+  supplierEvaluations: SupplierEvaluation[];
+  setSupplierEvaluations: (s: SupplierEvaluation[]) => void;
+  // Puantaj
+  attendanceRecords: AttendanceRecord[];
+  setAttendanceRecords: (a: AttendanceRecord[]) => void;
 }
 
 const AppContext = createContext<AppState>(null!);
@@ -1104,6 +1211,25 @@ export function AppProvider({ children }: { children: ReactNode }) {
     PayrollRecord[]
   >(() => (initCid ? loadCompanyData(initCid, "payroll", []) : []));
 
+  const [hakedisItemsState, setHakedisItemsState] = useState<HakedisItem[]>(
+    () => loadCompanyData(activeCompanyId || "", "hakedis", []),
+  );
+  const [isgIncidentsState, setIsgIncidentsState] = useState<IsgIncident[]>(
+    () => loadCompanyData(activeCompanyId || "", "isg_incidents", []),
+  );
+  const [isgKkdState, setIsgKkdState] = useState<KkdRecord[]>(() =>
+    loadCompanyData(activeCompanyId || "", "isg_kkd", []),
+  );
+  const [isgToolboxTalksState, setIsgToolboxTalksState] = useState<
+    ToolboxTalk[]
+  >(() => loadCompanyData(activeCompanyId || "", "isg_toolbox", []));
+  const [supplierEvaluationsState, setSupplierEvaluationsState] = useState<
+    SupplierEvaluation[]
+  >(() => loadCompanyData(activeCompanyId || "", "supplier_evals", []));
+  const [attendanceRecordsState, setAttendanceRecordsState] = useState<
+    AttendanceRecord[]
+  >(() => loadCompanyData(activeCompanyId || "", "attendance", []));
+
   const [crmLeads, setCrmLeadsState] = useState<CrmLead[]>(() =>
     initCid
       ? loadCompanyData(initCid, "crm_leads", INITIAL_CRM_LEADS)
@@ -1218,6 +1344,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
       loadCompanyData(companyId, "crm_leads", INITIAL_CRM_LEADS),
     );
     setQuotesState(loadCompanyData(companyId, "quotes", []));
+    setHakedisItemsState(loadCompanyData(companyId, "hakedis", []));
+    setIsgIncidentsState(loadCompanyData(companyId, "isg_incidents", []));
+    setIsgKkdState(loadCompanyData(companyId, "isg_kkd", []));
+    setIsgToolboxTalksState(loadCompanyData(companyId, "isg_toolbox", []));
+    setSupplierEvaluationsState(
+      loadCompanyData(companyId, "supplier_evals", []),
+    );
+    setAttendanceRecordsState(loadCompanyData(companyId, "attendance", []));
     setAuditLogsState(loadCompanyData(companyId, "audit_logs", []));
     setProjectsState(loadCompanyData(companyId, "projects", MOCK_PROJECTS));
     setTasksState(loadCompanyData(companyId, "tasks", MOCK_TASKS));
@@ -1269,6 +1403,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
       ["training", setTrainingRecordsState],
       ["payroll", setPayrollRecordsState],
       ["quotes", setQuotesState],
+      ["hakedis", setHakedisItemsState],
+      ["isg_incidents", setIsgIncidentsState],
+      ["isg_kkd", setIsgKkdState],
+      ["isg_toolbox", setIsgToolboxTalksState],
+      ["supplier_evals", setSupplierEvaluationsState],
+      ["attendance", setAttendanceRecordsState],
       ["audit_logs", setAuditLogsState],
       ["work_orders", setWorkOrdersState],
       ["inspections", setFieldInspectionsState],
@@ -1441,6 +1581,36 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const setQuotes = (q: Quote[]) => {
     setQuotesState(q);
     saveCompanyData(activeCompanyId, "quotes", q);
+  };
+
+  const setHakedisItems = (h: HakedisItem[]) => {
+    setHakedisItemsState(h);
+    saveCompanyData(activeCompanyId, "hakedis", h);
+  };
+
+  const setIsgIncidents = (i: IsgIncident[]) => {
+    setIsgIncidentsState(i);
+    saveCompanyData(activeCompanyId, "isg_incidents", i);
+  };
+
+  const setIsgKkd = (k: KkdRecord[]) => {
+    setIsgKkdState(k);
+    saveCompanyData(activeCompanyId, "isg_kkd", k);
+  };
+
+  const setIsgToolboxTalks = (t: ToolboxTalk[]) => {
+    setIsgToolboxTalksState(t);
+    saveCompanyData(activeCompanyId, "isg_toolbox", t);
+  };
+
+  const setSupplierEvaluations = (s: SupplierEvaluation[]) => {
+    setSupplierEvaluationsState(s);
+    saveCompanyData(activeCompanyId, "supplier_evals", s);
+  };
+
+  const setAttendanceRecords = (a: AttendanceRecord[]) => {
+    setAttendanceRecordsState(a);
+    saveCompanyData(activeCompanyId, "attendance", a);
   };
 
   // ─── Notifications ─────────────────────────────────────────────────────────
@@ -2045,6 +2215,18 @@ export function AppProvider({ children }: { children: ReactNode }) {
         setQuotes,
         auditLogs: auditLogsState,
         addAuditLog,
+        hakedisItems: hakedisItemsState,
+        setHakedisItems,
+        isgIncidents: isgIncidentsState,
+        setIsgIncidents,
+        isgKkd: isgKkdState,
+        setIsgKkd,
+        isgToolboxTalks: isgToolboxTalksState,
+        setIsgToolboxTalks,
+        supplierEvaluations: supplierEvaluationsState,
+        setSupplierEvaluations,
+        attendanceRecords: attendanceRecordsState,
+        setAttendanceRecords,
       }}
     >
       {children}

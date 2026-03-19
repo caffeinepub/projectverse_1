@@ -51,6 +51,8 @@ import type {
   AuditLog,
   Expense,
   ExpenseStatus,
+  HakedisItem,
+  HakedisLineItem,
   Invoice,
   InvoiceStatus,
 } from "../contexts/AppContext";
@@ -97,6 +99,8 @@ export default function Finance() {
     addNotification,
     addAuditLog,
     auditLogs,
+    hakedisItems,
+    setHakedisItems,
   } = useApp();
 
   const canEdit =
@@ -134,6 +138,81 @@ export default function Finance() {
   }, [projects, expenses]);
 
   const today = new Date().toISOString().split("T")[0];
+  // ─── Hakediş State ───────────────────────────────────────────────────────────
+  const [hakedisOpen, setHakedisOpen] = useState(false);
+  const [hakedisLines, setHakedisLines] = useState<HakedisLineItem[]>([
+    {
+      id: "line1",
+      name: "",
+      unit: "m²",
+      quantity: 0,
+      unitPrice: 0,
+      completion: 100,
+    },
+  ]);
+  const [newHakedis, setNewHakedis] = useState({
+    projectId: "",
+    period: new Date().toISOString().slice(0, 7),
+    deductions: 0,
+    stopaj: 3,
+  });
+
+  const hakedisTotal = useMemo(() => {
+    return hakedisLines.reduce(
+      (sum, l) => sum + l.quantity * l.unitPrice * (l.completion / 100),
+      0,
+    );
+  }, [hakedisLines]);
+
+  const hakedisNet = useMemo(() => {
+    const gross = hakedisTotal;
+    const deductionAmt = Number(newHakedis.deductions) || 0;
+    const stopajAmt = gross * (Number(newHakedis.stopaj) / 100);
+    return gross - deductionAmt - stopajAmt;
+  }, [hakedisTotal, newHakedis.deductions, newHakedis.stopaj]);
+
+  const handleAddHakedis = () => {
+    const proj = projects.find((p) => p.id === newHakedis.projectId);
+    if (!proj) return;
+    const item: HakedisItem = {
+      id: `hkd${Date.now()}`,
+      companyId: "",
+      projectId: newHakedis.projectId,
+      projectName: proj.title,
+      period: newHakedis.period,
+      items: hakedisLines.filter((l) => l.name.trim()),
+      status: "Taslak",
+      deductions: Number(newHakedis.deductions) || 0,
+      stopaj: Number(newHakedis.stopaj) || 3,
+      createdAt: new Date().toISOString(),
+      createdBy: user?.name || "",
+    };
+    setHakedisItems([item, ...hakedisItems]);
+    setHakedisOpen(false);
+    setHakedisLines([
+      {
+        id: "line1",
+        name: "",
+        unit: "m²",
+        quantity: 0,
+        unitPrice: 0,
+        completion: 100,
+      },
+    ]);
+    setNewHakedis({
+      projectId: "",
+      period: new Date().toISOString().slice(0, 7),
+      deductions: 0,
+      stopaj: 3,
+    });
+  };
+
+  const updateHakedisStatus = (id: string, status: HakedisItem["status"]) => {
+    setHakedisItems(
+      hakedisItems.map((h) => (h.id === id ? { ...h, status } : h)),
+    );
+  };
+
   const [newInvoiceOpen, setNewInvoiceOpen] = useState(false);
   const [newInvoice, setNewInvoice] = useState({
     supplier: "",
@@ -331,6 +410,13 @@ export default function Finance() {
           >
             <FileText className="h-4 w-4 mr-2" />
             Faturalar
+          </TabsTrigger>
+          <TabsTrigger
+            data-ocid="finance.hakedis.tab"
+            value="hakedis"
+            className="data-[state=active]:gradient-bg data-[state=active]:text-white"
+          >
+            Hakediş
           </TabsTrigger>
           <TabsTrigger
             data-ocid="finance.audit.tab"
@@ -1045,6 +1131,501 @@ export default function Finance() {
           </Card>
         </TabsContent>
 
+        {/* ── HAKEDİŞ TAB ───────────────────────────────────────────────────── */}
+        <TabsContent value="hakedis" className="space-y-5">
+          {/* KPI */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <Card className="border-border bg-card">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-xs text-muted-foreground">
+                  Toplam Hakediş
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-2xl font-bold">{hakedisItems.length}</p>
+              </CardContent>
+            </Card>
+            <Card className="border-green-500/20 bg-green-500/5">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-xs text-green-400">
+                  Onaylanan Tutar
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-2xl font-bold text-green-400">
+                  ₺
+                  {hakedisItems
+                    .filter((h) => h.status === "Onaylandı")
+                    .reduce((s, h) => {
+                      const gross = h.items.reduce(
+                        (sum, l) =>
+                          sum + l.quantity * l.unitPrice * (l.completion / 100),
+                        0,
+                      );
+                      return (
+                        s + gross - h.deductions - gross * (h.stopaj / 100)
+                      );
+                    }, 0)
+                    .toLocaleString("tr-TR", { maximumFractionDigits: 0 })}
+                </p>
+              </CardContent>
+            </Card>
+            <Card className="border-amber-500/20 bg-amber-500/5">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-xs text-amber-400">
+                  Onay Bekleyen
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-2xl font-bold text-amber-400">
+                  {
+                    hakedisItems.filter((h) => h.status === "Onay Bekliyor")
+                      .length
+                  }
+                </p>
+              </CardContent>
+            </Card>
+            <Card className="border-blue-500/20 bg-blue-500/5">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-xs text-blue-400">Bu Ay</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-2xl font-bold text-blue-400">
+                  {
+                    hakedisItems.filter((h) =>
+                      h.createdAt?.startsWith(
+                        new Date().toISOString().slice(0, 7),
+                      ),
+                    ).length
+                  }
+                </p>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Toolbar */}
+          <div className="flex items-center justify-between flex-wrap gap-3">
+            <h2 className="text-base font-semibold">Hakediş Listesi</h2>
+            <Dialog open={hakedisOpen} onOpenChange={setHakedisOpen}>
+              <DialogTrigger asChild>
+                <Button
+                  data-ocid="finance.hakedis.open_modal_button"
+                  className="gradient-bg text-white"
+                >
+                  <Plus className="h-4 w-4 mr-2" />
+                  Yeni Hakediş
+                </Button>
+              </DialogTrigger>
+              <DialogContent
+                data-ocid="finance.hakedis.dialog"
+                className="max-w-2xl max-h-[90vh] overflow-y-auto"
+              >
+                <DialogHeader>
+                  <DialogTitle>Hakediş Oluştur</DialogTitle>
+                </DialogHeader>
+                <div className="space-y-4">
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1">
+                      <Label>Proje</Label>
+                      <Select
+                        value={newHakedis.projectId}
+                        onValueChange={(v) =>
+                          setNewHakedis({ ...newHakedis, projectId: v })
+                        }
+                      >
+                        <SelectTrigger data-ocid="finance.hakedis.project.select">
+                          <SelectValue placeholder="Proje seçin" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {projects.map((p) => (
+                            <SelectItem key={p.id} value={p.id}>
+                              {p.title}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-1">
+                      <Label>Dönem (Ay/Yıl)</Label>
+                      <Input
+                        data-ocid="finance.hakedis.period.input"
+                        type="month"
+                        value={newHakedis.period}
+                        onChange={(e) =>
+                          setNewHakedis({
+                            ...newHakedis,
+                            period: e.target.value,
+                          })
+                        }
+                      />
+                    </div>
+                  </div>
+
+                  {/* Line Items */}
+                  <div>
+                    <div className="flex items-center justify-between mb-2">
+                      <Label>İş Kalemleri</Label>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() =>
+                          setHakedisLines([
+                            ...hakedisLines,
+                            {
+                              id: `line${Date.now()}`,
+                              name: "",
+                              unit: "m²",
+                              quantity: 0,
+                              unitPrice: 0,
+                              completion: 100,
+                            },
+                          ])
+                        }
+                      >
+                        <Plus className="h-3 w-3 mr-1" /> Kalem Ekle
+                      </Button>
+                    </div>
+                    <div className="rounded border border-border overflow-hidden">
+                      <table className="w-full text-xs">
+                        <thead className="bg-muted/30">
+                          <tr>
+                            <th className="text-left px-2 py-2 font-medium">
+                              Kalem Adı
+                            </th>
+                            <th className="text-left px-2 py-2 font-medium">
+                              Birim
+                            </th>
+                            <th className="text-left px-2 py-2 font-medium">
+                              Miktar
+                            </th>
+                            <th className="text-left px-2 py-2 font-medium">
+                              Birim Fiyat
+                            </th>
+                            <th className="text-left px-2 py-2 font-medium">
+                              Tamamlanma %
+                            </th>
+                            <th className="text-left px-2 py-2 font-medium">
+                              Tutar
+                            </th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {hakedisLines.map((line, i) => (
+                            <tr
+                              key={line.id}
+                              className="border-t border-border"
+                            >
+                              <td className="px-1 py-1">
+                                <Input
+                                  className="h-7 text-xs"
+                                  value={line.name}
+                                  onChange={(e) =>
+                                    setHakedisLines(
+                                      hakedisLines.map((l, j) =>
+                                        j === i
+                                          ? { ...l, name: e.target.value }
+                                          : l,
+                                      ),
+                                    )
+                                  }
+                                  placeholder="Kalem adı"
+                                />
+                              </td>
+                              <td className="px-1 py-1">
+                                <Input
+                                  className="h-7 text-xs w-16"
+                                  value={line.unit}
+                                  onChange={(e) =>
+                                    setHakedisLines(
+                                      hakedisLines.map((l, j) =>
+                                        j === i
+                                          ? { ...l, unit: e.target.value }
+                                          : l,
+                                      ),
+                                    )
+                                  }
+                                />
+                              </td>
+                              <td className="px-1 py-1">
+                                <Input
+                                  className="h-7 text-xs w-20"
+                                  type="number"
+                                  value={line.quantity || ""}
+                                  onChange={(e) =>
+                                    setHakedisLines(
+                                      hakedisLines.map((l, j) =>
+                                        j === i
+                                          ? {
+                                              ...l,
+                                              quantity: Number(e.target.value),
+                                            }
+                                          : l,
+                                      ),
+                                    )
+                                  }
+                                />
+                              </td>
+                              <td className="px-1 py-1">
+                                <Input
+                                  className="h-7 text-xs w-24"
+                                  type="number"
+                                  value={line.unitPrice || ""}
+                                  onChange={(e) =>
+                                    setHakedisLines(
+                                      hakedisLines.map((l, j) =>
+                                        j === i
+                                          ? {
+                                              ...l,
+                                              unitPrice: Number(e.target.value),
+                                            }
+                                          : l,
+                                      ),
+                                    )
+                                  }
+                                />
+                              </td>
+                              <td className="px-1 py-1">
+                                <Input
+                                  className="h-7 text-xs w-16"
+                                  type="number"
+                                  min="0"
+                                  max="100"
+                                  value={line.completion}
+                                  onChange={(e) =>
+                                    setHakedisLines(
+                                      hakedisLines.map((l, j) =>
+                                        j === i
+                                          ? {
+                                              ...l,
+                                              completion: Number(
+                                                e.target.value,
+                                              ),
+                                            }
+                                          : l,
+                                      ),
+                                    )
+                                  }
+                                />
+                              </td>
+                              <td className="px-2 py-1 text-right font-medium">
+                                ₺
+                                {(
+                                  line.quantity *
+                                  line.unitPrice *
+                                  (line.completion / 100)
+                                ).toLocaleString("tr-TR", {
+                                  maximumFractionDigits: 0,
+                                })}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+
+                  {/* Deductions */}
+                  <div className="grid grid-cols-3 gap-3 pt-2 border-t border-border">
+                    <div className="space-y-1">
+                      <Label>Kesintiler (₺)</Label>
+                      <Input
+                        data-ocid="finance.hakedis.deductions.input"
+                        type="number"
+                        value={newHakedis.deductions || ""}
+                        onChange={(e) =>
+                          setNewHakedis({
+                            ...newHakedis,
+                            deductions: Number(e.target.value),
+                          })
+                        }
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <Label>Stopaj (%)</Label>
+                      <Input
+                        data-ocid="finance.hakedis.stopaj.input"
+                        type="number"
+                        value={newHakedis.stopaj}
+                        onChange={(e) =>
+                          setNewHakedis({
+                            ...newHakedis,
+                            stopaj: Number(e.target.value),
+                          })
+                        }
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <Label>Net Tutar</Label>
+                      <div className="h-9 flex items-center px-3 rounded border border-border bg-muted/30 font-bold text-green-400">
+                        ₺
+                        {hakedisNet.toLocaleString("tr-TR", {
+                          maximumFractionDigits: 0,
+                        })}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <DialogFooter>
+                  <Button
+                    data-ocid="finance.hakedis.cancel_button"
+                    variant="outline"
+                    onClick={() => setHakedisOpen(false)}
+                  >
+                    İptal
+                  </Button>
+                  <Button
+                    data-ocid="finance.hakedis.submit_button"
+                    className="gradient-bg text-white"
+                    onClick={handleAddHakedis}
+                  >
+                    Oluştur
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+          </div>
+
+          {/* List */}
+          <div className="rounded-lg border border-border overflow-hidden">
+            <table className="w-full text-sm">
+              <thead className="bg-muted/30">
+                <tr>
+                  <th className="text-left px-4 py-3 text-muted-foreground font-medium">
+                    Proje
+                  </th>
+                  <th className="text-left px-4 py-3 text-muted-foreground font-medium">
+                    Dönem
+                  </th>
+                  <th className="text-right px-4 py-3 text-muted-foreground font-medium">
+                    Brüt Tutar
+                  </th>
+                  <th className="text-right px-4 py-3 text-muted-foreground font-medium">
+                    Kesinti
+                  </th>
+                  <th className="text-right px-4 py-3 text-muted-foreground font-medium">
+                    Net Tutar
+                  </th>
+                  <th className="text-left px-4 py-3 text-muted-foreground font-medium">
+                    Durum
+                  </th>
+                  <th className="text-right px-4 py-3 text-muted-foreground font-medium">
+                    Aksiyon
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {hakedisItems.length === 0 ? (
+                  <tr>
+                    <td colSpan={7} className="px-4 py-10 text-center">
+                      <div
+                        data-ocid="finance.hakedis.empty_state"
+                        className="flex flex-col items-center gap-3 text-muted-foreground"
+                      >
+                        <FileText className="h-10 w-10 opacity-30" />
+                        <p>Henüz hakediş kaydı yok</p>
+                      </div>
+                    </td>
+                  </tr>
+                ) : (
+                  hakedisItems.map((h, idx) => {
+                    const gross = h.items.reduce(
+                      (s, l) =>
+                        s + l.quantity * l.unitPrice * (l.completion / 100),
+                      0,
+                    );
+                    const net = gross - h.deductions - gross * (h.stopaj / 100);
+                    return (
+                      <tr
+                        key={h.id}
+                        data-ocid={`finance.hakedis.item.${idx + 1}`}
+                        className="border-t border-border hover:bg-muted/20 transition-colors"
+                      >
+                        <td className="px-4 py-3 font-medium">
+                          {h.projectName}
+                        </td>
+                        <td className="px-4 py-3 text-muted-foreground">
+                          {h.period}
+                        </td>
+                        <td className="px-4 py-3 text-right">
+                          ₺
+                          {gross.toLocaleString("tr-TR", {
+                            maximumFractionDigits: 0,
+                          })}
+                        </td>
+                        <td className="px-4 py-3 text-right text-red-400">
+                          ₺
+                          {(
+                            h.deductions +
+                            gross * (h.stopaj / 100)
+                          ).toLocaleString("tr-TR", {
+                            maximumFractionDigits: 0,
+                          })}
+                        </td>
+                        <td className="px-4 py-3 text-right font-bold text-green-400">
+                          ₺
+                          {net.toLocaleString("tr-TR", {
+                            maximumFractionDigits: 0,
+                          })}
+                        </td>
+                        <td className="px-4 py-3">
+                          <Badge
+                            variant="outline"
+                            className={`text-xs ${h.status === "Onaylandı" ? "text-green-400 border-green-500/30" : h.status === "Onay Bekliyor" ? "text-amber-400 border-amber-500/30" : h.status === "Reddedildi" ? "text-red-400 border-red-500/30" : ""}`}
+                          >
+                            {h.status}
+                          </Badge>
+                        </td>
+                        <td className="px-4 py-3 text-right">
+                          <div className="flex justify-end gap-1">
+                            {h.status === "Taslak" && (
+                              <Button
+                                data-ocid={`finance.hakedis.send.${idx + 1}`}
+                                variant="outline"
+                                size="sm"
+                                className="text-xs"
+                                onClick={() =>
+                                  updateHakedisStatus(h.id, "Onay Bekliyor")
+                                }
+                              >
+                                Onaya Gönder
+                              </Button>
+                            )}
+                            {h.status === "Onay Bekliyor" && (
+                              <>
+                                <Button
+                                  data-ocid={`finance.hakedis.approve.${idx + 1}`}
+                                  variant="outline"
+                                  size="sm"
+                                  className="text-xs text-green-400 border-green-500/30"
+                                  onClick={() =>
+                                    updateHakedisStatus(h.id, "Onaylandı")
+                                  }
+                                >
+                                  Onayla
+                                </Button>
+                                <Button
+                                  data-ocid={`finance.hakedis.reject.${idx + 1}`}
+                                  variant="outline"
+                                  size="sm"
+                                  className="text-xs text-red-400 border-red-500/30"
+                                  onClick={() =>
+                                    updateHakedisStatus(h.id, "Reddedildi")
+                                  }
+                                >
+                                  Reddet
+                                </Button>
+                              </>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
+          </div>
+        </TabsContent>
         <TabsContent value="audit" className="space-y-4">
           <div className="rounded-xl border border-border overflow-hidden">
             <table className="w-full text-sm">

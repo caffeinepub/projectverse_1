@@ -44,6 +44,7 @@ import {
 import { useState } from "react";
 import AccessDenied from "../components/AccessDenied";
 import { useApp } from "../contexts/AppContext";
+import type { SupplierEvaluation } from "../contexts/AppContext";
 
 import type {
   Order,
@@ -126,6 +127,8 @@ export default function Purchasing() {
     auditLogs,
     user,
     projects,
+    supplierEvaluations,
+    setSupplierEvaluations,
   } = useApp();
 
   const canEdit =
@@ -133,6 +136,78 @@ export default function Purchasing() {
     activeRoleId === "manager" ||
     activeRoleId === "pm" ||
     checkPermission("purchasing", "edit");
+
+  // ─── Tedarikçi Performans ───────────────────────────────────────────────────
+  const [evalOpen, setEvalOpen] = useState(false);
+  const [evalSupplier, setEvalSupplier] = useState({ id: "", name: "" });
+  const [newEval, setNewEval] = useState({
+    period: new Date().toISOString().slice(0, 7),
+    deliveryScore: 3,
+    qualityScore: 3,
+    priceScore: 3,
+    communicationScore: 3,
+    notes: "",
+  });
+
+  const handleAddEval = () => {
+    if (!evalSupplier.id) return;
+    const ev: SupplierEvaluation = {
+      id: `eval${Date.now()}`,
+      companyId: "",
+      supplierId: evalSupplier.id,
+      supplierName: evalSupplier.name,
+      period: newEval.period,
+      deliveryScore: newEval.deliveryScore,
+      qualityScore: newEval.qualityScore,
+      priceScore: newEval.priceScore,
+      communicationScore: newEval.communicationScore,
+      notes: newEval.notes,
+      createdAt: new Date().toISOString(),
+    };
+    setSupplierEvaluations([ev, ...supplierEvaluations]);
+    setEvalOpen(false);
+    setNewEval({
+      period: new Date().toISOString().slice(0, 7),
+      deliveryScore: 3,
+      qualityScore: 3,
+      priceScore: 3,
+      communicationScore: 3,
+      notes: "",
+    });
+  };
+
+  const getSupplierAvgScore = (supplierId: string) => {
+    const evals = supplierEvaluations.filter(
+      (e) => e.supplierId === supplierId,
+    );
+    if (evals.length === 0) return null;
+    const avg =
+      evals.reduce(
+        (s, e) =>
+          s +
+          (e.deliveryScore +
+            e.qualityScore +
+            e.priceScore +
+            e.communicationScore) /
+            4,
+        0,
+      ) / evals.length;
+    return avg;
+  };
+
+  const renderStars = (score: number) => {
+    const stars = [1, 2, 3, 4, 5];
+    return stars.map((n) => (
+      <span
+        key={n}
+        className={
+          n <= Math.round(score) ? "text-amber-400" : "text-muted-foreground"
+        }
+      >
+        ★
+      </span>
+    ));
+  };
 
   const canView =
     canEdit ||
@@ -447,6 +522,13 @@ export default function Purchasing() {
           >
             <Check className="w-4 h-4 mr-2" />
             Siparişler
+          </TabsTrigger>
+          <TabsTrigger
+            data-ocid="purchasing.performance.tab"
+            value="performance"
+            className="data-[state=active]:gradient-bg data-[state=active]:text-white"
+          >
+            Tedarikçi Performans
           </TabsTrigger>
           <TabsTrigger
             data-ocid="purchasing.audit.tab"
@@ -1048,6 +1130,238 @@ export default function Purchasing() {
               </Table>
             </CardContent>
           </Card>
+        </TabsContent>
+
+        {/* ── SUPPLIER PERFORMANCE TAB ──────────────────────────────────────────── */}
+        <TabsContent value="performance" className="mt-6 space-y-5">
+          <div className="flex items-center justify-between flex-wrap gap-3">
+            <h2 className="text-base font-semibold">
+              Tedarikçi Performans Değerlendirmesi
+            </h2>
+          </div>
+
+          {/* Supplier Cards */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {suppliers.map((supplier, idx) => {
+              const avg = getSupplierAvgScore(supplier.id);
+              const evalCount = supplierEvaluations.filter(
+                (e) => e.supplierId === supplier.id,
+              ).length;
+              const lastEval = supplierEvaluations.filter(
+                (e) => e.supplierId === supplier.id,
+              )[0];
+              return (
+                <Card
+                  key={supplier.id}
+                  data-ocid={`purchasing.performance.item.${idx + 1}`}
+                  className="border-border bg-card"
+                >
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-sm font-semibold flex items-center justify-between">
+                      <span>{supplier.name}</span>
+                      {avg !== null && (
+                        <span className="flex text-base">
+                          {renderStars(avg)}
+                        </span>
+                      )}
+                    </CardTitle>
+                    {avg !== null ? (
+                      <p className="text-xs text-muted-foreground">
+                        Ort: {avg.toFixed(1)}/5 · {evalCount} değerlendirme
+                      </p>
+                    ) : (
+                      <p className="text-xs text-muted-foreground">
+                        Henüz değerlendirme yok
+                      </p>
+                    )}
+                    {lastEval && (
+                      <p className="text-xs text-muted-foreground">
+                        Son: {lastEval.period}
+                      </p>
+                    )}
+                  </CardHeader>
+                  <CardContent className="pt-0">
+                    {canEdit && (
+                      <Button
+                        data-ocid={`purchasing.performance.evaluate.${idx + 1}`}
+                        variant="outline"
+                        size="sm"
+                        className="w-full text-xs"
+                        onClick={() => {
+                          setEvalSupplier({
+                            id: supplier.id,
+                            name: supplier.name,
+                          });
+                          setEvalOpen(true);
+                        }}
+                      >
+                        Değerlendir
+                      </Button>
+                    )}
+                  </CardContent>
+                </Card>
+              );
+            })}
+            {suppliers.length === 0 && (
+              <div
+                data-ocid="purchasing.performance.empty_state"
+                className="col-span-3 py-10 text-center text-muted-foreground"
+              >
+                <p>Henüz tedarikçi kaydı yok. Önce tedarikçi ekleyin.</p>
+              </div>
+            )}
+          </div>
+
+          {/* Evaluation Table */}
+          {supplierEvaluations.length > 0 && (
+            <div className="rounded-lg border border-border overflow-hidden">
+              <table className="w-full text-sm">
+                <thead className="bg-muted/30">
+                  <tr>
+                    <th className="text-left px-4 py-3 text-muted-foreground font-medium">
+                      Tedarikçi
+                    </th>
+                    <th className="text-left px-4 py-3 text-muted-foreground font-medium">
+                      Dönem
+                    </th>
+                    <th className="text-left px-4 py-3 text-muted-foreground font-medium">
+                      Teslimat
+                    </th>
+                    <th className="text-left px-4 py-3 text-muted-foreground font-medium">
+                      Kalite
+                    </th>
+                    <th className="text-left px-4 py-3 text-muted-foreground font-medium">
+                      Fiyat
+                    </th>
+                    <th className="text-left px-4 py-3 text-muted-foreground font-medium">
+                      İletişim
+                    </th>
+                    <th className="text-left px-4 py-3 text-muted-foreground font-medium">
+                      Ort.
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {supplierEvaluations.map((ev, idx) => {
+                    const avg =
+                      (ev.deliveryScore +
+                        ev.qualityScore +
+                        ev.priceScore +
+                        ev.communicationScore) /
+                      4;
+                    return (
+                      <tr
+                        key={ev.id}
+                        data-ocid={`purchasing.performance.row.${idx + 1}`}
+                        className="border-t border-border hover:bg-muted/20 transition-colors"
+                      >
+                        <td className="px-4 py-3 font-medium">
+                          {ev.supplierName}
+                        </td>
+                        <td className="px-4 py-3 text-muted-foreground">
+                          {ev.period}
+                        </td>
+                        <td className="px-4 py-3">
+                          {renderStars(ev.deliveryScore)}
+                        </td>
+                        <td className="px-4 py-3">
+                          {renderStars(ev.qualityScore)}
+                        </td>
+                        <td className="px-4 py-3">
+                          {renderStars(ev.priceScore)}
+                        </td>
+                        <td className="px-4 py-3">
+                          {renderStars(ev.communicationScore)}
+                        </td>
+                        <td className="px-4 py-3 font-bold text-amber-400">
+                          {avg.toFixed(1)}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          {/* Eval Dialog */}
+          <Dialog open={evalOpen} onOpenChange={setEvalOpen}>
+            <DialogContent
+              data-ocid="purchasing.performance.dialog"
+              className="max-w-md"
+            >
+              <DialogHeader>
+                <DialogTitle>{evalSupplier.name} - Değerlendirme</DialogTitle>
+              </DialogHeader>
+              <div className="space-y-3">
+                <div className="space-y-1">
+                  <Label>Dönem</Label>
+                  <Input
+                    data-ocid="purchasing.performance.period.input"
+                    type="month"
+                    value={newEval.period}
+                    onChange={(e) =>
+                      setNewEval({ ...newEval, period: e.target.value })
+                    }
+                  />
+                </div>
+                {(
+                  [
+                    { key: "deliveryScore", label: "Teslimat Puanı" },
+                    { key: "qualityScore", label: "Kalite Puanı" },
+                    { key: "priceScore", label: "Fiyat/Performans Puanı" },
+                    { key: "communicationScore", label: "İletişim Puanı" },
+                  ] as { key: keyof typeof newEval; label: string }[]
+                ).map(({ key, label }) => (
+                  <div key={key} className="space-y-1">
+                    <Label>{label}</Label>
+                    <div className="flex gap-2">
+                      {[1, 2, 3, 4, 5].map((n) => (
+                        <button
+                          key={n}
+                          type="button"
+                          className={`text-2xl ${n <= Number(newEval[key]) ? "text-amber-400" : "text-muted-foreground"}`}
+                          onClick={() => setNewEval({ ...newEval, [key]: n })}
+                        >
+                          ★
+                        </button>
+                      ))}
+                      <span className="ml-2 text-sm text-muted-foreground self-center">
+                        {newEval[key]}/5
+                      </span>
+                    </div>
+                  </div>
+                ))}
+                <div className="space-y-1">
+                  <Label>Notlar</Label>
+                  <Textarea
+                    data-ocid="purchasing.performance.notes.textarea"
+                    value={newEval.notes}
+                    onChange={(e) =>
+                      setNewEval({ ...newEval, notes: e.target.value })
+                    }
+                    placeholder="Değerlendirme notları..."
+                  />
+                </div>
+              </div>
+              <DialogFooter>
+                <Button
+                  data-ocid="purchasing.performance.cancel_button"
+                  variant="outline"
+                  onClick={() => setEvalOpen(false)}
+                >
+                  İptal
+                </Button>
+                <Button
+                  data-ocid="purchasing.performance.submit_button"
+                  className="gradient-bg text-white"
+                  onClick={handleAddEval}
+                >
+                  Kaydet
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
         </TabsContent>
         <TabsContent value="audit" className="space-y-4">
           <div className="rounded-xl border border-border overflow-hidden">

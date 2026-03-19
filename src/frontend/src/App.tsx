@@ -21,6 +21,7 @@ import Equipment from "./pages/Equipment";
 import FieldOps from "./pages/FieldOps";
 import Finance from "./pages/Finance";
 import HumanResources from "./pages/HumanResources";
+import ISG from "./pages/ISG";
 import Inventory from "./pages/Inventory";
 import InviteJoin from "./pages/InviteJoin";
 import LanguageSelect from "./pages/LanguageSelect";
@@ -71,6 +72,7 @@ type AppPage =
   | "subcontractors"
   | "equipment"
   | "quotes"
+  | "isg"
   | "siteLog"
   | "drawings"
   | "meetings"
@@ -216,6 +218,7 @@ function Inner() {
     else if (p === "subcontractors") setPage("subcontractors");
     else if (p === "equipment") setPage("equipment");
     else if (p === "quotes") setPage("quotes");
+    else if (p === "isg") setPage("isg");
     else if (p === "siteLog") setPage("siteLog");
     else if (p === "drawings") setPage("drawings");
     else if (p === "meetings") setPage("meetings");
@@ -289,6 +292,7 @@ function Inner() {
       {page === "subcontractors" && <SubcontractorManagement />}
       {page === "equipment" && <Equipment />}
       {page === "quotes" && <Quotes />}
+      {page === "isg" && <ISG />}
       {page === "siteLog" && <SiteLog />}
       {page === "drawings" && <Drawings />}
       {page === "meetings" && <Meetings />}
