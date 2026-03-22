@@ -11,9 +11,11 @@ import {
 } from "./contexts/AppContext";
 import AccountTypeSelect from "./pages/AccountTypeSelect";
 import CRM from "./pages/CRM";
+import ClientReport from "./pages/ClientReport";
 import Communication from "./pages/Communication";
 import CompanySelect from "./pages/CompanySelect";
 import CompanySettings from "./pages/CompanySettings";
+import Contracts from "./pages/Contracts";
 import Dashboard from "./pages/Dashboard";
 import Documents from "./pages/Documents";
 import Drawings from "./pages/Drawings";
@@ -26,8 +28,10 @@ import Inventory from "./pages/Inventory";
 import InviteJoin from "./pages/InviteJoin";
 import LanguageSelect from "./pages/LanguageSelect";
 import Login from "./pages/Login";
+import MaterialRequests from "./pages/MaterialRequests";
 import Meetings from "./pages/Meetings";
 import PendingApproval from "./pages/PendingApproval";
+import Permits from "./pages/Permits";
 import Profile from "./pages/Profile";
 import ProjectDetail from "./pages/ProjectDetail";
 import Projects from "./pages/Projects";
@@ -40,7 +44,9 @@ import ResourceCalendar from "./pages/ResourceCalendar";
 import RiskRegister from "./pages/RiskRegister";
 import RoleSelect from "./pages/RoleSelect";
 import RoleSettings from "./pages/RoleSettings";
+import SelfService from "./pages/SelfService";
 import SiteLog from "./pages/SiteLog";
+import SitePhotos from "./pages/SitePhotos";
 import SubcontractorManagement from "./pages/SubcontractorManagement";
 
 type Screen =
@@ -78,7 +84,13 @@ type AppPage =
   | "meetings"
   | "punchList"
   | "resourceCalendar"
-  | "riskRegister";
+  | "riskRegister"
+  | "contracts"
+  | "materialRequests"
+  | "clientReport"
+  | "sitePhotos"
+  | "permits"
+  | "selfService";
 
 function Inner() {
   const {
@@ -225,6 +237,12 @@ function Inner() {
     else if (p === "punchList") setPage("punchList");
     else if (p === "resourceCalendar") setPage("resourceCalendar");
     else if (p === "riskRegister") setPage("riskRegister");
+    else if (p === "contracts") setPage("contracts");
+    else if (p === "materialRequests") setPage("materialRequests");
+    else if (p === "clientReport") setPage("clientReport");
+    else if (p === "sitePhotos") setPage("sitePhotos");
+    else if (p === "permits") setPage("permits");
+    else if (p === "selfService") setPage("selfService");
     else setPage(p as AppPage);
   };
 
@@ -299,6 +317,12 @@ function Inner() {
       {page === "punchList" && <PunchList />}
       {page === "resourceCalendar" && <ResourceCalendar />}
       {page === "riskRegister" && <RiskRegister />}
+      {page === "contracts" && <Contracts />}
+      {page === "materialRequests" && <MaterialRequests />}
+      {page === "clientReport" && <ClientReport />}
+      {page === "sitePhotos" && <SitePhotos />}
+      {page === "permits" && <Permits />}
+      {page === "selfService" && <SelfService />}
     </Layout>
   );
 }

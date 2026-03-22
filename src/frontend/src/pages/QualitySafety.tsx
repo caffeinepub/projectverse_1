@@ -21,14 +21,17 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import {
+  AlertOctagon,
   AlertTriangle,
   CheckCircle2,
   ClipboardList,
+  FileCheck,
   FileWarning,
   HardHat,
   Plus,
   Shield,
   ShieldAlert,
+  Trash2,
   XCircle,
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
@@ -133,6 +136,13 @@ export default function QualitySafety() {
     hrPersonnel: personnel,
     activeRoleId,
     checkPermission,
+    qualityChecklists,
+    setQualityChecklists,
+    ncrRecords,
+    setNcrRecords,
+    currentCompany,
+    user,
+    addAuditLog,
   } = useApp();
 
   const storageKey = `pv_qs_${activeCompanyId}`;
@@ -469,6 +479,17 @@ export default function QualitySafety() {
           </TabsTrigger>
           <TabsTrigger value="audit" data-ocid="quality_safety.audit_tab">
             Denetim Logu
+          </TabsTrigger>
+          <TabsTrigger
+            value="checklists"
+            data-ocid="quality_safety.checklists_tab"
+          >
+            <FileCheck className="w-4 h-4 mr-1.5" />
+            Kontrol Listeleri
+          </TabsTrigger>
+          <TabsTrigger value="ncr" data-ocid="quality_safety.ncr_tab">
+            <AlertOctagon className="w-4 h-4 mr-1.5" />
+            NCR Kayıtları
           </TabsTrigger>
         </TabsList>
 
@@ -951,7 +972,666 @@ export default function QualitySafety() {
             </div>
           )}
         </TabsContent>
+
+        {/* CHECKLISTS TAB */}
+        <TabsContent value="checklists" className="mt-4 space-y-4">
+          {canEdit && (
+            <div className="flex justify-end">
+              <ChecklistDialog
+                projects={projects}
+                currentCompany={currentCompany}
+                qualityChecklists={qualityChecklists}
+                setQualityChecklists={setQualityChecklists}
+                user={user}
+                addAuditLog={addAuditLog}
+              />
+            </div>
+          )}
+          <ChecklistList
+            qualityChecklists={qualityChecklists.filter(
+              (c) => c.companyId === currentCompany?.id,
+            )}
+            setQualityChecklists={setQualityChecklists}
+            canEdit={canEdit}
+          />
+        </TabsContent>
+
+        {/* NCR TAB */}
+        <TabsContent value="ncr" className="mt-4 space-y-4">
+          {canEdit && (
+            <div className="flex justify-end">
+              <NCRDialog
+                projects={projects}
+                currentCompany={currentCompany}
+                ncrRecords={ncrRecords}
+                setNcrRecords={setNcrRecords}
+                user={user}
+                addAuditLog={addAuditLog}
+              />
+            </div>
+          )}
+          <NCRList
+            ncrRecords={ncrRecords.filter(
+              (n) => n.companyId === currentCompany?.id,
+            )}
+            setNcrRecords={setNcrRecords}
+            canEdit={canEdit}
+          />
+        </TabsContent>
       </Tabs>
+    </div>
+  );
+}
+
+// ─── Checklist Dialog Component ───────────────────────────────────────────────
+function ChecklistDialog({
+  projects,
+  currentCompany,
+  qualityChecklists,
+  setQualityChecklists,
+  user,
+  addAuditLog,
+}: any) {
+  const [open, setOpen] = useState(false);
+  const [form, setForm] = useState({
+    title: "",
+    projectId: "",
+    workPackage: "",
+    items: [{ description: "", responsible: "" }] as {
+      description: string;
+      responsible: string;
+    }[],
+  });
+
+  const handleAdd = () => {
+    if (!form.title) return;
+    const checklist = {
+      id: `cl${Date.now()}`,
+      companyId: currentCompany?.id || "",
+      projectId: form.projectId,
+      title: form.title,
+      workPackage: form.workPackage,
+      items: form.items
+        .filter((i: any) => i.description)
+        .map((i: any, idx: number) => ({
+          id: `cli${Date.now()}${idx}`,
+          description: i.description,
+          status: "Beklemede" as const,
+          responsible: i.responsible,
+          date: "",
+        })),
+      status: "Açık" as const,
+      createdAt: new Date().toISOString(),
+    };
+    setQualityChecklists([checklist, ...qualityChecklists]);
+    addAuditLog?.({
+      module: "qualitySafety",
+      action: "Kontrol Listesi Eklendi",
+      description: form.title,
+      performedBy: user?.name || "",
+    });
+    setForm({
+      title: "",
+      projectId: "",
+      workPackage: "",
+      items: [{ description: "", responsible: "" }],
+    });
+    setOpen(false);
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <Button
+          data-ocid="quality_safety.checklist.primary_button"
+          className="gradient-bg text-white"
+        >
+          <Plus className="h-4 w-4 mr-2" />
+          Yeni Kontrol Listesi
+        </Button>
+      </DialogTrigger>
+      <DialogContent
+        data-ocid="quality_safety.checklist.dialog"
+        className="bg-card border-border max-w-lg"
+      >
+        <DialogHeader>
+          <DialogTitle>Yeni Kontrol Listesi</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-3">
+          <div>
+            <Label>Başlık *</Label>
+            <Input
+              data-ocid="quality_safety.checklist.title.input"
+              value={form.title}
+              onChange={(e) => setForm({ ...form, title: e.target.value })}
+              className="bg-background border-border mt-1"
+            />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <Label>Proje</Label>
+              <Select
+                value={form.projectId}
+                onValueChange={(v) => setForm({ ...form, projectId: v })}
+              >
+                <SelectTrigger
+                  data-ocid="quality_safety.checklist.project.select"
+                  className="bg-background border-border mt-1"
+                >
+                  <SelectValue placeholder="Seçin..." />
+                </SelectTrigger>
+                <SelectContent className="bg-card border-border">
+                  {projects.map((p: any) => (
+                    <SelectItem key={p.id} value={p.id}>
+                      {p.title}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label>İş Paketi</Label>
+              <Input
+                data-ocid="quality_safety.checklist.package.input"
+                value={form.workPackage}
+                onChange={(e) =>
+                  setForm({ ...form, workPackage: e.target.value })
+                }
+                className="bg-background border-border mt-1"
+              />
+            </div>
+          </div>
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <Label>Kontrol Maddeleri</Label>
+              <Button
+                type="button"
+                size="sm"
+                variant="ghost"
+                className="h-6 text-xs text-amber-400"
+                onClick={() =>
+                  setForm({
+                    ...form,
+                    items: [
+                      ...form.items,
+                      { description: "", responsible: "" },
+                    ],
+                  })
+                }
+              >
+                <Plus className="w-3 h-3 mr-1" />
+                Madde Ekle
+              </Button>
+            </div>
+            <div className="space-y-2 max-h-48 overflow-y-auto">
+              {form.items.map((item: any, idx: number) => (
+                <div key={item.id} className="flex gap-2">
+                  <Input
+                    value={item.description}
+                    onChange={(e) => {
+                      const items = [...form.items];
+                      items[idx].description = e.target.value;
+                      setForm({ ...form, items });
+                    }}
+                    placeholder="Madde açıklaması"
+                    className="bg-background border-border flex-1"
+                  />
+                  <Input
+                    value={item.responsible}
+                    onChange={(e) => {
+                      const items = [...form.items];
+                      items[idx].responsible = e.target.value;
+                      setForm({ ...form, items });
+                    }}
+                    placeholder="Sorumlu"
+                    className="bg-background border-border w-28"
+                  />
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+        <DialogFooter className="mt-4">
+          <Button variant="ghost" onClick={() => setOpen(false)}>
+            İptal
+          </Button>
+          <Button
+            data-ocid="quality_safety.checklist.submit_button"
+            className="gradient-bg text-white"
+            onClick={handleAdd}
+          >
+            Oluştur
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ─── Checklist List Component ─────────────────────────────────────────────────
+function ChecklistList({
+  qualityChecklists,
+  setQualityChecklists,
+  canEdit,
+}: any) {
+  if (qualityChecklists.length === 0) {
+    return (
+      <Card
+        data-ocid="quality_safety.checklists.empty_state"
+        className="bg-card border-border"
+      >
+        <CardContent className="flex flex-col items-center justify-center py-12 gap-3">
+          <FileCheck className="w-10 h-10 text-muted-foreground/40" />
+          <p className="text-muted-foreground">
+            Henüz kontrol listesi oluşturulmadı
+          </p>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  const toggleItem = (
+    checklistId: string,
+    itemId: string,
+    status: "Geçti" | "Başarısız",
+  ) => {
+    setQualityChecklists(
+      qualityChecklists.map((cl: any) => {
+        if (cl.id !== checklistId) return cl;
+        const items = cl.items.map((i: any) =>
+          i.id === itemId
+            ? { ...i, status, date: new Date().toISOString().split("T")[0] }
+            : i,
+        );
+        const allDone = items.every((i: any) => i.status !== "Beklemede");
+        return { ...cl, items, status: allDone ? "Tamamlandı" : "Açık" };
+      }),
+    );
+  };
+
+  return (
+    <div className="space-y-3">
+      {qualityChecklists.map((cl: any, idx: number) => (
+        <Card
+          key={cl.id}
+          data-ocid={`quality_safety.checklist.item.${idx + 1}`}
+          className="bg-card border-border"
+        >
+          <CardHeader className="pb-2">
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle className="text-base">{cl.title}</CardTitle>
+                {cl.workPackage && (
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    {cl.workPackage}
+                  </p>
+                )}
+              </div>
+              <Badge
+                className={
+                  cl.status === "Tamamlandı"
+                    ? "bg-green-500/20 text-green-400"
+                    : "bg-amber-500/20 text-amber-400"
+                }
+              >
+                {cl.status}
+              </Badge>
+            </div>
+          </CardHeader>
+          <CardContent className="pt-0">
+            <div className="space-y-2">
+              {cl.items.map((item: any) => (
+                <div
+                  key={item.id}
+                  className="flex items-center justify-between p-2 rounded-lg bg-background/50"
+                >
+                  <div className="flex items-center gap-2">
+                    <div
+                      className={`w-2 h-2 rounded-full ${item.status === "Geçti" ? "bg-green-400" : item.status === "Başarısız" ? "bg-red-400" : "bg-amber-400"}`}
+                    />
+                    <span className="text-sm text-foreground">
+                      {item.description}
+                    </span>
+                    {item.responsible && (
+                      <span className="text-xs text-muted-foreground">
+                        ({item.responsible})
+                      </span>
+                    )}
+                  </div>
+                  {canEdit && item.status === "Beklemede" && (
+                    <div className="flex gap-1">
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="h-6 text-xs text-green-400"
+                        onClick={() => toggleItem(cl.id, item.id, "Geçti")}
+                      >
+                        Geçti
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="h-6 text-xs text-red-400"
+                        onClick={() => toggleItem(cl.id, item.id, "Başarısız")}
+                      >
+                        Başarısız
+                      </Button>
+                    </div>
+                  )}
+                  {item.status !== "Beklemede" && (
+                    <Badge
+                      className={
+                        item.status === "Geçti"
+                          ? "bg-green-500/20 text-green-400"
+                          : "bg-red-500/20 text-red-400"
+                      }
+                    >
+                      {item.status}
+                    </Badge>
+                  )}
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      ))}
+    </div>
+  );
+}
+
+// ─── NCR Dialog Component ─────────────────────────────────────────────────────
+function NCRDialog({
+  projects,
+  currentCompany,
+  ncrRecords,
+  setNcrRecords,
+  user,
+  addAuditLog,
+}: any) {
+  const [open, setOpen] = useState(false);
+  const [form, setForm] = useState({
+    projectId: "",
+    description: "",
+    affectedArea: "",
+    responsible: "",
+    correctiveAction: "",
+    dueDate: "",
+    severity: "Orta" as const,
+  });
+
+  const handleAdd = () => {
+    if (!form.description) return;
+    const ncr = {
+      id: `ncr${Date.now()}`,
+      companyId: currentCompany?.id || "",
+      projectId: form.projectId,
+      ncrNo: `NCR-${Date.now().toString().slice(-5)}`,
+      description: form.description,
+      affectedArea: form.affectedArea,
+      responsible: form.responsible,
+      correctiveAction: form.correctiveAction,
+      dueDate: form.dueDate,
+      closureDate: "",
+      status: "Açık" as const,
+      severity: form.severity,
+      createdAt: new Date().toISOString(),
+    };
+    setNcrRecords([ncr, ...ncrRecords]);
+    addAuditLog?.({
+      module: "qualitySafety",
+      action: "NCR Eklendi",
+      description: ncr.ncrNo,
+      performedBy: user?.name || "",
+    });
+    setForm({
+      projectId: "",
+      description: "",
+      affectedArea: "",
+      responsible: "",
+      correctiveAction: "",
+      dueDate: "",
+      severity: "Orta",
+    });
+    setOpen(false);
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <Button
+          data-ocid="quality_safety.ncr.primary_button"
+          className="gradient-bg text-white"
+        >
+          <Plus className="h-4 w-4 mr-2" />
+          Yeni NCR
+        </Button>
+      </DialogTrigger>
+      <DialogContent
+        data-ocid="quality_safety.ncr.dialog"
+        className="bg-card border-border max-w-lg"
+      >
+        <DialogHeader>
+          <DialogTitle>Yeni Uygunsuzluk Raporu (NCR)</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-3">
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <Label>Proje</Label>
+              <Select
+                value={form.projectId}
+                onValueChange={(v) => setForm({ ...form, projectId: v })}
+              >
+                <SelectTrigger
+                  data-ocid="quality_safety.ncr.project.select"
+                  className="bg-background border-border mt-1"
+                >
+                  <SelectValue placeholder="Seçin..." />
+                </SelectTrigger>
+                <SelectContent className="bg-card border-border">
+                  {projects.map((p: any) => (
+                    <SelectItem key={p.id} value={p.id}>
+                      {p.title}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label>Önem Derecesi</Label>
+              <Select
+                value={form.severity}
+                onValueChange={(v) => setForm({ ...form, severity: v as any })}
+              >
+                <SelectTrigger
+                  data-ocid="quality_safety.ncr.severity.select"
+                  className="bg-background border-border mt-1"
+                >
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent className="bg-card border-border">
+                  {["Düşük", "Orta", "Yüksek"].map((s) => (
+                    <SelectItem key={s} value={s}>
+                      {s}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <div>
+            <Label>Uygunsuzluk Açıklaması *</Label>
+            <Textarea
+              data-ocid="quality_safety.ncr.description.textarea"
+              value={form.description}
+              onChange={(e) =>
+                setForm({ ...form, description: e.target.value })
+              }
+              className="bg-background border-border mt-1"
+              rows={2}
+            />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <Label>Etkilenen Alan</Label>
+              <Input
+                data-ocid="quality_safety.ncr.area.input"
+                value={form.affectedArea}
+                onChange={(e) =>
+                  setForm({ ...form, affectedArea: e.target.value })
+                }
+                className="bg-background border-border mt-1"
+              />
+            </div>
+            <div>
+              <Label>Sorumlu</Label>
+              <Input
+                data-ocid="quality_safety.ncr.responsible.input"
+                value={form.responsible}
+                onChange={(e) =>
+                  setForm({ ...form, responsible: e.target.value })
+                }
+                className="bg-background border-border mt-1"
+              />
+            </div>
+          </div>
+          <div>
+            <Label>Düzeltici Faaliyet</Label>
+            <Textarea
+              data-ocid="quality_safety.ncr.corrective.textarea"
+              value={form.correctiveAction}
+              onChange={(e) =>
+                setForm({ ...form, correctiveAction: e.target.value })
+              }
+              className="bg-background border-border mt-1"
+              rows={2}
+            />
+          </div>
+          <div>
+            <Label>Son Tarih</Label>
+            <Input
+              data-ocid="quality_safety.ncr.due_date.input"
+              type="date"
+              value={form.dueDate}
+              onChange={(e) => setForm({ ...form, dueDate: e.target.value })}
+              className="bg-background border-border mt-1"
+            />
+          </div>
+        </div>
+        <DialogFooter className="mt-4">
+          <Button variant="ghost" onClick={() => setOpen(false)}>
+            İptal
+          </Button>
+          <Button
+            data-ocid="quality_safety.ncr.submit_button"
+            className="gradient-bg text-white"
+            onClick={handleAdd}
+          >
+            NCR Oluştur
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ─── NCR List Component ───────────────────────────────────────────────────────
+function NCRList({ ncrRecords, setNcrRecords, canEdit }: any) {
+  const SEVERITY_STYLES: Record<string, string> = {
+    Düşük: "bg-green-500/20 text-green-400",
+    Orta: "bg-amber-500/20 text-amber-400",
+    Yüksek: "bg-red-500/20 text-red-400",
+  };
+
+  if (ncrRecords.length === 0) {
+    return (
+      <Card
+        data-ocid="quality_safety.ncr.empty_state"
+        className="bg-card border-border"
+      >
+        <CardContent className="flex flex-col items-center justify-center py-12 gap-3">
+          <AlertOctagon className="w-10 h-10 text-muted-foreground/40" />
+          <p className="text-muted-foreground">NCR kaydı bulunmuyor</p>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  const handleClose = (id: string) => {
+    setNcrRecords(
+      ncrRecords.map((n: any) =>
+        n.id === id
+          ? {
+              ...n,
+              status: "Kapatıldı",
+              closureDate: new Date().toISOString().split("T")[0],
+            }
+          : n,
+      ),
+    );
+  };
+
+  return (
+    <div className="space-y-3">
+      {ncrRecords.map((ncr: any, idx: number) => (
+        <Card
+          key={ncr.id}
+          data-ocid={`quality_safety.ncr.item.${idx + 1}`}
+          className="bg-card border-border"
+        >
+          <CardHeader className="pb-2">
+            <div className="flex items-start justify-between gap-2">
+              <div>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="font-semibold text-foreground text-sm">
+                    {ncr.ncrNo}
+                  </span>
+                  <Badge className={SEVERITY_STYLES[ncr.severity]}>
+                    {ncr.severity}
+                  </Badge>
+                  <Badge
+                    className={
+                      ncr.status === "Kapatıldı"
+                        ? "bg-muted text-muted-foreground"
+                        : ncr.status === "Devam Ediyor"
+                          ? "bg-blue-500/20 text-blue-400"
+                          : "bg-red-500/20 text-red-400"
+                    }
+                  >
+                    {ncr.status}
+                  </Badge>
+                </div>
+                <p className="text-sm text-muted-foreground mt-1">
+                  {ncr.description}
+                </p>
+              </div>
+              {canEdit && ncr.status !== "Kapatıldı" && (
+                <Button
+                  data-ocid={`quality_safety.ncr.close.button.${idx + 1}`}
+                  size="sm"
+                  variant="outline"
+                  className="border-green-500/30 text-green-400 flex-shrink-0"
+                  onClick={() => handleClose(ncr.id)}
+                >
+                  Kapat
+                </Button>
+              )}
+            </div>
+          </CardHeader>
+          <CardContent className="pt-0">
+            <div className="flex gap-4 text-xs text-muted-foreground flex-wrap">
+              {ncr.affectedArea && <span>Alan: {ncr.affectedArea}</span>}
+              {ncr.responsible && <span>Sorumlu: {ncr.responsible}</span>}
+              {ncr.dueDate && <span>Son: {ncr.dueDate}</span>}
+              {ncr.closureDate && <span>Kapanış: {ncr.closureDate}</span>}
+            </div>
+            {ncr.correctiveAction && (
+              <p className="text-xs text-muted-foreground mt-2">
+                Düzeltici: {ncr.correctiveAction}
+              </p>
+            )}
+          </CardContent>
+        </Card>
+      ))}
     </div>
   );
 }

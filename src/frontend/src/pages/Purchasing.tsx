@@ -32,15 +32,19 @@ import {
   AlertTriangle,
   Building2,
   Check,
+  Edit,
   Mail,
   MapPin,
+  Package,
   Phone,
   Plus,
   Search,
   ShoppingCart,
   Star,
+  Trash2,
   X,
 } from "lucide-react";
+import React from "react";
 import { useState } from "react";
 import AccessDenied from "../components/AccessDenied";
 import { useApp } from "../contexts/AppContext";
@@ -109,6 +113,430 @@ function StarRating({
   );
 }
 
+// ── FİYAT KATALOĞU BİLEŞENİ ─────────────────────────────────────────────────
+interface PriceCatalogEntry {
+  id: string;
+  supplierId: string;
+  supplierName: string;
+  materialName: string;
+  unit: string;
+  unitPrice: number;
+  currency: string;
+  validFrom: string;
+  validTo: string;
+  notes: string;
+}
+
+function PriceCatalogTab({
+  companyId,
+  suppliers,
+}: {
+  companyId: string;
+  suppliers: Array<{ id: string; name: string }>;
+}) {
+  const storageKey = `pv_price_catalog_${companyId}`;
+
+  const [entries, setEntries] = React.useState<PriceCatalogEntry[]>(() => {
+    try {
+      const s = localStorage.getItem(`pv_price_catalog_${companyId}`);
+      return s ? JSON.parse(s) : [];
+    } catch {
+      return [];
+    }
+  });
+
+  React.useEffect(() => {
+    localStorage.setItem(storageKey, JSON.stringify(entries));
+  }, [entries, storageKey]);
+
+  const [dialogOpen, setDialogOpen] = React.useState(false);
+  const [editId, setEditId] = React.useState<string | null>(null);
+  const [form, setForm] = React.useState({
+    supplierId: "",
+    supplierName: "",
+    materialName: "",
+    unit: "Adet",
+    unitPrice: "",
+    currency: "TRY",
+    validFrom: "",
+    validTo: "",
+    notes: "",
+  });
+  const [filterSupplier, setFilterSupplier] = React.useState("all");
+  const [searchMaterial, setSearchMaterial] = React.useState("");
+
+  const filteredEntries = entries.filter((e) => {
+    if (filterSupplier !== "all" && e.supplierId !== filterSupplier)
+      return false;
+    if (
+      searchMaterial &&
+      !e.materialName.toLowerCase().includes(searchMaterial.toLowerCase())
+    )
+      return false;
+    return true;
+  });
+
+  const openAdd = () => {
+    setEditId(null);
+    setForm({
+      supplierId: "",
+      supplierName: "",
+      materialName: "",
+      unit: "Adet",
+      unitPrice: "",
+      currency: "TRY",
+      validFrom: "",
+      validTo: "",
+      notes: "",
+    });
+    setDialogOpen(true);
+  };
+
+  const openEdit = (e: PriceCatalogEntry) => {
+    setEditId(e.id);
+    setForm({
+      supplierId: e.supplierId,
+      supplierName: e.supplierName,
+      materialName: e.materialName,
+      unit: e.unit,
+      unitPrice: String(e.unitPrice),
+      currency: e.currency,
+      validFrom: e.validFrom,
+      validTo: e.validTo,
+      notes: e.notes,
+    });
+    setDialogOpen(true);
+  };
+
+  const handleSave = () => {
+    if (!form.materialName || !form.unitPrice || !form.supplierId) return;
+    const entry: PriceCatalogEntry = {
+      id: editId || Date.now().toString(),
+      supplierId: form.supplierId,
+      supplierName: form.supplierName,
+      materialName: form.materialName,
+      unit: form.unit,
+      unitPrice: Number(form.unitPrice),
+      currency: form.currency,
+      validFrom: form.validFrom,
+      validTo: form.validTo,
+      notes: form.notes,
+    };
+    if (editId) {
+      setEntries((prev) => prev.map((e) => (e.id === editId ? entry : e)));
+    } else {
+      setEntries((prev) => [entry, ...prev]);
+    }
+    setDialogOpen(false);
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between flex-wrap gap-3">
+        <h2 className="text-lg font-semibold text-foreground">
+          Tedarikçi Fiyat Kataloğu
+        </h2>
+        <Button
+          data-ocid="purchasing.catalog.add_button"
+          onClick={openAdd}
+          size="sm"
+          className="gradient-bg text-white gap-2"
+        >
+          <Plus className="w-4 h-4" /> Fiyat Ekle
+        </Button>
+      </div>
+
+      <div className="flex flex-wrap gap-3">
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+          <Input
+            data-ocid="purchasing.catalog.search_input"
+            placeholder="Malzeme ara..."
+            value={searchMaterial}
+            onChange={(e) => setSearchMaterial(e.target.value)}
+            className="pl-9 bg-background border-border w-52"
+          />
+        </div>
+        <Select value={filterSupplier} onValueChange={setFilterSupplier}>
+          <SelectTrigger
+            data-ocid="purchasing.catalog.supplier_select"
+            className="bg-card border-border w-48"
+          >
+            <SelectValue placeholder="Tüm Tedarikçiler" />
+          </SelectTrigger>
+          <SelectContent className="bg-card border-border">
+            <SelectItem value="all">Tüm Tedarikçiler</SelectItem>
+            {suppliers.map((s) => (
+              <SelectItem key={s.id} value={s.id}>
+                {s.name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+
+      {filteredEntries.length === 0 ? (
+        <div
+          data-ocid="purchasing.catalog.empty_state"
+          className="flex flex-col items-center justify-center py-20 text-center"
+        >
+          <Package className="w-12 h-12 text-muted-foreground/30 mb-3" />
+          <p className="text-muted-foreground mb-3">Fiyat kataloğu boş</p>
+          <Button
+            onClick={openAdd}
+            size="sm"
+            className="gradient-bg text-white gap-2"
+          >
+            <Plus className="w-3.5 h-3.5" /> İlk Fiyatı Ekle
+          </Button>
+        </div>
+      ) : (
+        <div className="border border-border rounded-xl overflow-hidden">
+          <Table>
+            <TableHeader>
+              <TableRow className="border-border bg-muted/30">
+                <TableHead>Malzeme</TableHead>
+                <TableHead>Tedarikçi</TableHead>
+                <TableHead>Birim</TableHead>
+                <TableHead>Birim Fiyat</TableHead>
+                <TableHead>Döviz</TableHead>
+                <TableHead>Geçerlilik</TableHead>
+                <TableHead className="text-right">İşlem</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {filteredEntries.map((entry, idx) => (
+                <TableRow
+                  key={entry.id}
+                  data-ocid={`purchasing.catalog.item.${idx + 1}`}
+                  className="border-border hover:bg-muted/20"
+                >
+                  <TableCell className="font-medium">
+                    {entry.materialName}
+                  </TableCell>
+                  <TableCell className="text-muted-foreground">
+                    {entry.supplierName}
+                  </TableCell>
+                  <TableCell className="text-muted-foreground">
+                    {entry.unit}
+                  </TableCell>
+                  <TableCell className="font-semibold text-amber-400">
+                    {entry.unitPrice.toLocaleString("tr-TR")}
+                  </TableCell>
+                  <TableCell className="text-muted-foreground">
+                    {entry.currency}
+                  </TableCell>
+                  <TableCell className="text-xs text-muted-foreground">
+                    {entry.validFrom && entry.validTo
+                      ? `${entry.validFrom} – ${entry.validTo}`
+                      : entry.validFrom || "—"}
+                  </TableCell>
+                  <TableCell className="text-right">
+                    <div className="flex gap-1 justify-end">
+                      <Button
+                        data-ocid={`purchasing.catalog.edit_button.${idx + 1}`}
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7 text-muted-foreground hover:text-foreground"
+                        onClick={() => openEdit(entry)}
+                      >
+                        <Edit className="w-3.5 h-3.5" />
+                      </Button>
+                      <Button
+                        data-ocid={`purchasing.catalog.delete_button.${idx + 1}`}
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7 text-muted-foreground hover:text-red-400"
+                        onClick={() =>
+                          setEntries((prev) =>
+                            prev.filter((e) => e.id !== entry.id),
+                          )
+                        }
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </Button>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
+      )}
+
+      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+        <DialogContent
+          data-ocid="purchasing.catalog.dialog"
+          className="bg-card border-border max-w-md"
+        >
+          <DialogHeader>
+            <DialogTitle>{editId ? "Fiyat Düzenle" : "Fiyat Ekle"}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div>
+              <Label>Tedarikçi *</Label>
+              <Select
+                value={form.supplierId}
+                onValueChange={(v) => {
+                  const s = suppliers.find((s) => s.id === v);
+                  setForm((prev) => ({
+                    ...prev,
+                    supplierId: v,
+                    supplierName: s?.name || "",
+                  }));
+                }}
+              >
+                <SelectTrigger
+                  data-ocid="purchasing.catalog.dialog.supplier_select"
+                  className="bg-background border-border mt-1"
+                >
+                  <SelectValue placeholder="Tedarikçi seçin" />
+                </SelectTrigger>
+                <SelectContent className="bg-card border-border">
+                  {suppliers.map((s) => (
+                    <SelectItem key={s.id} value={s.id}>
+                      {s.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label>Malzeme Adı *</Label>
+              <Input
+                data-ocid="purchasing.catalog.material_input"
+                value={form.materialName}
+                onChange={(e) =>
+                  setForm((prev) => ({ ...prev, materialName: e.target.value }))
+                }
+                placeholder="Örn: Çimento 25kg"
+                className="bg-background border-border mt-1"
+              />
+            </div>
+            <div className="grid grid-cols-3 gap-3">
+              <div>
+                <Label>Birim</Label>
+                <Select
+                  value={form.unit}
+                  onValueChange={(v) =>
+                    setForm((prev) => ({ ...prev, unit: v }))
+                  }
+                >
+                  <SelectTrigger className="bg-background border-border mt-1">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent className="bg-card border-border">
+                    {[
+                      "Adet",
+                      "Kg",
+                      "Ton",
+                      "m²",
+                      "m³",
+                      "m",
+                      "Litre",
+                      "Paket",
+                    ].map((u) => (
+                      <SelectItem key={u} value={u}>
+                        {u}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label>Birim Fiyat *</Label>
+                <Input
+                  data-ocid="purchasing.catalog.price_input"
+                  type="number"
+                  value={form.unitPrice}
+                  onChange={(e) =>
+                    setForm((prev) => ({ ...prev, unitPrice: e.target.value }))
+                  }
+                  placeholder="0"
+                  className="bg-background border-border mt-1"
+                />
+              </div>
+              <div>
+                <Label>Döviz</Label>
+                <Select
+                  value={form.currency}
+                  onValueChange={(v) =>
+                    setForm((prev) => ({ ...prev, currency: v }))
+                  }
+                >
+                  <SelectTrigger className="bg-background border-border mt-1">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent className="bg-card border-border">
+                    <SelectItem value="TRY">TRY ₺</SelectItem>
+                    <SelectItem value="USD">USD $</SelectItem>
+                    <SelectItem value="EUR">EUR €</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label>Geçerlilik Başlangıcı</Label>
+                <Input
+                  type="date"
+                  value={form.validFrom}
+                  onChange={(e) =>
+                    setForm((prev) => ({ ...prev, validFrom: e.target.value }))
+                  }
+                  className="bg-background border-border mt-1"
+                />
+              </div>
+              <div>
+                <Label>Geçerlilik Bitişi</Label>
+                <Input
+                  type="date"
+                  value={form.validTo}
+                  onChange={(e) =>
+                    setForm((prev) => ({ ...prev, validTo: e.target.value }))
+                  }
+                  className="bg-background border-border mt-1"
+                />
+              </div>
+            </div>
+            <div>
+              <Label>Notlar</Label>
+              <Textarea
+                value={form.notes}
+                onChange={(e) =>
+                  setForm((prev) => ({ ...prev, notes: e.target.value }))
+                }
+                className="bg-background border-border mt-1 resize-none"
+                rows={2}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              data-ocid="purchasing.catalog.cancel_button"
+              variant="outline"
+              onClick={() => setDialogOpen(false)}
+              className="border-border"
+            >
+              İptal
+            </Button>
+            <Button
+              data-ocid="purchasing.catalog.save_button"
+              onClick={handleSave}
+              disabled={
+                !form.materialName || !form.unitPrice || !form.supplierId
+              }
+              className="gradient-bg text-white"
+            >
+              Kaydet
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
 export default function Purchasing() {
   const {
     activeRoleId,
@@ -129,6 +557,7 @@ export default function Purchasing() {
     projects,
     supplierEvaluations,
     setSupplierEvaluations,
+    activeCompanyId,
   } = useApp();
 
   const canEdit =
@@ -536,6 +965,13 @@ export default function Purchasing() {
             className="data-[state=active]:gradient-bg data-[state=active]:text-white"
           >
             Denetim Logu
+          </TabsTrigger>
+          <TabsTrigger
+            data-ocid="purchasing.catalog.tab"
+            value="catalog"
+            className="data-[state=active]:gradient-bg data-[state=active]:text-white"
+          >
+            Fiyat Kataloğu
           </TabsTrigger>
         </TabsList>
 
@@ -1718,6 +2154,14 @@ export default function Purchasing() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* ── FİYAT KATALOĞU TAB ─────────────────────────────────────────── */}
+      <TabsContent value="catalog" className="mt-6">
+        <PriceCatalogTab
+          companyId={activeCompanyId || ""}
+          suppliers={suppliers}
+        />
+      </TabsContent>
     </div>
   );
 }

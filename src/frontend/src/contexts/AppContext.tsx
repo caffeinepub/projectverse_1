@@ -426,6 +426,7 @@ export interface Expense {
   status: ExpenseStatus;
   description: string;
   createdBy: string;
+  wbsCode?: string;
 }
 
 export interface Invoice {
@@ -657,7 +658,10 @@ export interface AuditLog {
     | "projects"
     | "fieldops"
     | "equipment"
-    | "quotes";
+    | "quotes"
+    | "contracts"
+    | "materialRequests"
+    | "qualitySafety";
   action: string;
   description: string;
   performedBy: string;
@@ -837,6 +841,117 @@ export interface AttendanceRecord {
   notes: string;
 }
 
+// Sözleşme Yönetimi
+export interface Contract {
+  id: string;
+  companyId: string;
+  contractNo: string;
+  clientName: string;
+  projectId: string;
+  projectName: string;
+  amount: number;
+  startDate: string;
+  endDate: string;
+  status: "Taslak" | "Aktif" | "Tamamlandı" | "İptal";
+  description: string;
+  createdAt: string;
+}
+
+export interface ChangeOrder {
+  id: string;
+  companyId: string;
+  contractId: string;
+  orderNo: string;
+  description: string;
+  amount: number;
+  status: "Beklemede" | "Onaylandı" | "Reddedildi";
+  requestedBy: string;
+  createdAt: string;
+}
+
+// Malzeme Talep & RFI
+export interface MaterialRequest {
+  id: string;
+  companyId: string;
+  requestNo: string;
+  projectId: string;
+  projectName: string;
+  requestedBy: string;
+  urgency: "Normal" | "Acil" | "Çok Acil";
+  items: { materialName: string; quantity: number; unit: string }[];
+  status: "Beklemede" | "Onaylandı" | "Reddedildi" | "Satın Almaya Aktarıldı";
+  notes: string;
+  createdAt: string;
+}
+
+export interface RFI {
+  id: string;
+  companyId: string;
+  rfiNo: string;
+  projectId: string;
+  subject: string;
+  question: string;
+  askedBy: string;
+  assignedTo: string;
+  dueDate: string;
+  status: "Açık" | "Yanıtlandı" | "Kapatıldı";
+  response: string;
+  createdAt: string;
+}
+
+// Kalite Kontrol
+export interface QualityChecklist {
+  id: string;
+  companyId: string;
+  projectId: string;
+  title: string;
+  workPackage: string;
+  items: {
+    id: string;
+    description: string;
+    status: "Beklemede" | "Geçti" | "Başarısız";
+    responsible: string;
+    date: string;
+  }[];
+  status: "Açık" | "Tamamlandı";
+  createdAt: string;
+}
+
+export interface NCRRecord {
+  id: string;
+  companyId: string;
+  projectId: string;
+  ncrNo: string;
+  description: string;
+  affectedArea: string;
+  responsible: string;
+  correctiveAction: string;
+  dueDate: string;
+  closureDate: string;
+  status: "Açık" | "Devam Ediyor" | "Kapatıldı";
+  severity: "Düşük" | "Orta" | "Yüksek";
+  createdAt: string;
+}
+
+// WBS
+export interface WBSCode {
+  id: string;
+  companyId: string;
+  code: string;
+  description: string;
+  category: "İşçilik" | "Malzeme" | "Ekipman" | "Genel Gider";
+  projectId?: string;
+}
+
+// Risk Item (for ClientReport usage)
+export interface RiskItem {
+  id: string;
+  companyId: string;
+  projectId: string;
+  title: string;
+  status: string;
+}
+
 interface AppState {
   lang: Lang;
   setLang: (l: Lang) => void;
@@ -1004,6 +1119,27 @@ interface AppState {
   // Puantaj
   attendanceRecords: AttendanceRecord[];
   setAttendanceRecords: (a: AttendanceRecord[]) => void;
+  // Contracts
+  contracts: Contract[];
+  setContracts: (c: Contract[]) => void;
+  changeOrders: ChangeOrder[];
+  setChangeOrders: (c: ChangeOrder[]) => void;
+  // Material Requests & RFI
+  materialRequests: MaterialRequest[];
+  setMaterialRequests: (m: MaterialRequest[]) => void;
+  rfis: RFI[];
+  setRfis: (r: RFI[]) => void;
+  // Quality Checklists & NCR
+  qualityChecklists: QualityChecklist[];
+  setQualityChecklists: (q: QualityChecklist[]) => void;
+  ncrRecords: NCRRecord[];
+  setNcrRecords: (n: NCRRecord[]) => void;
+  // WBS
+  wbsCodes: WBSCode[];
+  setWbsCodes: (w: WBSCode[]) => void;
+  // Risk Items (for cross-module use)
+  riskItems: RiskItem[];
+  setRiskItems: (r: RiskItem[]) => void;
 }
 
 const AppContext = createContext<AppState>(null!);
@@ -1230,6 +1366,31 @@ export function AppProvider({ children }: { children: ReactNode }) {
     AttendanceRecord[]
   >(() => loadCompanyData(activeCompanyId || "", "attendance", []));
 
+  const [contractsState, setContractsState] = useState<Contract[]>(() =>
+    loadCompanyData(activeCompanyId || "", "contracts", []),
+  );
+  const [changeOrdersState, setChangeOrdersState] = useState<ChangeOrder[]>(
+    () => loadCompanyData(activeCompanyId || "", "change_orders", []),
+  );
+  const [materialRequestsState, setMaterialRequestsState] = useState<
+    MaterialRequest[]
+  >(() => loadCompanyData(activeCompanyId || "", "material_requests", []));
+  const [rfisState, setRfisState] = useState<RFI[]>(() =>
+    loadCompanyData(activeCompanyId || "", "rfis", []),
+  );
+  const [qualityChecklistsState, setQualityChecklistsState] = useState<
+    QualityChecklist[]
+  >(() => loadCompanyData(activeCompanyId || "", "quality_checklists", []));
+  const [ncrRecordsState, setNcrRecordsState] = useState<NCRRecord[]>(() =>
+    loadCompanyData(activeCompanyId || "", "ncr_records", []),
+  );
+  const [wbsCodesState, setWbsCodesState] = useState<WBSCode[]>(() =>
+    loadCompanyData(activeCompanyId || "", "wbs_codes", []),
+  );
+  const [riskItemsState, setRiskItemsState] = useState<RiskItem[]>(() =>
+    loadCompanyData(activeCompanyId || "", "risk_items_simple", []),
+  );
+
   const [crmLeads, setCrmLeadsState] = useState<CrmLead[]>(() =>
     initCid
       ? loadCompanyData(initCid, "crm_leads", INITIAL_CRM_LEADS)
@@ -1352,6 +1513,18 @@ export function AppProvider({ children }: { children: ReactNode }) {
       loadCompanyData(companyId, "supplier_evals", []),
     );
     setAttendanceRecordsState(loadCompanyData(companyId, "attendance", []));
+    setContractsState(loadCompanyData(companyId, "contracts", []));
+    setChangeOrdersState(loadCompanyData(companyId, "change_orders", []));
+    setMaterialRequestsState(
+      loadCompanyData(companyId, "material_requests", []),
+    );
+    setRfisState(loadCompanyData(companyId, "rfis", []));
+    setQualityChecklistsState(
+      loadCompanyData(companyId, "quality_checklists", []),
+    );
+    setNcrRecordsState(loadCompanyData(companyId, "ncr_records", []));
+    setWbsCodesState(loadCompanyData(companyId, "wbs_codes", []));
+    setRiskItemsState(loadCompanyData(companyId, "risk_items_simple", []));
     setAuditLogsState(loadCompanyData(companyId, "audit_logs", []));
     setProjectsState(loadCompanyData(companyId, "projects", MOCK_PROJECTS));
     setTasksState(loadCompanyData(companyId, "tasks", MOCK_TASKS));
@@ -1611,6 +1784,38 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const setAttendanceRecords = (a: AttendanceRecord[]) => {
     setAttendanceRecordsState(a);
     saveCompanyData(activeCompanyId, "attendance", a);
+  };
+  const setContracts = (c: Contract[]) => {
+    setContractsState(c);
+    saveCompanyData(activeCompanyId, "contracts", c);
+  };
+  const setChangeOrders = (c: ChangeOrder[]) => {
+    setChangeOrdersState(c);
+    saveCompanyData(activeCompanyId, "change_orders", c);
+  };
+  const setMaterialRequests = (m: MaterialRequest[]) => {
+    setMaterialRequestsState(m);
+    saveCompanyData(activeCompanyId, "material_requests", m);
+  };
+  const setRfis = (r: RFI[]) => {
+    setRfisState(r);
+    saveCompanyData(activeCompanyId, "rfis", r);
+  };
+  const setQualityChecklists = (q: QualityChecklist[]) => {
+    setQualityChecklistsState(q);
+    saveCompanyData(activeCompanyId, "quality_checklists", q);
+  };
+  const setNcrRecords = (n: NCRRecord[]) => {
+    setNcrRecordsState(n);
+    saveCompanyData(activeCompanyId, "ncr_records", n);
+  };
+  const setWbsCodes = (w: WBSCode[]) => {
+    setWbsCodesState(w);
+    saveCompanyData(activeCompanyId, "wbs_codes", w);
+  };
+  const setRiskItems = (r: RiskItem[]) => {
+    setRiskItemsState(r);
+    saveCompanyData(activeCompanyId, "risk_items_simple", r);
   };
 
   // ─── Notifications ─────────────────────────────────────────────────────────
@@ -2227,6 +2432,22 @@ export function AppProvider({ children }: { children: ReactNode }) {
         setSupplierEvaluations,
         attendanceRecords: attendanceRecordsState,
         setAttendanceRecords,
+        contracts: contractsState,
+        setContracts,
+        changeOrders: changeOrdersState,
+        setChangeOrders,
+        materialRequests: materialRequestsState,
+        setMaterialRequests,
+        rfis: rfisState,
+        setRfis,
+        qualityChecklists: qualityChecklistsState,
+        setQualityChecklists,
+        ncrRecords: ncrRecordsState,
+        setNcrRecords,
+        wbsCodes: wbsCodesState,
+        setWbsCodes,
+        riskItems: riskItemsState,
+        setRiskItems,
       }}
     >
       {children}

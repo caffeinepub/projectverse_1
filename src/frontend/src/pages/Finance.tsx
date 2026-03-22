@@ -43,6 +43,7 @@ import {
   Upload,
   X,
 } from "lucide-react";
+import React from "react";
 import { useEffect, useMemo, useState } from "react";
 import AccessDenied from "../components/AccessDenied";
 import { useApp } from "../contexts/AppContext";
@@ -86,6 +87,383 @@ const INVOICE_STATUS_STYLES: Record<InvoiceStatus, string> = {
   Gecikmiş: "bg-rose-500/15 text-rose-400 border border-rose-500/30",
 };
 
+// ── NAKIT AKIŞ BILEŞENI ────────────────────────────────────────────────────
+interface CashFlowEntry {
+  id: string;
+  month: string; // "YYYY-MM"
+  amount: number;
+  type: "gelir" | "gider";
+  category: string;
+  description: string;
+}
+
+function CashFlowTab({ companyId }: { companyId: string }) {
+  const storageKey = `pv_cashflow_${companyId}`;
+
+  const [entries, setEntries] = React.useState<CashFlowEntry[]>(() => {
+    try {
+      const s = localStorage.getItem(`pv_cashflow_${companyId}`);
+      return s ? JSON.parse(s) : [];
+    } catch {
+      return [];
+    }
+  });
+
+  React.useEffect(() => {
+    localStorage.setItem(storageKey, JSON.stringify(entries));
+  }, [entries, storageKey]);
+
+  const [dialogOpen, setDialogOpen] = React.useState(false);
+  const [form, setForm] = React.useState({
+    month: new Date().toISOString().slice(0, 7),
+    amount: "",
+    type: "gelir" as "gelir" | "gider",
+    category: "Diğer",
+    description: "",
+  });
+
+  const handleAdd = () => {
+    if (!form.month || !form.amount) return;
+    setEntries((prev) => [
+      ...prev,
+      {
+        id: Date.now().toString(),
+        month: form.month,
+        amount: Number(form.amount),
+        type: form.type,
+        category: form.category,
+        description: form.description,
+      },
+    ]);
+    setForm({
+      month: new Date().toISOString().slice(0, 7),
+      amount: "",
+      type: "gelir",
+      category: "Diğer",
+      description: "",
+    });
+    setDialogOpen(false);
+  };
+
+  // Build 12-month forward projection
+  const now = new Date();
+  const months = Array.from({ length: 12 }, (_, i) => {
+    const d = new Date(now.getFullYear(), now.getMonth() + i, 1);
+    return d.toISOString().slice(0, 7);
+  });
+
+  const monthData = months.map((m) => {
+    const inc = entries
+      .filter((e) => e.month === m && e.type === "gelir")
+      .reduce((s, e) => s + e.amount, 0);
+    const exp = entries
+      .filter((e) => e.month === m && e.type === "gider")
+      .reduce((s, e) => s + e.amount, 0);
+    const [year, mo] = m.split("-");
+    const label = new Date(Number(year), Number(mo) - 1).toLocaleString(
+      "tr-TR",
+      { month: "short", year: "2-digit" },
+    );
+    return { month: m, label, gelir: inc, gider: exp, net: inc - exp };
+  });
+
+  const totalIncome = monthData.reduce((s, r) => s + r.gelir, 0);
+  const totalExpense = monthData.reduce((s, r) => s + r.gider, 0);
+  const totalNet = totalIncome - totalExpense;
+
+  return (
+    <div className="space-y-5">
+      <div className="flex items-center justify-between">
+        <h2 className="text-lg font-semibold text-foreground">
+          Nakit Akış Projeksiyonu
+        </h2>
+        <Button
+          data-ocid="finance.cashflow.add_button"
+          onClick={() => setDialogOpen(true)}
+          size="sm"
+          className="gradient-bg text-white gap-2"
+        >
+          <Plus className="w-4 h-4" />
+          Kayıt Ekle
+        </Button>
+      </div>
+
+      {/* KPI Row */}
+      <div className="grid grid-cols-3 gap-4">
+        <Card className="bg-card border-border">
+          <CardContent className="pt-4 pb-3 px-4">
+            <p className="text-xs text-muted-foreground">
+              Toplam Gelir (12 Ay)
+            </p>
+            <p className="text-xl font-bold text-green-400 mt-1">
+              {fmt(totalIncome)}
+            </p>
+          </CardContent>
+        </Card>
+        <Card className="bg-card border-border">
+          <CardContent className="pt-4 pb-3 px-4">
+            <p className="text-xs text-muted-foreground">
+              Toplam Gider (12 Ay)
+            </p>
+            <p className="text-xl font-bold text-red-400 mt-1">
+              {fmt(totalExpense)}
+            </p>
+          </CardContent>
+        </Card>
+        <Card className="bg-card border-border">
+          <CardContent className="pt-4 pb-3 px-4">
+            <p className="text-xs text-muted-foreground">Net Nakit Akışı</p>
+            <p
+              className={`text-xl font-bold mt-1 ${totalNet >= 0 ? "text-amber-400" : "text-red-400"}`}
+            >
+              {fmt(totalNet)}
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Chart */}
+      <Card className="bg-card border-border">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm text-muted-foreground">
+            Aylık Nakit Akış Grafiği
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {entries.length === 0 ? (
+            <div
+              data-ocid="finance.cashflow.empty_state"
+              className="flex flex-col items-center justify-center py-10 text-center"
+            >
+              <TrendingUp className="w-10 h-10 text-muted-foreground/30 mb-3" />
+              <p className="text-muted-foreground text-sm">
+                Nakit akış kaydı ekleyin
+              </p>
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-border">
+                    <th className="text-left py-2 text-muted-foreground font-medium">
+                      Ay
+                    </th>
+                    <th className="text-right py-2 text-green-400 font-medium">
+                      Gelir
+                    </th>
+                    <th className="text-right py-2 text-red-400 font-medium">
+                      Gider
+                    </th>
+                    <th className="text-right py-2 text-amber-400 font-medium">
+                      Net
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {monthData
+                    .filter((r) => r.gelir > 0 || r.gider > 0)
+                    .map((row) => (
+                      <tr
+                        key={row.month}
+                        className="border-b border-border/50 hover:bg-muted/20"
+                      >
+                        <td className="py-2 text-foreground">{row.label}</td>
+                        <td className="py-2 text-right text-green-400">
+                          {row.gelir > 0 ? fmt(row.gelir) : "—"}
+                        </td>
+                        <td className="py-2 text-right text-red-400">
+                          {row.gider > 0 ? fmt(row.gider) : "—"}
+                        </td>
+                        <td
+                          className={`py-2 text-right font-medium ${row.net >= 0 ? "text-amber-400" : "text-red-400"}`}
+                        >
+                          {fmt(row.net)}
+                        </td>
+                      </tr>
+                    ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Entries List */}
+      {entries.length > 0 && (
+        <div className="space-y-2">
+          <h3 className="text-sm font-medium text-muted-foreground">
+            Kayıtlar
+          </h3>
+          {entries.map((entry, idx) => (
+            <div
+              key={entry.id}
+              data-ocid={`finance.cashflow.item.${idx + 1}`}
+              className="flex items-center justify-between p-3 bg-card border border-border rounded-lg"
+            >
+              <div className="flex items-center gap-3">
+                <div
+                  className={`w-2 h-2 rounded-full ${entry.type === "gelir" ? "bg-green-400" : "bg-red-400"}`}
+                />
+                <div>
+                  <p className="text-sm font-medium text-foreground">
+                    {entry.description || entry.category}
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    {entry.month} · {entry.category}
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-3">
+                <span
+                  className={`font-semibold ${entry.type === "gelir" ? "text-green-400" : "text-red-400"}`}
+                >
+                  {entry.type === "gelir" ? "+" : "-"}
+                  {fmt(entry.amount)}
+                </span>
+                <Button
+                  data-ocid={`finance.cashflow.delete_button.${idx + 1}`}
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7 text-muted-foreground hover:text-red-400"
+                  onClick={() =>
+                    setEntries((prev) => prev.filter((e) => e.id !== entry.id))
+                  }
+                >
+                  <X className="w-3.5 h-3.5" />
+                </Button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Add Dialog */}
+      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+        <DialogContent
+          data-ocid="finance.cashflow.dialog"
+          className="bg-card border-border max-w-md"
+        >
+          <DialogHeader>
+            <DialogTitle>Nakit Akış Kaydı Ekle</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label>Ay *</Label>
+                <Input
+                  data-ocid="finance.cashflow.month_input"
+                  type="month"
+                  value={form.month}
+                  onChange={(e) =>
+                    setForm((prev) => ({ ...prev, month: e.target.value }))
+                  }
+                  className="bg-background border-border mt-1"
+                />
+              </div>
+              <div>
+                <Label>Tür</Label>
+                <Select
+                  value={form.type}
+                  onValueChange={(v) =>
+                    setForm((prev) => ({
+                      ...prev,
+                      type: v as "gelir" | "gider",
+                    }))
+                  }
+                >
+                  <SelectTrigger
+                    data-ocid="finance.cashflow.type_select"
+                    className="bg-background border-border mt-1"
+                  >
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent className="bg-card border-border">
+                    <SelectItem value="gelir">Gelir</SelectItem>
+                    <SelectItem value="gider">Gider</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div>
+              <Label>Tutar (₺) *</Label>
+              <Input
+                data-ocid="finance.cashflow.amount_input"
+                type="number"
+                value={form.amount}
+                onChange={(e) =>
+                  setForm((prev) => ({ ...prev, amount: e.target.value }))
+                }
+                placeholder="0"
+                className="bg-background border-border mt-1"
+              />
+            </div>
+            <div>
+              <Label>Kategori</Label>
+              <Select
+                value={form.category}
+                onValueChange={(v) =>
+                  setForm((prev) => ({ ...prev, category: v }))
+                }
+              >
+                <SelectTrigger
+                  data-ocid="finance.cashflow.category_select"
+                  className="bg-background border-border mt-1"
+                >
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent className="bg-card border-border">
+                  {[
+                    "Hakediş",
+                    "Kira",
+                    "Malzeme",
+                    "İşçilik",
+                    "Ekipman",
+                    "Vergi",
+                    "Diğer",
+                  ].map((c) => (
+                    <SelectItem key={c} value={c}>
+                      {c}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label>Açıklama</Label>
+              <Input
+                data-ocid="finance.cashflow.description_input"
+                value={form.description}
+                onChange={(e) =>
+                  setForm((prev) => ({ ...prev, description: e.target.value }))
+                }
+                className="bg-background border-border mt-1"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              data-ocid="finance.cashflow.cancel_button"
+              variant="outline"
+              onClick={() => setDialogOpen(false)}
+              className="border-border"
+            >
+              İptal
+            </Button>
+            <Button
+              data-ocid="finance.cashflow.save_button"
+              onClick={handleAdd}
+              disabled={!form.month || !form.amount}
+              className="gradient-bg text-white"
+            >
+              Kaydet
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
 export default function Finance() {
   const {
     activeRoleId,
@@ -101,7 +479,9 @@ export default function Finance() {
     auditLogs,
     hakedisItems,
     setHakedisItems,
+    activeCompanyId,
   } = useApp();
+  const { wbsCodes } = useApp();
 
   const canEdit =
     activeRoleId === "owner" ||
@@ -121,6 +501,7 @@ export default function Finance() {
     category: "Malzeme",
     projectId: "",
     description: "",
+    wbsCode: "",
   });
 
   // Dynamic budget computation from real project + expense data
@@ -326,6 +707,7 @@ export default function Finance() {
       status: "Bekliyor",
       description: newExpense.description,
       createdBy: user?.name || "",
+      wbsCode: newExpense.wbsCode || undefined,
     };
     setExpenses([expense, ...expenses]);
     addAuditLog({
@@ -348,6 +730,7 @@ export default function Finance() {
       category: "Malzeme",
       projectId: "",
       description: "",
+      wbsCode: "",
     });
     setNewExpenseOpen(false);
   };
@@ -424,6 +807,13 @@ export default function Finance() {
             className="text-xs md:text-sm"
           >
             Denetim Logu
+          </TabsTrigger>
+          <TabsTrigger
+            data-ocid="finance.cashflow.tab"
+            value="cashflow"
+            className="data-[state=active]:gradient-bg data-[state=active]:text-white text-xs md:text-sm"
+          >
+            Nakit Akış
           </TabsTrigger>
         </TabsList>
 
@@ -766,6 +1156,31 @@ export default function Finance() {
                       rows={3}
                     />
                   </div>
+                  {wbsCodes.length > 0 && (
+                    <div>
+                      <Label>WBS Kodu (Opsiyonel)</Label>
+                      <Select
+                        value={newExpense.wbsCode}
+                        onValueChange={(v) =>
+                          setNewExpense({ ...newExpense, wbsCode: v })
+                        }
+                      >
+                        <SelectTrigger
+                          data-ocid="finance.expense.wbs.select"
+                          className="bg-background border-border mt-1"
+                        >
+                          <SelectValue placeholder="WBS kodu seçin..." />
+                        </SelectTrigger>
+                        <SelectContent className="bg-card border-border">
+                          {wbsCodes.map((w: any) => (
+                            <SelectItem key={w.id} value={w.code}>
+                              {w.code} - {w.description}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
                 </div>
                 <DialogFooter>
                   <Button
@@ -1687,6 +2102,11 @@ export default function Finance() {
               </tbody>
             </table>
           </div>
+        </TabsContent>
+
+        {/* ── NAKİT AKIŞ TAB ─────────────────────────────────────────────── */}
+        <TabsContent value="cashflow" className="space-y-5">
+          <CashFlowTab companyId={activeCompanyId || ""} />
         </TabsContent>
       </Tabs>
     </div>

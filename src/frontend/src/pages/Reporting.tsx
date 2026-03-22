@@ -21,6 +21,7 @@ import {
   TrendingUp,
   Users,
 } from "lucide-react";
+import React from "react";
 import { useEffect, useState } from "react";
 import {
   Bar,
@@ -82,6 +83,213 @@ const PIE_COLORS = [
   "oklch(0.6 0.18 300)",
 ];
 
+// ── KAPANIŞ RAPORU BİLEŞENİ ─────────────────────────────────────────────────
+interface ClosureProject {
+  id: string;
+  title: string;
+  budget?: number;
+  companyId: string;
+  status: string;
+  startDate?: string;
+  endDate?: string;
+}
+
+function ClosureReportsTab({
+  projects,
+  tasks,
+  expenses,
+  companyId,
+}: {
+  projects: ClosureProject[];
+  tasks: Array<{ projectId: string; status: string }>;
+  expenses: Array<{ projectId?: string; amount: number; status?: string }>;
+  companyId: string;
+}) {
+  const completedProjects = projects.filter(
+    (p) => p.companyId === companyId && p.status === "Tamamlandı",
+  );
+
+  const [selectedId, setSelectedId] = React.useState<string | null>(null);
+
+  const getProjectStats = (p: ClosureProject) => {
+    const projTasks = tasks.filter((t) => t.projectId === p.id);
+    const doneTasks = projTasks.filter((t) => t.status === "done").length;
+    const projExpenses = expenses
+      .filter((e) => e.projectId === p.id)
+      .reduce((s, e) => s + (e.amount || 0), 0);
+    const budgetVariance = (p.budget || 0) - projExpenses;
+    const completionRate =
+      projTasks.length > 0
+        ? Math.round((doneTasks / projTasks.length) * 100)
+        : 0;
+
+    let durationDays: number | null = null;
+    if (p.startDate && p.endDate) {
+      durationDays = Math.ceil(
+        (new Date(p.endDate).getTime() - new Date(p.startDate).getTime()) /
+          (1000 * 60 * 60 * 24),
+      );
+    }
+
+    return {
+      projTasks,
+      doneTasks,
+      projExpenses,
+      budgetVariance,
+      completionRate,
+      durationDays,
+    };
+  };
+
+  if (completedProjects.length === 0) {
+    return (
+      <div
+        data-ocid="reporting.closure.empty_state"
+        className="flex flex-col items-center justify-center py-20 text-center"
+      >
+        <FolderKanban className="w-14 h-14 text-muted-foreground/30 mb-4" />
+        <h3 className="text-lg font-semibold text-foreground mb-2">
+          Tamamlanan Proje Yok
+        </h3>
+        <p className="text-muted-foreground text-sm">
+          Durumu "Tamamlandı" olan projeler burada görünecek
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-5">
+      <h2 className="text-lg font-semibold text-foreground">
+        Proje Kapanış Raporları
+      </h2>
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        {completedProjects.map((project, idx) => {
+          const stats = getProjectStats(project);
+          return (
+            <Card
+              key={project.id}
+              data-ocid={`reporting.closure.item.${idx + 1}`}
+              className="bg-card border-border hover:border-amber-500/50 transition-colors cursor-pointer"
+              onClick={() =>
+                setSelectedId(selectedId === project.id ? null : project.id)
+              }
+            >
+              <CardHeader className="pb-3">
+                <div className="flex items-start justify-between gap-2">
+                  <CardTitle className="text-sm font-semibold text-foreground leading-tight">
+                    {project.title}
+                  </CardTitle>
+                  <Badge className="bg-green-500/15 text-green-400 border-green-500/30 border text-xs flex-shrink-0">
+                    Tamamlandı
+                  </Badge>
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <p className="text-xs text-muted-foreground">Bütçe</p>
+                    <p className="text-sm font-semibold text-foreground">
+                      {(project.budget || 0).toLocaleString("tr-TR")} ₺
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">Gerçekleşen</p>
+                    <p className="text-sm font-semibold text-foreground">
+                      {stats.projExpenses.toLocaleString("tr-TR")} ₺
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">Bütçe Farkı</p>
+                    <p
+                      className={`text-sm font-semibold ${stats.budgetVariance >= 0 ? "text-green-400" : "text-red-400"}`}
+                    >
+                      {stats.budgetVariance >= 0 ? "+" : ""}
+                      {stats.budgetVariance.toLocaleString("tr-TR")} ₺
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">
+                      Görev Tamamlama
+                    </p>
+                    <p className="text-sm font-semibold text-amber-400">
+                      %{stats.completionRate}
+                    </p>
+                  </div>
+                </div>
+                <div className="pt-2 border-t border-border/50">
+                  <div className="flex justify-between text-xs text-muted-foreground">
+                    <span>
+                      Görevler: {stats.doneTasks}/{stats.projTasks.length}
+                    </span>
+                    {stats.durationDays !== null && (
+                      <span>Süre: {stats.durationDays} gün</span>
+                    )}
+                  </div>
+                </div>
+                {selectedId === project.id && (
+                  <div className="pt-2 border-t border-border/50 space-y-2">
+                    <p className="text-xs font-semibold text-amber-400 uppercase tracking-wide">
+                      Kapanış Özeti
+                    </p>
+                    <div className="space-y-1 text-xs">
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">
+                          Başlangıç:
+                        </span>
+                        <span className="text-foreground">
+                          {project.startDate || "—"}
+                        </span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Bitiş:</span>
+                        <span className="text-foreground">
+                          {project.endDate || "—"}
+                        </span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">
+                          Bütçe Kullanımı:
+                        </span>
+                        <span
+                          className={
+                            (project.budget ?? 0) > 0
+                              ? stats.projExpenses / (project.budget ?? 1) > 1
+                                ? "text-red-400"
+                                : "text-green-400"
+                              : "text-foreground"
+                          }
+                        >
+                          {(project.budget ?? 0) > 0
+                            ? `%${Math.round((stats.projExpenses / (project.budget ?? 1)) * 100)}`
+                            : "—"}
+                        </span>
+                      </div>
+                    </div>
+                    <Button
+                      data-ocid={`reporting.closure.print_button.${idx + 1}`}
+                      size="sm"
+                      variant="outline"
+                      className="w-full border-border text-xs mt-2"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        window.print();
+                      }}
+                    >
+                      <Download className="w-3.5 h-3.5 mr-1" />
+                      Yazdır / Dışa Aktar
+                    </Button>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 export default function Reporting() {
   const {
     activeRoleId,
@@ -99,6 +307,14 @@ export default function Reporting() {
     maintenanceFaults,
     payrollRecords,
     quotes,
+    contracts,
+    materialRequests,
+    rfis,
+    isgIncidents,
+    riskItems,
+    ncrRecords,
+    qualityChecklists,
+    hakedisItems,
   } = useApp();
 
   const canView =
@@ -109,6 +325,7 @@ export default function Reporting() {
     checkPermission("reporting", "view");
 
   const [period, setPeriod] = useState("Son 6 Ay");
+  const [activeTab, setActiveTab] = useState("genel");
 
   const filterByPeriod = (date: string): boolean => {
     if (!date) return true;
@@ -585,1109 +802,2172 @@ export default function Reporting() {
         </div>
       </div>
 
-      {/* KPI Cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
-        {kpis.map((kpi, idx) => (
-          <Card
-            key={kpi.label}
-            data-ocid={`reporting.kpi.card.${idx + 1}`}
-            className={`bg-gradient-to-br border ${kpi.bg}`}
+      {/* Tab Navigation */}
+      <div className="flex gap-1 bg-card border border-border rounded-lg p-1 flex-wrap">
+        {[
+          { id: "genel", label: "Genel Bakış" },
+          { id: "sozlesme", label: "Sözleşme & Hakediş" },
+          { id: "risk", label: "Risk & Kalite" },
+          { id: "isg", label: "İSG & Saha" },
+          { id: "kapanış", label: "Kapanış Raporları" },
+        ].map((tab) => (
+          <button
+            type="button"
+            key={tab.id}
+            data-ocid={`reporting.${tab.id}.tab`}
+            onClick={() => setActiveTab(tab.id)}
+            className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+              activeTab === tab.id
+                ? "bg-amber-500/20 text-amber-400 border border-amber-500/30"
+                : "text-muted-foreground hover:text-foreground hover:bg-accent"
+            }`}
           >
-            <CardHeader className="flex flex-row items-center justify-between pb-2 pt-4 px-4">
-              <CardTitle className="text-xs font-medium text-muted-foreground">
-                {kpi.label}
-              </CardTitle>
-              <span className={kpi.color}>{kpi.icon}</span>
-            </CardHeader>
-            <CardContent className="px-4 pb-4">
-              <div className={`text-2xl font-bold ${kpi.color}`}>
-                {kpi.value}
-              </div>
-              <p className="text-xs text-muted-foreground mt-1">{kpi.sub}</p>
-            </CardContent>
-          </Card>
+            {tab.label}
+          </button>
         ))}
       </div>
 
-      {/* Charts Row 1 */}
-      <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
-        <Card
-          data-ocid="reporting.budget.chart"
-          className="bg-card border-border xl:col-span-2"
-        >
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-base">
-              <BarChart3 className="w-4 h-4 text-muted-foreground" />
-              Proje Bazında Bütçe Karşılaştırması
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            {budgetData.length === 0 ? (
-              <div
-                data-ocid="reporting.budget.empty_state"
-                className="flex items-center justify-center h-40 text-muted-foreground text-sm"
-              >
-                Henüz proje verisi yok.
-              </div>
-            ) : (
-              <ResponsiveContainer width="100%" height={240}>
-                <BarChart
-                  data={budgetData}
-                  margin={{ top: 4, right: 8, left: 8, bottom: 4 }}
-                >
-                  <CartesianGrid
-                    strokeDasharray="3 3"
-                    stroke="oklch(0.26 0.01 264)"
-                  />
-                  <XAxis
-                    dataKey="project"
-                    tick={{ fill: "oklch(0.6 0.02 264)", fontSize: 11 }}
-                    axisLine={{ stroke: "oklch(0.26 0.01 264)" }}
-                    tickLine={false}
-                  />
-                  <YAxis
-                    tick={{ fill: "oklch(0.6 0.02 264)", fontSize: 11 }}
-                    axisLine={false}
-                    tickLine={false}
-                    tickFormatter={(v: number) =>
-                      `${(v / 1000000).toFixed(1)}M`
-                    }
-                  />
-                  <Tooltip
-                    contentStyle={chartTooltipStyle}
-                    formatter={(value: number) =>
-                      `₺${value.toLocaleString("tr-TR")}`
-                    }
-                  />
-                  <Legend
-                    wrapperStyle={{
-                      fontSize: 12,
-                      color: "oklch(0.6 0.02 264)",
-                    }}
-                  />
-                  <Bar
-                    dataKey="Planlanan"
-                    fill="oklch(0.55 0.18 264)"
-                    radius={[4, 4, 0, 0]}
-                  />
-                  <Bar
-                    dataKey="Gerçekleşen"
-                    fill="oklch(0.55 0.22 300)"
-                    radius={[4, 4, 0, 0]}
-                  />
-                </BarChart>
-              </ResponsiveContainer>
-            )}
-          </CardContent>
-        </Card>
-
-        <Card
-          data-ocid="reporting.project_status.chart"
-          className="bg-card border-border"
-        >
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-base">
-              <FolderKanban className="w-4 h-4 text-muted-foreground" />
-              Proje Durum Dağılımı
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            {statusPieData.length === 0 ? (
-              <div
-                data-ocid="reporting.status.empty_state"
-                className="flex items-center justify-center h-40 text-muted-foreground text-sm"
-              >
-                Henüz proje yok.
-              </div>
-            ) : (
-              <>
-                <ResponsiveContainer width="100%" height={180}>
-                  <PieChart>
-                    <Pie
-                      data={statusPieData}
-                      cx="50%"
-                      cy="50%"
-                      innerRadius={50}
-                      outerRadius={75}
-                      paddingAngle={3}
-                      dataKey="value"
-                    >
-                      {statusPieData.map((entry, index) => (
-                        <Cell
-                          key={`cell-${entry.name}`}
-                          fill={PIE_COLORS[index % PIE_COLORS.length]}
-                        />
-                      ))}
-                    </Pie>
-                    <Tooltip contentStyle={chartTooltipStyle} />
-                  </PieChart>
-                </ResponsiveContainer>
-                <div className="space-y-1 mt-2">
-                  {statusPieData.map((entry, index) => (
-                    <div
-                      key={entry.name}
-                      className="flex items-center justify-between text-xs"
-                    >
-                      <div className="flex items-center gap-2">
-                        <div
-                          className="w-2.5 h-2.5 rounded-full"
-                          style={{
-                            backgroundColor:
-                              PIE_COLORS[index % PIE_COLORS.length],
-                          }}
-                        />
-                        <span className="text-muted-foreground">
-                          {entry.name}
-                        </span>
-                      </div>
-                      <Badge variant="outline" className="text-xs">
-                        {entry.value}
-                      </Badge>
-                    </div>
-                  ))}
-                </div>
-              </>
-            )}
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Charts Row 2 */}
-      <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
-        <Card
-          data-ocid="reporting.expense.chart"
-          className="bg-card border-border xl:col-span-2"
-        >
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-base">
-              <Activity className="w-4 h-4 text-muted-foreground" />
-              Aylık Gider Trendi
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <ResponsiveContainer width="100%" height={240}>
-              <LineChart
-                data={expenseTrend}
-                margin={{ top: 4, right: 8, left: 8, bottom: 4 }}
-              >
-                <CartesianGrid
-                  strokeDasharray="3 3"
-                  stroke="oklch(0.26 0.01 264)"
-                />
-                <XAxis
-                  dataKey="ay"
-                  tick={{ fill: "oklch(0.6 0.02 264)", fontSize: 11 }}
-                  axisLine={{ stroke: "oklch(0.26 0.01 264)" }}
-                  tickLine={false}
-                />
-                <YAxis
-                  tick={{ fill: "oklch(0.6 0.02 264)", fontSize: 11 }}
-                  axisLine={false}
-                  tickLine={false}
-                  tickFormatter={(v: number) => `${(v / 1000).toFixed(0)}K`}
-                />
-                <Tooltip
-                  contentStyle={chartTooltipStyle}
-                  formatter={(value: number) =>
-                    `₺${value.toLocaleString("tr-TR")}`
-                  }
-                />
-                <Line
-                  type="monotone"
-                  dataKey="toplam"
-                  stroke="oklch(0.7 0.18 200)"
-                  strokeWidth={2}
-                  dot={{ fill: "oklch(0.7 0.18 200)", r: 4 }}
-                  activeDot={{ r: 6 }}
-                  name="Toplam Gider"
-                />
-              </LineChart>
-            </ResponsiveContainer>
-          </CardContent>
-        </Card>
-
-        <Card
-          data-ocid="reporting.personnel_dept.chart"
-          className="bg-card border-border"
-        >
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-base">
-              <Users className="w-4 h-4 text-muted-foreground" />
-              Personel Departman Dağılımı
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            {deptPieData.length === 0 ? (
-              <div
-                data-ocid="reporting.dept.empty_state"
-                className="flex items-center justify-center h-40 text-muted-foreground text-sm"
-              >
-                Henüz personel yok.
-              </div>
-            ) : (
-              <>
-                <ResponsiveContainer width="100%" height={180}>
-                  <PieChart>
-                    <Pie
-                      data={deptPieData}
-                      cx="50%"
-                      cy="50%"
-                      innerRadius={50}
-                      outerRadius={75}
-                      paddingAngle={3}
-                      dataKey="value"
-                    >
-                      {deptPieData.map((entry, index) => (
-                        <Cell
-                          key={`cell-dept-${entry.name}`}
-                          fill={PIE_COLORS[index % PIE_COLORS.length]}
-                        />
-                      ))}
-                    </Pie>
-                    <Tooltip contentStyle={chartTooltipStyle} />
-                  </PieChart>
-                </ResponsiveContainer>
-                <div className="space-y-1 mt-2">
-                  {deptPieData.map((entry, index) => (
-                    <div
-                      key={entry.name}
-                      className="flex items-center justify-between text-xs"
-                    >
-                      <div className="flex items-center gap-2">
-                        <div
-                          className="w-2.5 h-2.5 rounded-full"
-                          style={{
-                            backgroundColor:
-                              PIE_COLORS[index % PIE_COLORS.length],
-                          }}
-                        />
-                        <span className="text-muted-foreground">
-                          {entry.name}
-                        </span>
-                      </div>
-                      <Badge variant="outline" className="text-xs">
-                        {entry.value}
-                      </Badge>
-                    </div>
-                  ))}
-                </div>
-              </>
-            )}
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Project Progress Cards */}
-      <div>
-        <h2 className="text-lg font-semibold text-foreground mb-4">
-          Proje İlerleme Durumu
-        </h2>
-        {projectCards.length === 0 ? (
-          <div
-            data-ocid="reporting.projects.empty_state"
-            className="text-center py-12 text-muted-foreground bg-card border border-border rounded-xl"
-          >
-            <FolderKanban className="h-10 w-10 mx-auto mb-3 opacity-20" />
-            <p className="text-sm">Henüz proje bulunmuyor.</p>
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-            {projectCards.map((proj, idx) => (
+      {activeTab === "genel" && (
+        <>
+          {/* KPI Cards */}
+          <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
+            {kpis.map((kpi, idx) => (
               <Card
-                key={proj.name}
-                data-ocid={`reporting.project.card.${idx + 1}`}
-                className={`bg-gradient-to-br border ${proj.gradient}`}
+                key={kpi.label}
+                data-ocid={`reporting.kpi.card.${idx + 1}`}
+                className={`bg-gradient-to-br border ${kpi.bg}`}
               >
-                <CardHeader className="pb-3">
-                  <div className="flex items-center justify-between">
-                    <CardTitle className="text-base">{proj.name}</CardTitle>
-                    <span className={`text-2xl font-bold ${proj.accent}`}>
-                      {proj.progress}%
-                    </span>
-                  </div>
-                  <Badge variant="outline" className="w-fit text-xs">
-                    {proj.status}
-                  </Badge>
+                <CardHeader className="flex flex-row items-center justify-between pb-2 pt-4 px-4">
+                  <CardTitle className="text-xs font-medium text-muted-foreground">
+                    {kpi.label}
+                  </CardTitle>
+                  <span className={kpi.color}>{kpi.icon}</span>
                 </CardHeader>
-                <CardContent className="space-y-3">
-                  <Progress value={proj.progress} className="h-2" />
-                  <div className="grid grid-cols-2 gap-2 text-sm">
-                    <div>
-                      <p className="text-muted-foreground text-xs">Görevler</p>
-                      <p className="font-medium">
-                        {proj.tasksDone}/{proj.tasksTotal}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-muted-foreground text-xs">
-                        Tamamlanma
-                      </p>
-                      <p className={`font-medium ${proj.accent}`}>
-                        {proj.progress}%
-                      </p>
-                    </div>
+                <CardContent className="px-4 pb-4">
+                  <div className={`text-2xl font-bold ${kpi.color}`}>
+                    {kpi.value}
                   </div>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {kpi.sub}
+                  </p>
                 </CardContent>
               </Card>
             ))}
           </div>
-        )}
 
-        {/* Extended Analytics Grid */}
-        <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-          {/* A. Overtime Summary */}
-          <Card
-            data-ocid="reporting.overtime.card"
-            className="bg-[oklch(0.18_0.02_264)] border border-border"
-          >
-            <CardHeader className="pb-3">
-              <CardTitle className="flex items-center gap-2 text-base">
-                <Clock className="h-4 w-4 text-amber-400" />
-                Personel Mesai Özeti
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              {overtimeSummary.length === 0 ? (
-                <div
-                  data-ocid="reporting.overtime.empty_state"
-                  className="text-center py-10 text-muted-foreground"
-                >
-                  <Clock className="h-8 w-8 mx-auto mb-2 opacity-20" />
-                  <p className="text-sm">Onaylı mesai kaydı bulunmuyor.</p>
-                </div>
-              ) : (
-                <ResponsiveContainer width="100%" height={250}>
-                  <BarChart
-                    data={overtimeSummary}
-                    layout="vertical"
-                    margin={{ top: 4, right: 16, left: 8, bottom: 4 }}
-                  >
-                    <CartesianGrid
-                      strokeDasharray="3 3"
-                      stroke="oklch(0.3 0.01 264)"
-                    />
-                    <XAxis
-                      type="number"
-                      tick={{ fill: "oklch(0.7 0.02 264)", fontSize: 11 }}
-                    />
-                    <YAxis
-                      type="category"
-                      dataKey="name"
-                      tick={{ fill: "oklch(0.7 0.02 264)", fontSize: 11 }}
-                      width={90}
-                    />
-                    <Tooltip
-                      contentStyle={{
-                        backgroundColor: "oklch(0.18 0.02 264)",
-                        border: "1px solid oklch(0.3 0.02 264)",
-                        borderRadius: "8px",
-                      }}
-                      labelStyle={{ color: "oklch(0.9 0.02 264)" }}
-                    />
-                    <Bar
-                      dataKey="hours"
-                      fill="oklch(0.7 0.18 60)"
-                      radius={[0, 4, 4, 0]}
-                      name="Mesai (saat)"
-                    />
-                  </BarChart>
-                </ResponsiveContainer>
-              )}
-            </CardContent>
-          </Card>
-
-          {/* B. Milestone Progress */}
-          <Card
-            data-ocid="reporting.milestones.card"
-            className="bg-[oklch(0.18_0.02_264)] border border-border"
-          >
-            <CardHeader className="pb-3">
-              <CardTitle className="flex items-center gap-2 text-base">
-                <Layers className="h-4 w-4 text-emerald-400" />
-                Kilometre Taşı İlerlemesi
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              {milestoneSummary.length === 0 ? (
-                <div
-                  data-ocid="reporting.milestones.empty_state"
-                  className="text-center py-10 text-muted-foreground"
-                >
-                  <Layers className="h-8 w-8 mx-auto mb-2 opacity-20" />
-                  <p className="text-sm">Henüz kilometre taşı bulunmuyor.</p>
-                </div>
-              ) : (
-                <ResponsiveContainer width="100%" height={250}>
-                  <BarChart
-                    data={milestoneSummary}
-                    margin={{ top: 4, right: 16, left: 0, bottom: 4 }}
-                  >
-                    <CartesianGrid
-                      strokeDasharray="3 3"
-                      stroke="oklch(0.3 0.01 264)"
-                    />
-                    <XAxis
-                      dataKey="name"
-                      tick={{ fill: "oklch(0.7 0.02 264)", fontSize: 10 }}
-                    />
-                    <YAxis
-                      tick={{ fill: "oklch(0.7 0.02 264)", fontSize: 11 }}
-                    />
-                    <Tooltip
-                      contentStyle={{
-                        backgroundColor: "oklch(0.18 0.02 264)",
-                        border: "1px solid oklch(0.3 0.02 264)",
-                        borderRadius: "8px",
-                      }}
-                      labelStyle={{ color: "oklch(0.9 0.02 264)" }}
-                    />
-                    <Legend wrapperStyle={{ fontSize: "11px" }} />
-                    <Bar
-                      dataKey="total"
-                      fill="oklch(0.45 0.02 264)"
-                      name="Toplam"
-                      radius={[4, 4, 0, 0]}
-                    />
-                    <Bar
-                      dataKey="completed"
-                      fill="oklch(0.6 0.18 160)"
-                      name="Tamamlanan"
-                      radius={[4, 4, 0, 0]}
-                    />
-                  </BarChart>
-                </ResponsiveContainer>
-              )}
-            </CardContent>
-          </Card>
-
-          {/* C. CRM Sales Funnel */}
-          <Card
-            data-ocid="reporting.crm_funnel.card"
-            className="bg-[oklch(0.18_0.02_264)] border border-border"
-          >
-            <CardHeader className="pb-3">
-              <CardTitle className="flex items-center gap-2 text-base">
-                <TrendingUp className="h-4 w-4 text-violet-400" />
-                CRM Satış Hunisi
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              {crmFunnelData.length === 0 ||
-              crmFunnelData.every((d) => d.count === 0) ? (
-                <div
-                  data-ocid="reporting.crm_funnel.empty_state"
-                  className="text-center py-10 text-muted-foreground"
-                >
-                  <TrendingUp className="h-8 w-8 mx-auto mb-2 opacity-20" />
-                  <p className="text-sm">Henüz CRM kaydı bulunmuyor.</p>
-                </div>
-              ) : (
-                <ResponsiveContainer width="100%" height={250}>
-                  <BarChart
-                    data={crmFunnelData}
-                    margin={{ top: 4, right: 16, left: 0, bottom: 40 }}
-                  >
-                    <CartesianGrid
-                      strokeDasharray="3 3"
-                      stroke="oklch(0.3 0.01 264)"
-                    />
-                    <XAxis
-                      dataKey="stage"
-                      tick={{ fill: "oklch(0.7 0.02 264)", fontSize: 10 }}
-                      angle={-30}
-                      textAnchor="end"
-                      interval={0}
-                    />
-                    <YAxis
-                      tick={{ fill: "oklch(0.7 0.02 264)", fontSize: 11 }}
-                    />
-                    <Tooltip
-                      contentStyle={{
-                        backgroundColor: "oklch(0.18 0.02 264)",
-                        border: "1px solid oklch(0.3 0.02 264)",
-                        borderRadius: "8px",
-                      }}
-                      labelStyle={{ color: "oklch(0.9 0.02 264)" }}
-                    />
-                    <Bar
-                      dataKey="count"
-                      fill="oklch(0.55 0.18 290)"
-                      radius={[4, 4, 0, 0]}
-                      name="Lead Sayısı"
-                    />
-                  </BarChart>
-                </ResponsiveContainer>
-              )}
-            </CardContent>
-          </Card>
-
-          {/* D. Budget P&L Table */}
-          <Card
-            data-ocid="reporting.budget_table.card"
-            className="bg-[oklch(0.18_0.02_264)] border border-border"
-          >
-            <CardHeader className="pb-3">
-              <CardTitle className="flex items-center gap-2 text-base">
-                <DollarSign className="h-4 w-4 text-amber-400" />
-                Proje Bütçe Kar/Zarar
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              {budgetPL.length === 0 ? (
-                <div
-                  data-ocid="reporting.budget_table.empty_state"
-                  className="text-center py-10 text-muted-foreground"
-                >
-                  <DollarSign className="h-8 w-8 mx-auto mb-2 opacity-20" />
-                  <p className="text-sm">Henüz proje bulunmuyor.</p>
-                </div>
-              ) : (
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="border-b border-border">
-                        <th className="text-left py-2 pr-3 text-muted-foreground font-medium">
-                          Proje
-                        </th>
-                        <th className="text-right py-2 pr-3 text-muted-foreground font-medium">
-                          Planlanan
-                        </th>
-                        <th className="text-right py-2 pr-3 text-muted-foreground font-medium">
-                          Gerçekleşen
-                        </th>
-                        <th className="text-right py-2 text-muted-foreground font-medium">
-                          Fark
-                        </th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {budgetPL.map((row) => (
-                        <tr
-                          key={row.name}
-                          className="border-b border-border/40 hover:bg-white/5 transition-colors"
-                        >
-                          <td className="py-2 pr-3 font-medium truncate max-w-[120px]">
-                            {row.name}
-                          </td>
-                          <td className="py-2 pr-3 text-right text-muted-foreground">
-                            ₺{row.budget.toLocaleString("tr-TR")}
-                          </td>
-                          <td className="py-2 pr-3 text-right text-muted-foreground">
-                            ₺{row.spent.toLocaleString("tr-TR")}
-                          </td>
-                          <td
-                            className={`py-2 text-right font-semibold ${row.diff >= 0 ? "text-emerald-400" : "text-rose-400"}`}
-                          >
-                            {row.diff >= 0 ? "+" : ""}₺
-                            {row.diff.toLocaleString("tr-TR")}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-          {/* E. Equipment Analytics */}
-          <Card
-            data-ocid="reporting.equipment.card"
-            className="bg-[oklch(0.18_0.02_264)] border border-border xl:col-span-2"
-          >
-            <CardHeader className="pb-3">
-              <CardTitle className="flex items-center gap-2 text-base">
-                <Layers className="h-4 w-4 text-amber-400" />
-                Ekipman Analizi
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid grid-cols-4 gap-3">
-                {[
-                  {
-                    label: "Toplam",
-                    value: companyEquipment.length,
-                    color: "text-foreground",
-                  },
-                  {
-                    label: "Aktif",
-                    value: companyEquipment.filter((e) => e.status === "active")
-                      .length,
-                    color: "text-emerald-400",
-                  },
-                  {
-                    label: "Bakımda",
-                    value: companyEquipment.filter(
-                      (e) => e.status === "maintenance",
-                    ).length,
-                    color: "text-amber-400",
-                  },
-                  {
-                    label: "Arızalı",
-                    value: companyEquipment.filter((e) => e.status === "broken")
-                      .length,
-                    color: "text-rose-400",
-                  },
-                ].map((kpi) => (
+          {/* Charts Row 1 */}
+          <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
+            <Card
+              data-ocid="reporting.budget.chart"
+              className="bg-card border-border xl:col-span-2"
+            >
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-base">
+                  <BarChart3 className="w-4 h-4 text-muted-foreground" />
+                  Proje Bazında Bütçe Karşılaştırması
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {budgetData.length === 0 ? (
                   <div
-                    key={kpi.label}
-                    className="rounded-lg bg-white/5 p-3 text-center"
+                    data-ocid="reporting.budget.empty_state"
+                    className="flex items-center justify-center h-40 text-muted-foreground text-sm"
                   >
-                    <p className={`text-xl font-bold ${kpi.color}`}>
-                      {kpi.value}
-                    </p>
-                    <p className="text-xs text-muted-foreground mt-0.5">
-                      {kpi.label}
-                    </p>
+                    Henüz proje verisi yok.
                   </div>
-                ))}
-              </div>
-              {companyEquipment.length === 0 ? (
-                <div
-                  data-ocid="reporting.equipment.empty_state"
-                  className="text-center py-8 text-muted-foreground"
-                >
-                  <Layers className="h-8 w-8 mx-auto mb-2 opacity-20" />
-                  <p className="text-sm">Henüz ekipman kaydı bulunmuyor.</p>
-                </div>
-              ) : (
-                <ResponsiveContainer width="100%" height={180}>
-                  <BarChart
-                    data={[
-                      {
-                        durum: "Aktif",
-                        adet: companyEquipment.filter(
-                          (e) => e.status === "active",
-                        ).length,
-                      },
-                      {
-                        durum: "Bakımda",
-                        adet: companyEquipment.filter(
-                          (e) => e.status === "maintenance",
-                        ).length,
-                      },
-                      {
-                        durum: "Arızalı",
-                        adet: companyEquipment.filter(
-                          (e) => e.status === "broken",
-                        ).length,
-                      },
-                      {
-                        durum: "Boşta",
-                        adet: companyEquipment.filter(
-                          (e) => e.status === "idle",
-                        ).length,
-                      },
-                    ]}
-                    margin={{ top: 4, right: 8, left: 0, bottom: 4 }}
-                  >
-                    <CartesianGrid
-                      strokeDasharray="3 3"
-                      stroke="oklch(0.3 0.01 264)"
-                    />
-                    <XAxis
-                      dataKey="durum"
-                      tick={{ fill: "oklch(0.7 0.02 264)", fontSize: 11 }}
-                      axisLine={false}
-                      tickLine={false}
-                    />
-                    <YAxis
-                      tick={{ fill: "oklch(0.7 0.02 264)", fontSize: 11 }}
-                      axisLine={false}
-                      tickLine={false}
-                    />
-                    <Tooltip
-                      contentStyle={{
-                        backgroundColor: "oklch(0.18 0.02 264)",
-                        border: "1px solid oklch(0.3 0.02 264)",
-                        borderRadius: "8px",
-                      }}
-                    />
-                    <Bar
-                      dataKey="adet"
-                      radius={[4, 4, 0, 0]}
-                      name="Ekipman Sayısı"
+                ) : (
+                  <ResponsiveContainer width="100%" height={240}>
+                    <BarChart
+                      data={budgetData}
+                      margin={{ top: 4, right: 8, left: 8, bottom: 4 }}
                     >
-                      {[
-                        "oklch(0.6 0.18 160)",
-                        "oklch(0.7 0.18 60)",
-                        "oklch(0.6 0.2 10)",
-                        "oklch(0.55 0.02 264)",
-                      ].map((color) => (
-                        <Cell key={color} fill={color} />
-                      ))}
-                    </Bar>
-                  </BarChart>
-                </ResponsiveContainer>
-              )}
-              {openFaults.length > 0 && (
-                <div>
-                  <p className="text-xs font-medium text-muted-foreground mb-2">
-                    Açık Arızalar / Bakımlar
-                  </p>
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-sm">
-                      <thead>
-                        <tr className="border-b border-border">
-                          <th className="text-left py-1.5 pr-3 text-muted-foreground font-medium text-xs">
-                            Ekipman
-                          </th>
-                          <th className="text-left py-1.5 pr-3 text-muted-foreground font-medium text-xs">
-                            Tür
-                          </th>
-                          <th className="text-left py-1.5 text-muted-foreground font-medium text-xs">
-                            Açıklama
-                          </th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {openFaults.slice(0, 5).map((fault, idx) => {
-                          const eq = companyEquipment.find(
-                            (e) =>
-                              e.id ===
-                              (fault as { equipmentId: string }).equipmentId,
-                          );
-                          return (
-                            <tr
-                              key={(fault as { id: string }).id || String(idx)}
-                              className="border-b border-border/40"
-                            >
-                              <td className="py-1.5 pr-3 font-medium text-xs">
-                                {eq?.name || "—"}
-                              </td>
-                              <td className="py-1.5 pr-3 text-xs text-amber-400">
-                                {(fault as { type: string }).type ===
-                                "maintenance"
-                                  ? "Bakım"
-                                  : "Arıza"}
-                              </td>
-                              <td className="py-1.5 text-xs text-muted-foreground truncate max-w-[160px]">
-                                {(fault as { description: string }).description}
-                              </td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              )}
-            </CardContent>
-          </Card>
+                      <CartesianGrid
+                        strokeDasharray="3 3"
+                        stroke="oklch(0.26 0.01 264)"
+                      />
+                      <XAxis
+                        dataKey="project"
+                        tick={{ fill: "oklch(0.6 0.02 264)", fontSize: 11 }}
+                        axisLine={{ stroke: "oklch(0.26 0.01 264)" }}
+                        tickLine={false}
+                      />
+                      <YAxis
+                        tick={{ fill: "oklch(0.6 0.02 264)", fontSize: 11 }}
+                        axisLine={false}
+                        tickLine={false}
+                        tickFormatter={(v: number) =>
+                          `${(v / 1000000).toFixed(1)}M`
+                        }
+                      />
+                      <Tooltip
+                        contentStyle={chartTooltipStyle}
+                        formatter={(value: number) =>
+                          `₺${value.toLocaleString("tr-TR")}`
+                        }
+                      />
+                      <Legend
+                        wrapperStyle={{
+                          fontSize: 12,
+                          color: "oklch(0.6 0.02 264)",
+                        }}
+                      />
+                      <Bar
+                        dataKey="Planlanan"
+                        fill="oklch(0.55 0.18 264)"
+                        radius={[4, 4, 0, 0]}
+                      />
+                      <Bar
+                        dataKey="Gerçekleşen"
+                        fill="oklch(0.55 0.22 300)"
+                        radius={[4, 4, 0, 0]}
+                      />
+                    </BarChart>
+                  </ResponsiveContainer>
+                )}
+              </CardContent>
+            </Card>
 
-          {/* F. Payroll Summary */}
-          <Card
-            data-ocid="reporting.payroll.card"
-            className="bg-[oklch(0.18_0.02_264)] border border-border"
-          >
-            <CardHeader className="pb-3">
-              <CardTitle className="flex items-center gap-2 text-base">
-                <DollarSign className="h-4 w-4 text-emerald-400" />
-                Bordro Özeti
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid grid-cols-2 gap-3">
-                {[
-                  {
-                    label: "Toplam Kayıt",
-                    value: companyPayroll.length,
-                    color: "text-foreground",
-                  },
-                  {
-                    label: "Ödenen",
-                    value: companyPayroll.filter(
-                      (r) => (r as { status: string }).status === "paid",
-                    ).length,
-                    color: "text-emerald-400",
-                  },
-                  {
-                    label: "Onaylanan",
-                    value: companyPayroll.filter(
-                      (r) => (r as { status: string }).status === "approved",
-                    ).length,
-                    color: "text-blue-400",
-                  },
-                  {
-                    label: "Bekleyen",
-                    value: companyPayroll.filter(
-                      (r) => (r as { status: string }).status === "pending",
-                    ).length,
-                    color: "text-amber-400",
-                  },
-                ].map((kpi) => (
+            <Card
+              data-ocid="reporting.project_status.chart"
+              className="bg-card border-border"
+            >
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-base">
+                  <FolderKanban className="w-4 h-4 text-muted-foreground" />
+                  Proje Durum Dağılımı
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {statusPieData.length === 0 ? (
                   <div
-                    key={kpi.label}
-                    className="rounded-lg bg-white/5 p-3 text-center"
+                    data-ocid="reporting.status.empty_state"
+                    className="flex items-center justify-center h-40 text-muted-foreground text-sm"
                   >
-                    <p className={`text-xl font-bold ${kpi.color}`}>
-                      {kpi.value}
-                    </p>
-                    <p className="text-xs text-muted-foreground mt-0.5">
-                      {kpi.label}
-                    </p>
+                    Henüz proje yok.
                   </div>
-                ))}
-              </div>
-              <div className="rounded-lg bg-emerald-500/10 border border-emerald-500/20 p-3 text-center">
-                <p className="text-lg font-bold text-emerald-400">
-                  ₺
-                  {companyPayroll
-                    .filter((r) => (r as { status: string }).status === "paid")
-                    .reduce(
-                      (s, r) =>
-                        s + ((r as { netSalary: number }).netSalary || 0),
-                      0,
-                    )
-                    .toLocaleString("tr-TR")}
-                </p>
-                <p className="text-xs text-muted-foreground mt-0.5">
-                  Toplam Ödenen Net Maaş
-                </p>
-              </div>
-              {companyPayroll.length === 0 ? (
-                <div
-                  data-ocid="reporting.payroll.empty_state"
-                  className="text-center py-6 text-muted-foreground"
-                >
-                  <DollarSign className="h-8 w-8 mx-auto mb-2 opacity-20" />
-                  <p className="text-sm">Henüz bordro kaydı bulunmuyor.</p>
-                </div>
-              ) : (
-                <ResponsiveContainer width="100%" height={180}>
+                ) : (
+                  <>
+                    <ResponsiveContainer width="100%" height={180}>
+                      <PieChart>
+                        <Pie
+                          data={statusPieData}
+                          cx="50%"
+                          cy="50%"
+                          innerRadius={50}
+                          outerRadius={75}
+                          paddingAngle={3}
+                          dataKey="value"
+                        >
+                          {statusPieData.map((entry, index) => (
+                            <Cell
+                              key={`cell-${entry.name}`}
+                              fill={PIE_COLORS[index % PIE_COLORS.length]}
+                            />
+                          ))}
+                        </Pie>
+                        <Tooltip contentStyle={chartTooltipStyle} />
+                      </PieChart>
+                    </ResponsiveContainer>
+                    <div className="space-y-1 mt-2">
+                      {statusPieData.map((entry, index) => (
+                        <div
+                          key={entry.name}
+                          className="flex items-center justify-between text-xs"
+                        >
+                          <div className="flex items-center gap-2">
+                            <div
+                              className="w-2.5 h-2.5 rounded-full"
+                              style={{
+                                backgroundColor:
+                                  PIE_COLORS[index % PIE_COLORS.length],
+                              }}
+                            />
+                            <span className="text-muted-foreground">
+                              {entry.name}
+                            </span>
+                          </div>
+                          <Badge variant="outline" className="text-xs">
+                            {entry.value}
+                          </Badge>
+                        </div>
+                      ))}
+                    </div>
+                  </>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Charts Row 2 */}
+          <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
+            <Card
+              data-ocid="reporting.expense.chart"
+              className="bg-card border-border xl:col-span-2"
+            >
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-base">
+                  <Activity className="w-4 h-4 text-muted-foreground" />
+                  Aylık Gider Trendi
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <ResponsiveContainer width="100%" height={240}>
                   <LineChart
-                    data={(() => {
-                      const monthMap: Record<string, number> = {};
-                      for (const r of companyPayroll) {
-                        const rec = r as { month: string; netSalary: number };
-                        monthMap[rec.month] =
-                          (monthMap[rec.month] || 0) + rec.netSalary;
-                      }
-                      return Object.entries(monthMap)
-                        .sort(([a], [b]) => a.localeCompare(b))
-                        .slice(-6)
-                        .map(([month, total]) => ({
-                          ay: month,
-                          toplam: total,
-                        }));
-                    })()}
-                    margin={{ top: 4, right: 8, left: 0, bottom: 4 }}
+                    data={expenseTrend}
+                    margin={{ top: 4, right: 8, left: 8, bottom: 4 }}
                   >
                     <CartesianGrid
                       strokeDasharray="3 3"
-                      stroke="oklch(0.3 0.01 264)"
+                      stroke="oklch(0.26 0.01 264)"
                     />
                     <XAxis
                       dataKey="ay"
-                      tick={{ fill: "oklch(0.7 0.02 264)", fontSize: 10 }}
-                      axisLine={false}
+                      tick={{ fill: "oklch(0.6 0.02 264)", fontSize: 11 }}
+                      axisLine={{ stroke: "oklch(0.26 0.01 264)" }}
                       tickLine={false}
                     />
                     <YAxis
-                      tick={{ fill: "oklch(0.7 0.02 264)", fontSize: 10 }}
+                      tick={{ fill: "oklch(0.6 0.02 264)", fontSize: 11 }}
                       axisLine={false}
                       tickLine={false}
                       tickFormatter={(v: number) => `${(v / 1000).toFixed(0)}K`}
                     />
                     <Tooltip
-                      contentStyle={{
-                        backgroundColor: "oklch(0.18 0.02 264)",
-                        border: "1px solid oklch(0.3 0.02 264)",
-                        borderRadius: "8px",
-                      }}
-                      formatter={(v: number) => `₺${v.toLocaleString("tr-TR")}`}
+                      contentStyle={chartTooltipStyle}
+                      formatter={(value: number) =>
+                        `₺${value.toLocaleString("tr-TR")}`
+                      }
                     />
                     <Line
                       type="monotone"
                       dataKey="toplam"
-                      stroke="oklch(0.6 0.18 160)"
+                      stroke="oklch(0.7 0.18 200)"
                       strokeWidth={2}
-                      dot={{ fill: "oklch(0.6 0.18 160)", r: 3 }}
-                      name="Net Maaş Toplamı"
+                      dot={{ fill: "oklch(0.7 0.18 200)", r: 4 }}
+                      activeDot={{ r: 6 }}
+                      name="Toplam Gider"
                     />
                   </LineChart>
                 </ResponsiveContainer>
-              )}
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
 
-          {/* G. Quote & Discovery */}
-          <Card
-            data-ocid="reporting.quotes.card"
-            className="bg-[oklch(0.18_0.02_264)] border border-border"
-          >
-            <CardHeader className="pb-3">
-              <CardTitle className="flex items-center gap-2 text-base">
-                <TrendingUp className="h-4 w-4 text-violet-400" />
-                Teklif & Keşif
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid grid-cols-2 gap-3">
-                {[
-                  {
-                    label: "Toplam Teklif",
-                    value: companyQuotes.length,
-                    color: "text-foreground",
-                  },
-                  {
-                    label: "Kabul Edilen",
-                    value: companyQuotes.filter(
-                      (q) => (q as { status: string }).status === "accepted",
-                    ).length,
-                    color: "text-emerald-400",
-                  },
-                  {
-                    label: "Gönderilen",
-                    value: companyQuotes.filter(
-                      (q) => (q as { status: string }).status === "sent",
-                    ).length,
-                    color: "text-blue-400",
-                  },
-                  {
-                    label: "Reddedilen",
-                    value: companyQuotes.filter(
-                      (q) => (q as { status: string }).status === "rejected",
-                    ).length,
-                    color: "text-rose-400",
-                  },
-                ].map((kpi) => (
+            <Card
+              data-ocid="reporting.personnel_dept.chart"
+              className="bg-card border-border"
+            >
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-base">
+                  <Users className="w-4 h-4 text-muted-foreground" />
+                  Personel Departman Dağılımı
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {deptPieData.length === 0 ? (
                   <div
-                    key={kpi.label}
-                    className="rounded-lg bg-white/5 p-3 text-center"
+                    data-ocid="reporting.dept.empty_state"
+                    className="flex items-center justify-center h-40 text-muted-foreground text-sm"
                   >
-                    <p className={`text-xl font-bold ${kpi.color}`}>
-                      {kpi.value}
-                    </p>
-                    <p className="text-xs text-muted-foreground mt-0.5">
-                      {kpi.label}
-                    </p>
+                    Henüz personel yok.
                   </div>
+                ) : (
+                  <>
+                    <ResponsiveContainer width="100%" height={180}>
+                      <PieChart>
+                        <Pie
+                          data={deptPieData}
+                          cx="50%"
+                          cy="50%"
+                          innerRadius={50}
+                          outerRadius={75}
+                          paddingAngle={3}
+                          dataKey="value"
+                        >
+                          {deptPieData.map((entry, index) => (
+                            <Cell
+                              key={`cell-dept-${entry.name}`}
+                              fill={PIE_COLORS[index % PIE_COLORS.length]}
+                            />
+                          ))}
+                        </Pie>
+                        <Tooltip contentStyle={chartTooltipStyle} />
+                      </PieChart>
+                    </ResponsiveContainer>
+                    <div className="space-y-1 mt-2">
+                      {deptPieData.map((entry, index) => (
+                        <div
+                          key={entry.name}
+                          className="flex items-center justify-between text-xs"
+                        >
+                          <div className="flex items-center gap-2">
+                            <div
+                              className="w-2.5 h-2.5 rounded-full"
+                              style={{
+                                backgroundColor:
+                                  PIE_COLORS[index % PIE_COLORS.length],
+                              }}
+                            />
+                            <span className="text-muted-foreground">
+                              {entry.name}
+                            </span>
+                          </div>
+                          <Badge variant="outline" className="text-xs">
+                            {entry.value}
+                          </Badge>
+                        </div>
+                      ))}
+                    </div>
+                  </>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Project Progress Cards */}
+          <div>
+            <h2 className="text-lg font-semibold text-foreground mb-4">
+              Proje İlerleme Durumu
+            </h2>
+            {projectCards.length === 0 ? (
+              <div
+                data-ocid="reporting.projects.empty_state"
+                className="text-center py-12 text-muted-foreground bg-card border border-border rounded-xl"
+              >
+                <FolderKanban className="h-10 w-10 mx-auto mb-3 opacity-20" />
+                <p className="text-sm">Henüz proje bulunmuyor.</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                {projectCards.map((proj, idx) => (
+                  <Card
+                    key={proj.name}
+                    data-ocid={`reporting.project.card.${idx + 1}`}
+                    className={`bg-gradient-to-br border ${proj.gradient}`}
+                  >
+                    <CardHeader className="pb-3">
+                      <div className="flex items-center justify-between">
+                        <CardTitle className="text-base">{proj.name}</CardTitle>
+                        <span className={`text-2xl font-bold ${proj.accent}`}>
+                          {proj.progress}%
+                        </span>
+                      </div>
+                      <Badge variant="outline" className="w-fit text-xs">
+                        {proj.status}
+                      </Badge>
+                    </CardHeader>
+                    <CardContent className="space-y-3">
+                      <Progress value={proj.progress} className="h-2" />
+                      <div className="grid grid-cols-2 gap-2 text-sm">
+                        <div>
+                          <p className="text-muted-foreground text-xs">
+                            Görevler
+                          </p>
+                          <p className="font-medium">
+                            {proj.tasksDone}/{proj.tasksTotal}
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-muted-foreground text-xs">
+                            Tamamlanma
+                          </p>
+                          <p className={`font-medium ${proj.accent}`}>
+                            {proj.progress}%
+                          </p>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
                 ))}
               </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div className="rounded-lg bg-emerald-500/10 border border-emerald-500/20 p-3 text-center">
-                  <p className="text-lg font-bold text-emerald-400">
-                    ₺
-                    {companyQuotes
-                      .filter(
-                        (q) => (q as { status: string }).status === "accepted",
-                      )
-                      .reduce(
-                        (s, q) =>
-                          s + ((q as { totalAmount: number }).totalAmount || 0),
-                        0,
-                      )
-                      .toLocaleString("tr-TR")}
-                  </p>
-                  <p className="text-xs text-muted-foreground mt-0.5">
-                    Kabul Edilen Toplam
-                  </p>
-                </div>
-                <div className="rounded-lg bg-violet-500/10 border border-violet-500/20 p-3 text-center">
-                  <p className="text-lg font-bold text-violet-400">
-                    {(() => {
-                      const accepted = companyQuotes.filter(
-                        (q) => (q as { status: string }).status === "accepted",
-                      ).length;
-                      const denom = companyQuotes.filter((q) =>
-                        ["sent", "accepted", "rejected"].includes(
-                          (q as { status: string }).status,
-                        ),
-                      ).length;
-                      return denom > 0
-                        ? `%${Math.round((accepted / denom) * 100)}`
-                        : "—";
-                    })()}
-                  </p>
-                  <p className="text-xs text-muted-foreground mt-0.5">
-                    Kabul Oranı
-                  </p>
-                </div>
-              </div>
-              {companyQuotes.length === 0 ? (
-                <div
-                  data-ocid="reporting.quotes.empty_state"
-                  className="text-center py-6 text-muted-foreground"
-                >
-                  <TrendingUp className="h-8 w-8 mx-auto mb-2 opacity-20" />
-                  <p className="text-sm">Henüz teklif kaydı bulunmuyor.</p>
-                </div>
-              ) : (
-                <ResponsiveContainer width="100%" height={160}>
-                  <BarChart
-                    data={[
+            )}
+
+            {/* Extended Analytics Grid */}
+            <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+              {/* A. Overtime Summary */}
+              <Card
+                data-ocid="reporting.overtime.card"
+                className="bg-[oklch(0.18_0.02_264)] border border-border"
+              >
+                <CardHeader className="pb-3">
+                  <CardTitle className="flex items-center gap-2 text-base">
+                    <Clock className="h-4 w-4 text-amber-400" />
+                    Personel Mesai Özeti
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {overtimeSummary.length === 0 ? (
+                    <div
+                      data-ocid="reporting.overtime.empty_state"
+                      className="text-center py-10 text-muted-foreground"
+                    >
+                      <Clock className="h-8 w-8 mx-auto mb-2 opacity-20" />
+                      <p className="text-sm">Onaylı mesai kaydı bulunmuyor.</p>
+                    </div>
+                  ) : (
+                    <ResponsiveContainer width="100%" height={250}>
+                      <BarChart
+                        data={overtimeSummary}
+                        layout="vertical"
+                        margin={{ top: 4, right: 16, left: 8, bottom: 4 }}
+                      >
+                        <CartesianGrid
+                          strokeDasharray="3 3"
+                          stroke="oklch(0.3 0.01 264)"
+                        />
+                        <XAxis
+                          type="number"
+                          tick={{ fill: "oklch(0.7 0.02 264)", fontSize: 11 }}
+                        />
+                        <YAxis
+                          type="category"
+                          dataKey="name"
+                          tick={{ fill: "oklch(0.7 0.02 264)", fontSize: 11 }}
+                          width={90}
+                        />
+                        <Tooltip
+                          contentStyle={{
+                            backgroundColor: "oklch(0.18 0.02 264)",
+                            border: "1px solid oklch(0.3 0.02 264)",
+                            borderRadius: "8px",
+                          }}
+                          labelStyle={{ color: "oklch(0.9 0.02 264)" }}
+                        />
+                        <Bar
+                          dataKey="hours"
+                          fill="oklch(0.7 0.18 60)"
+                          radius={[0, 4, 4, 0]}
+                          name="Mesai (saat)"
+                        />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  )}
+                </CardContent>
+              </Card>
+
+              {/* B. Milestone Progress */}
+              <Card
+                data-ocid="reporting.milestones.card"
+                className="bg-[oklch(0.18_0.02_264)] border border-border"
+              >
+                <CardHeader className="pb-3">
+                  <CardTitle className="flex items-center gap-2 text-base">
+                    <Layers className="h-4 w-4 text-emerald-400" />
+                    Kilometre Taşı İlerlemesi
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {milestoneSummary.length === 0 ? (
+                    <div
+                      data-ocid="reporting.milestones.empty_state"
+                      className="text-center py-10 text-muted-foreground"
+                    >
+                      <Layers className="h-8 w-8 mx-auto mb-2 opacity-20" />
+                      <p className="text-sm">
+                        Henüz kilometre taşı bulunmuyor.
+                      </p>
+                    </div>
+                  ) : (
+                    <ResponsiveContainer width="100%" height={250}>
+                      <BarChart
+                        data={milestoneSummary}
+                        margin={{ top: 4, right: 16, left: 0, bottom: 4 }}
+                      >
+                        <CartesianGrid
+                          strokeDasharray="3 3"
+                          stroke="oklch(0.3 0.01 264)"
+                        />
+                        <XAxis
+                          dataKey="name"
+                          tick={{ fill: "oklch(0.7 0.02 264)", fontSize: 10 }}
+                        />
+                        <YAxis
+                          tick={{ fill: "oklch(0.7 0.02 264)", fontSize: 11 }}
+                        />
+                        <Tooltip
+                          contentStyle={{
+                            backgroundColor: "oklch(0.18 0.02 264)",
+                            border: "1px solid oklch(0.3 0.02 264)",
+                            borderRadius: "8px",
+                          }}
+                          labelStyle={{ color: "oklch(0.9 0.02 264)" }}
+                        />
+                        <Legend wrapperStyle={{ fontSize: "11px" }} />
+                        <Bar
+                          dataKey="total"
+                          fill="oklch(0.45 0.02 264)"
+                          name="Toplam"
+                          radius={[4, 4, 0, 0]}
+                        />
+                        <Bar
+                          dataKey="completed"
+                          fill="oklch(0.6 0.18 160)"
+                          name="Tamamlanan"
+                          radius={[4, 4, 0, 0]}
+                        />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  )}
+                </CardContent>
+              </Card>
+
+              {/* C. CRM Sales Funnel */}
+              <Card
+                data-ocid="reporting.crm_funnel.card"
+                className="bg-[oklch(0.18_0.02_264)] border border-border"
+              >
+                <CardHeader className="pb-3">
+                  <CardTitle className="flex items-center gap-2 text-base">
+                    <TrendingUp className="h-4 w-4 text-violet-400" />
+                    CRM Satış Hunisi
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {crmFunnelData.length === 0 ||
+                  crmFunnelData.every((d) => d.count === 0) ? (
+                    <div
+                      data-ocid="reporting.crm_funnel.empty_state"
+                      className="text-center py-10 text-muted-foreground"
+                    >
+                      <TrendingUp className="h-8 w-8 mx-auto mb-2 opacity-20" />
+                      <p className="text-sm">Henüz CRM kaydı bulunmuyor.</p>
+                    </div>
+                  ) : (
+                    <ResponsiveContainer width="100%" height={250}>
+                      <BarChart
+                        data={crmFunnelData}
+                        margin={{ top: 4, right: 16, left: 0, bottom: 40 }}
+                      >
+                        <CartesianGrid
+                          strokeDasharray="3 3"
+                          stroke="oklch(0.3 0.01 264)"
+                        />
+                        <XAxis
+                          dataKey="stage"
+                          tick={{ fill: "oklch(0.7 0.02 264)", fontSize: 10 }}
+                          angle={-30}
+                          textAnchor="end"
+                          interval={0}
+                        />
+                        <YAxis
+                          tick={{ fill: "oklch(0.7 0.02 264)", fontSize: 11 }}
+                        />
+                        <Tooltip
+                          contentStyle={{
+                            backgroundColor: "oklch(0.18 0.02 264)",
+                            border: "1px solid oklch(0.3 0.02 264)",
+                            borderRadius: "8px",
+                          }}
+                          labelStyle={{ color: "oklch(0.9 0.02 264)" }}
+                        />
+                        <Bar
+                          dataKey="count"
+                          fill="oklch(0.55 0.18 290)"
+                          radius={[4, 4, 0, 0]}
+                          name="Lead Sayısı"
+                        />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  )}
+                </CardContent>
+              </Card>
+
+              {/* D. Budget P&L Table */}
+              <Card
+                data-ocid="reporting.budget_table.card"
+                className="bg-[oklch(0.18_0.02_264)] border border-border"
+              >
+                <CardHeader className="pb-3">
+                  <CardTitle className="flex items-center gap-2 text-base">
+                    <DollarSign className="h-4 w-4 text-amber-400" />
+                    Proje Bütçe Kar/Zarar
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {budgetPL.length === 0 ? (
+                    <div
+                      data-ocid="reporting.budget_table.empty_state"
+                      className="text-center py-10 text-muted-foreground"
+                    >
+                      <DollarSign className="h-8 w-8 mx-auto mb-2 opacity-20" />
+                      <p className="text-sm">Henüz proje bulunmuyor.</p>
+                    </div>
+                  ) : (
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-sm">
+                        <thead>
+                          <tr className="border-b border-border">
+                            <th className="text-left py-2 pr-3 text-muted-foreground font-medium">
+                              Proje
+                            </th>
+                            <th className="text-right py-2 pr-3 text-muted-foreground font-medium">
+                              Planlanan
+                            </th>
+                            <th className="text-right py-2 pr-3 text-muted-foreground font-medium">
+                              Gerçekleşen
+                            </th>
+                            <th className="text-right py-2 text-muted-foreground font-medium">
+                              Fark
+                            </th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {budgetPL.map((row) => (
+                            <tr
+                              key={row.name}
+                              className="border-b border-border/40 hover:bg-white/5 transition-colors"
+                            >
+                              <td className="py-2 pr-3 font-medium truncate max-w-[120px]">
+                                {row.name}
+                              </td>
+                              <td className="py-2 pr-3 text-right text-muted-foreground">
+                                ₺{row.budget.toLocaleString("tr-TR")}
+                              </td>
+                              <td className="py-2 pr-3 text-right text-muted-foreground">
+                                ₺{row.spent.toLocaleString("tr-TR")}
+                              </td>
+                              <td
+                                className={`py-2 text-right font-semibold ${row.diff >= 0 ? "text-emerald-400" : "text-rose-400"}`}
+                              >
+                                {row.diff >= 0 ? "+" : ""}₺
+                                {row.diff.toLocaleString("tr-TR")}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+              {/* E. Equipment Analytics */}
+              <Card
+                data-ocid="reporting.equipment.card"
+                className="bg-[oklch(0.18_0.02_264)] border border-border xl:col-span-2"
+              >
+                <CardHeader className="pb-3">
+                  <CardTitle className="flex items-center gap-2 text-base">
+                    <Layers className="h-4 w-4 text-amber-400" />
+                    Ekipman Analizi
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="grid grid-cols-4 gap-3">
+                    {[
                       {
-                        durum: "Taslak",
-                        adet: companyQuotes.filter(
-                          (q) => (q as { status: string }).status === "draft",
-                        ).length,
+                        label: "Toplam",
+                        value: companyEquipment.length,
+                        color: "text-foreground",
                       },
                       {
-                        durum: "Gönderilen",
-                        adet: companyQuotes.filter(
-                          (q) => (q as { status: string }).status === "sent",
+                        label: "Aktif",
+                        value: companyEquipment.filter(
+                          (e) => e.status === "active",
                         ).length,
+                        color: "text-emerald-400",
                       },
                       {
-                        durum: "Kabul",
-                        adet: companyQuotes.filter(
+                        label: "Bakımda",
+                        value: companyEquipment.filter(
+                          (e) => e.status === "maintenance",
+                        ).length,
+                        color: "text-amber-400",
+                      },
+                      {
+                        label: "Arızalı",
+                        value: companyEquipment.filter(
+                          (e) => e.status === "broken",
+                        ).length,
+                        color: "text-rose-400",
+                      },
+                    ].map((kpi) => (
+                      <div
+                        key={kpi.label}
+                        className="rounded-lg bg-white/5 p-3 text-center"
+                      >
+                        <p className={`text-xl font-bold ${kpi.color}`}>
+                          {kpi.value}
+                        </p>
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                          {kpi.label}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                  {companyEquipment.length === 0 ? (
+                    <div
+                      data-ocid="reporting.equipment.empty_state"
+                      className="text-center py-8 text-muted-foreground"
+                    >
+                      <Layers className="h-8 w-8 mx-auto mb-2 opacity-20" />
+                      <p className="text-sm">Henüz ekipman kaydı bulunmuyor.</p>
+                    </div>
+                  ) : (
+                    <ResponsiveContainer width="100%" height={180}>
+                      <BarChart
+                        data={[
+                          {
+                            durum: "Aktif",
+                            adet: companyEquipment.filter(
+                              (e) => e.status === "active",
+                            ).length,
+                          },
+                          {
+                            durum: "Bakımda",
+                            adet: companyEquipment.filter(
+                              (e) => e.status === "maintenance",
+                            ).length,
+                          },
+                          {
+                            durum: "Arızalı",
+                            adet: companyEquipment.filter(
+                              (e) => e.status === "broken",
+                            ).length,
+                          },
+                          {
+                            durum: "Boşta",
+                            adet: companyEquipment.filter(
+                              (e) => e.status === "idle",
+                            ).length,
+                          },
+                        ]}
+                        margin={{ top: 4, right: 8, left: 0, bottom: 4 }}
+                      >
+                        <CartesianGrid
+                          strokeDasharray="3 3"
+                          stroke="oklch(0.3 0.01 264)"
+                        />
+                        <XAxis
+                          dataKey="durum"
+                          tick={{ fill: "oklch(0.7 0.02 264)", fontSize: 11 }}
+                          axisLine={false}
+                          tickLine={false}
+                        />
+                        <YAxis
+                          tick={{ fill: "oklch(0.7 0.02 264)", fontSize: 11 }}
+                          axisLine={false}
+                          tickLine={false}
+                        />
+                        <Tooltip
+                          contentStyle={{
+                            backgroundColor: "oklch(0.18 0.02 264)",
+                            border: "1px solid oklch(0.3 0.02 264)",
+                            borderRadius: "8px",
+                          }}
+                        />
+                        <Bar
+                          dataKey="adet"
+                          radius={[4, 4, 0, 0]}
+                          name="Ekipman Sayısı"
+                        >
+                          {[
+                            "oklch(0.6 0.18 160)",
+                            "oklch(0.7 0.18 60)",
+                            "oklch(0.6 0.2 10)",
+                            "oklch(0.55 0.02 264)",
+                          ].map((color) => (
+                            <Cell key={color} fill={color} />
+                          ))}
+                        </Bar>
+                      </BarChart>
+                    </ResponsiveContainer>
+                  )}
+                  {openFaults.length > 0 && (
+                    <div>
+                      <p className="text-xs font-medium text-muted-foreground mb-2">
+                        Açık Arızalar / Bakımlar
+                      </p>
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-sm">
+                          <thead>
+                            <tr className="border-b border-border">
+                              <th className="text-left py-1.5 pr-3 text-muted-foreground font-medium text-xs">
+                                Ekipman
+                              </th>
+                              <th className="text-left py-1.5 pr-3 text-muted-foreground font-medium text-xs">
+                                Tür
+                              </th>
+                              <th className="text-left py-1.5 text-muted-foreground font-medium text-xs">
+                                Açıklama
+                              </th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {openFaults.slice(0, 5).map((fault, idx) => {
+                              const eq = companyEquipment.find(
+                                (e) =>
+                                  e.id ===
+                                  (fault as { equipmentId: string })
+                                    .equipmentId,
+                              );
+                              return (
+                                <tr
+                                  key={
+                                    (fault as { id: string }).id || String(idx)
+                                  }
+                                  className="border-b border-border/40"
+                                >
+                                  <td className="py-1.5 pr-3 font-medium text-xs">
+                                    {eq?.name || "—"}
+                                  </td>
+                                  <td className="py-1.5 pr-3 text-xs text-amber-400">
+                                    {(fault as { type: string }).type ===
+                                    "maintenance"
+                                      ? "Bakım"
+                                      : "Arıza"}
+                                  </td>
+                                  <td className="py-1.5 text-xs text-muted-foreground truncate max-w-[160px]">
+                                    {
+                                      (fault as { description: string })
+                                        .description
+                                    }
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+
+              {/* F. Payroll Summary */}
+              <Card
+                data-ocid="reporting.payroll.card"
+                className="bg-[oklch(0.18_0.02_264)] border border-border"
+              >
+                <CardHeader className="pb-3">
+                  <CardTitle className="flex items-center gap-2 text-base">
+                    <DollarSign className="h-4 w-4 text-emerald-400" />
+                    Bordro Özeti
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="grid grid-cols-2 gap-3">
+                    {[
+                      {
+                        label: "Toplam Kayıt",
+                        value: companyPayroll.length,
+                        color: "text-foreground",
+                      },
+                      {
+                        label: "Ödenen",
+                        value: companyPayroll.filter(
+                          (r) => (r as { status: string }).status === "paid",
+                        ).length,
+                        color: "text-emerald-400",
+                      },
+                      {
+                        label: "Onaylanan",
+                        value: companyPayroll.filter(
+                          (r) =>
+                            (r as { status: string }).status === "approved",
+                        ).length,
+                        color: "text-blue-400",
+                      },
+                      {
+                        label: "Bekleyen",
+                        value: companyPayroll.filter(
+                          (r) => (r as { status: string }).status === "pending",
+                        ).length,
+                        color: "text-amber-400",
+                      },
+                    ].map((kpi) => (
+                      <div
+                        key={kpi.label}
+                        className="rounded-lg bg-white/5 p-3 text-center"
+                      >
+                        <p className={`text-xl font-bold ${kpi.color}`}>
+                          {kpi.value}
+                        </p>
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                          {kpi.label}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="rounded-lg bg-emerald-500/10 border border-emerald-500/20 p-3 text-center">
+                    <p className="text-lg font-bold text-emerald-400">
+                      ₺
+                      {companyPayroll
+                        .filter(
+                          (r) => (r as { status: string }).status === "paid",
+                        )
+                        .reduce(
+                          (s, r) =>
+                            s + ((r as { netSalary: number }).netSalary || 0),
+                          0,
+                        )
+                        .toLocaleString("tr-TR")}
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      Toplam Ödenen Net Maaş
+                    </p>
+                  </div>
+                  {companyPayroll.length === 0 ? (
+                    <div
+                      data-ocid="reporting.payroll.empty_state"
+                      className="text-center py-6 text-muted-foreground"
+                    >
+                      <DollarSign className="h-8 w-8 mx-auto mb-2 opacity-20" />
+                      <p className="text-sm">Henüz bordro kaydı bulunmuyor.</p>
+                    </div>
+                  ) : (
+                    <ResponsiveContainer width="100%" height={180}>
+                      <LineChart
+                        data={(() => {
+                          const monthMap: Record<string, number> = {};
+                          for (const r of companyPayroll) {
+                            const rec = r as {
+                              month: string;
+                              netSalary: number;
+                            };
+                            monthMap[rec.month] =
+                              (monthMap[rec.month] || 0) + rec.netSalary;
+                          }
+                          return Object.entries(monthMap)
+                            .sort(([a], [b]) => a.localeCompare(b))
+                            .slice(-6)
+                            .map(([month, total]) => ({
+                              ay: month,
+                              toplam: total,
+                            }));
+                        })()}
+                        margin={{ top: 4, right: 8, left: 0, bottom: 4 }}
+                      >
+                        <CartesianGrid
+                          strokeDasharray="3 3"
+                          stroke="oklch(0.3 0.01 264)"
+                        />
+                        <XAxis
+                          dataKey="ay"
+                          tick={{ fill: "oklch(0.7 0.02 264)", fontSize: 10 }}
+                          axisLine={false}
+                          tickLine={false}
+                        />
+                        <YAxis
+                          tick={{ fill: "oklch(0.7 0.02 264)", fontSize: 10 }}
+                          axisLine={false}
+                          tickLine={false}
+                          tickFormatter={(v: number) =>
+                            `${(v / 1000).toFixed(0)}K`
+                          }
+                        />
+                        <Tooltip
+                          contentStyle={{
+                            backgroundColor: "oklch(0.18 0.02 264)",
+                            border: "1px solid oklch(0.3 0.02 264)",
+                            borderRadius: "8px",
+                          }}
+                          formatter={(v: number) =>
+                            `₺${v.toLocaleString("tr-TR")}`
+                          }
+                        />
+                        <Line
+                          type="monotone"
+                          dataKey="toplam"
+                          stroke="oklch(0.6 0.18 160)"
+                          strokeWidth={2}
+                          dot={{ fill: "oklch(0.6 0.18 160)", r: 3 }}
+                          name="Net Maaş Toplamı"
+                        />
+                      </LineChart>
+                    </ResponsiveContainer>
+                  )}
+                </CardContent>
+              </Card>
+
+              {/* G. Quote & Discovery */}
+              <Card
+                data-ocid="reporting.quotes.card"
+                className="bg-[oklch(0.18_0.02_264)] border border-border"
+              >
+                <CardHeader className="pb-3">
+                  <CardTitle className="flex items-center gap-2 text-base">
+                    <TrendingUp className="h-4 w-4 text-violet-400" />
+                    Teklif & Keşif
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="grid grid-cols-2 gap-3">
+                    {[
+                      {
+                        label: "Toplam Teklif",
+                        value: companyQuotes.length,
+                        color: "text-foreground",
+                      },
+                      {
+                        label: "Kabul Edilen",
+                        value: companyQuotes.filter(
                           (q) =>
                             (q as { status: string }).status === "accepted",
                         ).length,
+                        color: "text-emerald-400",
                       },
                       {
-                        durum: "Reddedilen",
-                        adet: companyQuotes.filter(
+                        label: "Gönderilen",
+                        value: companyQuotes.filter(
+                          (q) => (q as { status: string }).status === "sent",
+                        ).length,
+                        color: "text-blue-400",
+                      },
+                      {
+                        label: "Reddedilen",
+                        value: companyQuotes.filter(
                           (q) =>
                             (q as { status: string }).status === "rejected",
                         ).length,
+                        color: "text-rose-400",
                       },
-                    ]}
-                    margin={{ top: 4, right: 8, left: 0, bottom: 4 }}
-                  >
-                    <CartesianGrid
-                      strokeDasharray="3 3"
-                      stroke="oklch(0.3 0.01 264)"
-                    />
-                    <XAxis
-                      dataKey="durum"
-                      tick={{ fill: "oklch(0.7 0.02 264)", fontSize: 10 }}
-                      axisLine={false}
-                      tickLine={false}
-                    />
-                    <YAxis
-                      tick={{ fill: "oklch(0.7 0.02 264)", fontSize: 10 }}
-                      axisLine={false}
-                      tickLine={false}
-                    />
-                    <Tooltip
-                      contentStyle={{
-                        backgroundColor: "oklch(0.18 0.02 264)",
-                        border: "1px solid oklch(0.3 0.02 264)",
-                        borderRadius: "8px",
-                      }}
-                    />
-                    <Bar
-                      dataKey="adet"
-                      radius={[4, 4, 0, 0]}
-                      name="Teklif Sayısı"
+                    ].map((kpi) => (
+                      <div
+                        key={kpi.label}
+                        className="rounded-lg bg-white/5 p-3 text-center"
+                      >
+                        <p className={`text-xl font-bold ${kpi.color}`}>
+                          {kpi.value}
+                        </p>
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                          {kpi.label}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="rounded-lg bg-emerald-500/10 border border-emerald-500/20 p-3 text-center">
+                      <p className="text-lg font-bold text-emerald-400">
+                        ₺
+                        {companyQuotes
+                          .filter(
+                            (q) =>
+                              (q as { status: string }).status === "accepted",
+                          )
+                          .reduce(
+                            (s, q) =>
+                              s +
+                              ((q as { totalAmount: number }).totalAmount || 0),
+                            0,
+                          )
+                          .toLocaleString("tr-TR")}
+                      </p>
+                      <p className="text-xs text-muted-foreground mt-0.5">
+                        Kabul Edilen Toplam
+                      </p>
+                    </div>
+                    <div className="rounded-lg bg-violet-500/10 border border-violet-500/20 p-3 text-center">
+                      <p className="text-lg font-bold text-violet-400">
+                        {(() => {
+                          const accepted = companyQuotes.filter(
+                            (q) =>
+                              (q as { status: string }).status === "accepted",
+                          ).length;
+                          const denom = companyQuotes.filter((q) =>
+                            ["sent", "accepted", "rejected"].includes(
+                              (q as { status: string }).status,
+                            ),
+                          ).length;
+                          return denom > 0
+                            ? `%${Math.round((accepted / denom) * 100)}`
+                            : "—";
+                        })()}
+                      </p>
+                      <p className="text-xs text-muted-foreground mt-0.5">
+                        Kabul Oranı
+                      </p>
+                    </div>
+                  </div>
+                  {companyQuotes.length === 0 ? (
+                    <div
+                      data-ocid="reporting.quotes.empty_state"
+                      className="text-center py-6 text-muted-foreground"
                     >
-                      {[
-                        "oklch(0.55 0.02 264)",
-                        "oklch(0.55 0.18 230)",
-                        "oklch(0.6 0.18 160)",
-                        "oklch(0.6 0.2 10)",
-                      ].map((color) => (
-                        <Cell key={color} fill={color} />
+                      <TrendingUp className="h-8 w-8 mx-auto mb-2 opacity-20" />
+                      <p className="text-sm">Henüz teklif kaydı bulunmuyor.</p>
+                    </div>
+                  ) : (
+                    <ResponsiveContainer width="100%" height={160}>
+                      <BarChart
+                        data={[
+                          {
+                            durum: "Taslak",
+                            adet: companyQuotes.filter(
+                              (q) =>
+                                (q as { status: string }).status === "draft",
+                            ).length,
+                          },
+                          {
+                            durum: "Gönderilen",
+                            adet: companyQuotes.filter(
+                              (q) =>
+                                (q as { status: string }).status === "sent",
+                            ).length,
+                          },
+                          {
+                            durum: "Kabul",
+                            adet: companyQuotes.filter(
+                              (q) =>
+                                (q as { status: string }).status === "accepted",
+                            ).length,
+                          },
+                          {
+                            durum: "Reddedilen",
+                            adet: companyQuotes.filter(
+                              (q) =>
+                                (q as { status: string }).status === "rejected",
+                            ).length,
+                          },
+                        ]}
+                        margin={{ top: 4, right: 8, left: 0, bottom: 4 }}
+                      >
+                        <CartesianGrid
+                          strokeDasharray="3 3"
+                          stroke="oklch(0.3 0.01 264)"
+                        />
+                        <XAxis
+                          dataKey="durum"
+                          tick={{ fill: "oklch(0.7 0.02 264)", fontSize: 10 }}
+                          axisLine={false}
+                          tickLine={false}
+                        />
+                        <YAxis
+                          tick={{ fill: "oklch(0.7 0.02 264)", fontSize: 10 }}
+                          axisLine={false}
+                          tickLine={false}
+                        />
+                        <Tooltip
+                          contentStyle={{
+                            backgroundColor: "oklch(0.18 0.02 264)",
+                            border: "1px solid oklch(0.3 0.02 264)",
+                            borderRadius: "8px",
+                          }}
+                        />
+                        <Bar
+                          dataKey="adet"
+                          radius={[4, 4, 0, 0]}
+                          name="Teklif Sayısı"
+                        >
+                          {[
+                            "oklch(0.55 0.02 264)",
+                            "oklch(0.55 0.18 230)",
+                            "oklch(0.6 0.18 160)",
+                            "oklch(0.6 0.2 10)",
+                          ].map((color) => (
+                            <Cell key={color} fill={color} />
+                          ))}
+                        </Bar>
+                      </BarChart>
+                    </ResponsiveContainer>
+                  )}
+                </CardContent>
+              </Card>
+            </div>
+          </div>
+
+          {/* EVM Analizi */}
+          <EVMSection projects={projects} expenses={expenses} />
+        </>
+      )}
+
+      {/* ═══ Sözleşme & Hakediş Tab ═══ */}
+      {activeTab === "sozlesme" &&
+        (() => {
+          const companyContracts = contracts.filter(
+            (c) => c.companyId === activeCompanyId,
+          );
+          const companyHakedis = hakedisItems.filter(
+            (h) => h.companyId === activeCompanyId,
+          );
+          const activeContracts = companyContracts.filter(
+            (c) => c.status === "Aktif",
+          ).length;
+          const totalHakedisValue = companyHakedis
+            .filter((h) => h.status === "Onaylandı")
+            .reduce(
+              (sum, h) =>
+                sum +
+                (h.items || []).reduce(
+                  (
+                    s: number,
+                    item: {
+                      amount?: number;
+                      unitPrice?: number;
+                      quantity?: number;
+                    },
+                  ) =>
+                    s +
+                    (item.amount ||
+                      (item.unitPrice || 0) * (item.quantity || 0)),
+                  0,
+                ),
+              0,
+            );
+          const contractsByStatus = [
+            "Taslak",
+            "Aktif",
+            "Tamamlandı",
+            "İptal",
+          ].map((s) => ({
+            durum: s,
+            adet: companyContracts.filter((c) => c.status === s).length,
+          }));
+          const hakedisStatusData = [
+            "Taslak",
+            "Onay Bekliyor",
+            "Onaylandı",
+            "Reddedildi",
+          ].map((s) => ({
+            durum: s,
+            adet: companyHakedis.filter((h) => h.status === s).length,
+          }));
+          return (
+            <div className="space-y-6">
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                {[
+                  {
+                    label: "Toplam Sözleşme",
+                    value: companyContracts.length,
+                    color: "text-amber-400",
+                    bg: "from-amber-500/10 to-orange-500/5 border-amber-500/20",
+                  },
+                  {
+                    label: "Aktif Sözleşme",
+                    value: activeContracts,
+                    color: "text-emerald-400",
+                    bg: "from-emerald-500/10 to-teal-500/5 border-emerald-500/20",
+                  },
+                  {
+                    label: "Onaylanan Hakediş",
+                    value: `₺${totalHakedisValue.toLocaleString("tr-TR")}`,
+                    color: "text-blue-400",
+                    bg: "from-blue-500/10 to-cyan-500/5 border-blue-500/20",
+                  },
+                  {
+                    label: "Hakediş Sayısı",
+                    value: companyHakedis.length,
+                    color: "text-violet-400",
+                    bg: "from-violet-500/10 to-purple-500/5 border-violet-500/20",
+                  },
+                ].map((kpi, i) => (
+                  <Card
+                    key={kpi.label}
+                    data-ocid={`reporting.sozlesme.kpi.card.${i + 1}`}
+                    className={`bg-gradient-to-br border ${kpi.bg}`}
+                  >
+                    <CardHeader className="pb-2 pt-4 px-4">
+                      <CardTitle className="text-xs font-medium text-muted-foreground">
+                        {kpi.label}
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="px-4 pb-4">
+                      <div className={`text-2xl font-bold ${kpi.color}`}>
+                        {kpi.value}
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+              <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+                <Card
+                  data-ocid="reporting.sozlesme.contracts_status.card"
+                  className="bg-card border-border"
+                >
+                  <CardHeader>
+                    <CardTitle className="text-base">
+                      Sözleşme Durumu Dağılımı
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    {companyContracts.length === 0 ? (
+                      <div
+                        data-ocid="reporting.sozlesme.contracts.empty_state"
+                        className="flex items-center justify-center h-40 text-muted-foreground text-sm"
+                      >
+                        Henüz sözleşme kaydı yok.
+                      </div>
+                    ) : (
+                      <ResponsiveContainer width="100%" height={240}>
+                        <BarChart
+                          data={contractsByStatus}
+                          margin={{ top: 4, right: 8, left: 8, bottom: 4 }}
+                        >
+                          <CartesianGrid
+                            strokeDasharray="3 3"
+                            stroke="oklch(0.26 0.01 264)"
+                          />
+                          <XAxis
+                            dataKey="durum"
+                            tick={{ fill: "oklch(0.6 0.02 264)", fontSize: 11 }}
+                            axisLine={false}
+                            tickLine={false}
+                          />
+                          <YAxis
+                            tick={{ fill: "oklch(0.6 0.02 264)", fontSize: 11 }}
+                            axisLine={false}
+                            tickLine={false}
+                          />
+                          <Tooltip
+                            contentStyle={{
+                              backgroundColor: "oklch(0.16 0.01 264)",
+                              border: "1px solid oklch(0.26 0.01 264)",
+                              borderRadius: "8px",
+                              color: "oklch(0.92 0.01 264)",
+                            }}
+                          />
+                          <Bar dataKey="adet" radius={[4, 4, 0, 0]} name="Adet">
+                            {contractsByStatus.map((entry, i) => (
+                              <Cell
+                                key={entry.durum}
+                                fill={
+                                  [
+                                    "oklch(0.55 0.02 264)",
+                                    "oklch(0.6 0.18 160)",
+                                    "oklch(0.6 0.2 10)",
+                                    "oklch(0.55 0.18 264)",
+                                  ][i % 4]
+                                }
+                              />
+                            ))}
+                          </Bar>
+                        </BarChart>
+                      </ResponsiveContainer>
+                    )}
+                  </CardContent>
+                </Card>
+                <Card
+                  data-ocid="reporting.sozlesme.hakedis_status.card"
+                  className="bg-card border-border"
+                >
+                  <CardHeader>
+                    <CardTitle className="text-base">
+                      Hakediş Onay Durumu
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    {companyHakedis.length === 0 ? (
+                      <div
+                        data-ocid="reporting.sozlesme.hakedis.empty_state"
+                        className="flex items-center justify-center h-40 text-muted-foreground text-sm"
+                      >
+                        Henüz hakediş kaydı yok.
+                      </div>
+                    ) : (
+                      <ResponsiveContainer width="100%" height={240}>
+                        <BarChart
+                          data={hakedisStatusData}
+                          margin={{ top: 4, right: 8, left: 8, bottom: 4 }}
+                        >
+                          <CartesianGrid
+                            strokeDasharray="3 3"
+                            stroke="oklch(0.26 0.01 264)"
+                          />
+                          <XAxis
+                            dataKey="durum"
+                            tick={{ fill: "oklch(0.6 0.02 264)", fontSize: 11 }}
+                            axisLine={false}
+                            tickLine={false}
+                          />
+                          <YAxis
+                            tick={{ fill: "oklch(0.6 0.02 264)", fontSize: 11 }}
+                            axisLine={false}
+                            tickLine={false}
+                          />
+                          <Tooltip
+                            contentStyle={{
+                              backgroundColor: "oklch(0.16 0.01 264)",
+                              border: "1px solid oklch(0.26 0.01 264)",
+                              borderRadius: "8px",
+                              color: "oklch(0.92 0.01 264)",
+                            }}
+                          />
+                          <Bar dataKey="adet" radius={[4, 4, 0, 0]} name="Adet">
+                            {hakedisStatusData.map((entry, i) => (
+                              <Cell
+                                key={entry.durum}
+                                fill={
+                                  [
+                                    "oklch(0.55 0.02 264)",
+                                    "oklch(0.6 0.18 160)",
+                                    "oklch(0.7 0.15 60)",
+                                    "oklch(0.6 0.2 10)",
+                                  ][i % 4]
+                                }
+                              />
+                            ))}
+                          </Bar>
+                        </BarChart>
+                      </ResponsiveContainer>
+                    )}
+                  </CardContent>
+                </Card>
+              </div>
+            </div>
+          );
+        })()}
+
+      {/* ═══ Risk & Kalite Tab ═══ */}
+      {activeTab === "risk" &&
+        (() => {
+          const companyRisks = riskItems.filter(
+            (r) => r.companyId === activeCompanyId,
+          );
+          const companyNCRs = ncrRecords.filter(
+            (n) => n.companyId === activeCompanyId,
+          );
+          const companyChecklists = qualityChecklists.filter(
+            (q) => q.companyId === activeCompanyId,
+          );
+          const openRisks = companyRisks.filter(
+            (r) => r.status !== "Kapalı",
+          ).length;
+          const openNCRs = companyNCRs.filter(
+            (n) => n.status !== "Kapatıldı",
+          ).length;
+          const totalChecklistItems = companyChecklists.reduce(
+            (sum, c) => sum + (c.items || []).length,
+            0,
+          );
+          const passedItems = companyChecklists.reduce(
+            (sum, c) =>
+              sum +
+              (c.items || []).filter(
+                (i: { status: string }) => i.status === "Geçti",
+              ).length,
+            0,
+          );
+          const checklistRate =
+            totalChecklistItems > 0
+              ? Math.round((passedItems / totalChecklistItems) * 100)
+              : 0;
+          const ncrBySeverity = ["Düşük", "Orta", "Yüksek"]
+            .map((s, i) => ({
+              name: s,
+              value: companyNCRs.filter((n) => n.severity === s).length,
+              color: [
+                "oklch(0.6 0.18 160)",
+                "oklch(0.7 0.15 60)",
+                "oklch(0.6 0.2 10)",
+              ][i],
+            }))
+            .filter((d) => d.value > 0);
+          const ncrMonthly = Array.from({ length: 6 }, (_, i) => {
+            const d = new Date(
+              new Date().getFullYear(),
+              new Date().getMonth() - 5 + i,
+              1,
+            );
+            const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+            return {
+              ay: d
+                .toLocaleString("tr-TR", { month: "short" })
+                .replace(".", ""),
+              Açık: companyNCRs.filter(
+                (n) => n.createdAt?.startsWith(key) && n.status !== "Kapatıldı",
+              ).length,
+              Kapalı: companyNCRs.filter(
+                (n) => n.createdAt?.startsWith(key) && n.status === "Kapatıldı",
+              ).length,
+            };
+          });
+          const checklistByProject = projects
+            .map((p) => {
+              const pChecklists = companyChecklists.filter(
+                (c) => c.projectId === p.id,
+              );
+              if (!pChecklists.length) return null;
+              const total = pChecklists.reduce(
+                (s, c) => s + (c.items || []).length,
+                0,
+              );
+              const passed = pChecklists.reduce(
+                (s, c) =>
+                  s +
+                  (c.items || []).filter(
+                    (i: { status: string }) => i.status === "Geçti",
+                  ).length,
+                0,
+              );
+              return {
+                name: p.title.slice(0, 20),
+                rate: total > 0 ? Math.round((passed / total) * 100) : 0,
+              };
+            })
+            .filter(Boolean)
+            .slice(0, 6) as { name: string; rate: number }[];
+          return (
+            <div className="space-y-6">
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                {[
+                  {
+                    label: "Açık Risk",
+                    value: openRisks,
+                    color: "text-rose-400",
+                    bg: "from-rose-500/10 to-pink-500/5 border-rose-500/20",
+                  },
+                  {
+                    label: "Toplam NCR",
+                    value: companyNCRs.length,
+                    color: "text-amber-400",
+                    bg: "from-amber-500/10 to-orange-500/5 border-amber-500/20",
+                  },
+                  {
+                    label: "Açık NCR",
+                    value: openNCRs,
+                    color: "text-orange-400",
+                    bg: "from-orange-500/10 to-yellow-500/5 border-orange-500/20",
+                  },
+                  {
+                    label: "Checklist Tamamlanma",
+                    value: `${checklistRate}%`,
+                    color: "text-emerald-400",
+                    bg: "from-emerald-500/10 to-teal-500/5 border-emerald-500/20",
+                  },
+                ].map((kpi, i) => (
+                  <Card
+                    key={kpi.label}
+                    data-ocid={`reporting.risk.kpi.card.${i + 1}`}
+                    className={`bg-gradient-to-br border ${kpi.bg}`}
+                  >
+                    <CardHeader className="pb-2 pt-4 px-4">
+                      <CardTitle className="text-xs font-medium text-muted-foreground">
+                        {kpi.label}
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="px-4 pb-4">
+                      <div className={`text-2xl font-bold ${kpi.color}`}>
+                        {kpi.value}
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+              <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+                <Card
+                  data-ocid="reporting.risk.ncr_severity.card"
+                  className="bg-card border-border"
+                >
+                  <CardHeader>
+                    <CardTitle className="text-base">
+                      NCR Ciddiyet Dağılımı
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    {ncrBySeverity.length === 0 ? (
+                      <div
+                        data-ocid="reporting.risk.ncr_severity.empty_state"
+                        className="flex items-center justify-center h-40 text-muted-foreground text-sm"
+                      >
+                        Henüz NCR kaydı yok.
+                      </div>
+                    ) : (
+                      <ResponsiveContainer width="100%" height={240}>
+                        <PieChart>
+                          <Pie
+                            data={ncrBySeverity}
+                            dataKey="value"
+                            nameKey="name"
+                            cx="50%"
+                            cy="50%"
+                            outerRadius={90}
+                            label={({ name, value }) => `${name}: ${value}`}
+                            labelLine={false}
+                          >
+                            {ncrBySeverity.map((entry) => (
+                              <Cell key={entry.name} fill={entry.color} />
+                            ))}
+                          </Pie>
+                          <Tooltip
+                            contentStyle={{
+                              backgroundColor: "oklch(0.16 0.01 264)",
+                              border: "1px solid oklch(0.26 0.01 264)",
+                              borderRadius: "8px",
+                              color: "oklch(0.92 0.01 264)",
+                            }}
+                          />
+                          <Legend
+                            wrapperStyle={{
+                              color: "oklch(0.7 0.02 264)",
+                              fontSize: "12px",
+                            }}
+                          />
+                        </PieChart>
+                      </ResponsiveContainer>
+                    )}
+                  </CardContent>
+                </Card>
+                <Card
+                  data-ocid="reporting.risk.ncr_monthly.card"
+                  className="bg-card border-border"
+                >
+                  <CardHeader>
+                    <CardTitle className="text-base">
+                      Aylık NCR Trendi (Son 6 Ay)
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    {companyNCRs.length === 0 ? (
+                      <div
+                        data-ocid="reporting.risk.ncr_monthly.empty_state"
+                        className="flex items-center justify-center h-40 text-muted-foreground text-sm"
+                      >
+                        Henüz NCR kaydı yok.
+                      </div>
+                    ) : (
+                      <ResponsiveContainer width="100%" height={240}>
+                        <BarChart
+                          data={ncrMonthly}
+                          margin={{ top: 4, right: 8, left: 8, bottom: 4 }}
+                        >
+                          <CartesianGrid
+                            strokeDasharray="3 3"
+                            stroke="oklch(0.26 0.01 264)"
+                          />
+                          <XAxis
+                            dataKey="ay"
+                            tick={{ fill: "oklch(0.6 0.02 264)", fontSize: 11 }}
+                            axisLine={false}
+                            tickLine={false}
+                          />
+                          <YAxis
+                            tick={{ fill: "oklch(0.6 0.02 264)", fontSize: 11 }}
+                            axisLine={false}
+                            tickLine={false}
+                          />
+                          <Tooltip
+                            contentStyle={{
+                              backgroundColor: "oklch(0.16 0.01 264)",
+                              border: "1px solid oklch(0.26 0.01 264)",
+                              borderRadius: "8px",
+                              color: "oklch(0.92 0.01 264)",
+                            }}
+                          />
+                          <Legend
+                            wrapperStyle={{
+                              color: "oklch(0.7 0.02 264)",
+                              fontSize: "12px",
+                            }}
+                          />
+                          <Bar
+                            dataKey="Açık"
+                            fill="oklch(0.6 0.2 10)"
+                            radius={[4, 4, 0, 0]}
+                          />
+                          <Bar
+                            dataKey="Kapalı"
+                            fill="oklch(0.6 0.18 160)"
+                            radius={[4, 4, 0, 0]}
+                          />
+                        </BarChart>
+                      </ResponsiveContainer>
+                    )}
+                  </CardContent>
+                </Card>
+              </div>
+              {checklistByProject.length > 0 && (
+                <Card
+                  data-ocid="reporting.risk.checklist_projects.card"
+                  className="bg-card border-border"
+                >
+                  <CardHeader>
+                    <CardTitle className="text-base">
+                      Proje Bazında Kalite Checklist Tamamlanma
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-3">
+                      {checklistByProject.map((p, i) => (
+                        <div
+                          key={p.name}
+                          data-ocid={`reporting.risk.checklist.item.${i + 1}`}
+                        >
+                          <div className="flex justify-between text-sm mb-1">
+                            <span className="text-muted-foreground truncate">
+                              {p.name}
+                            </span>
+                            <span className="text-amber-400 font-medium ml-2">
+                              {p.rate}%
+                            </span>
+                          </div>
+                          <Progress value={p.rate} className="h-2" />
+                        </div>
                       ))}
-                    </Bar>
-                  </BarChart>
-                </ResponsiveContainer>
+                    </div>
+                  </CardContent>
+                </Card>
               )}
+            </div>
+          );
+        })()}
+
+      {/* ═══ İSG & Saha Tab ═══ */}
+      {activeTab === "isg" &&
+        (() => {
+          const companyISG = isgIncidents.filter(
+            (i) => i.companyId === activeCompanyId,
+          );
+          const companyRFIs = rfis.filter(
+            (r) => r.companyId === activeCompanyId,
+          );
+          const companyMRs = materialRequests.filter(
+            (m) => m.companyId === activeCompanyId,
+          );
+          const last30 = new Date(
+            Date.now() - 30 * 24 * 60 * 60 * 1000,
+          ).toISOString();
+          const last30Incidents = companyISG.filter(
+            (i) => i.date >= last30,
+          ).length;
+          const openRFIs = companyRFIs.filter(
+            (r) => r.status === "Açık",
+          ).length;
+          const fulfilledMRs = companyMRs.filter(
+            (m) =>
+              m.status === "Satın Almaya Aktarıldı" || m.status === "Onaylandı",
+          ).length;
+          const mrFulfilledPct =
+            companyMRs.length > 0
+              ? Math.round((fulfilledMRs / companyMRs.length) * 100)
+              : 0;
+          const isgByType = ["Kaza", "Ramak Kala", "Hastalık"].map(
+            (type, i) => ({
+              tip: type,
+              adet: companyISG.filter((inc) => inc.type === type).length,
+              color: [
+                "oklch(0.6 0.2 10)",
+                "oklch(0.7 0.15 60)",
+                "oklch(0.55 0.18 230)",
+              ][i],
+            }),
+          );
+          const mrByStatus = [
+            "Beklemede",
+            "Onaylandı",
+            "Reddedildi",
+            "Satın Almaya Aktarıldı",
+          ]
+            .map((s, i) => ({
+              name: s,
+              value: companyMRs.filter((m) => m.status === s).length,
+              color: [
+                "oklch(0.55 0.02 264)",
+                "oklch(0.6 0.18 160)",
+                "oklch(0.6 0.2 10)",
+                "oklch(0.7 0.15 60)",
+              ][i],
+            }))
+            .filter((d) => d.value > 0);
+          return (
+            <div className="space-y-6">
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                {[
+                  {
+                    label: "Toplam İSG Olayı",
+                    value: companyISG.length,
+                    color: "text-rose-400",
+                    bg: "from-rose-500/10 to-pink-500/5 border-rose-500/20",
+                  },
+                  {
+                    label: "Son 30 Gün",
+                    value: last30Incidents,
+                    color: "text-orange-400",
+                    bg: "from-orange-500/10 to-yellow-500/5 border-orange-500/20",
+                  },
+                  {
+                    label: "Açık RFI",
+                    value: openRFIs,
+                    color: "text-blue-400",
+                    bg: "from-blue-500/10 to-cyan-500/5 border-blue-500/20",
+                  },
+                  {
+                    label: "Malzeme Karşılanma",
+                    value: `${mrFulfilledPct}%`,
+                    color: "text-emerald-400",
+                    bg: "from-emerald-500/10 to-teal-500/5 border-emerald-500/20",
+                  },
+                ].map((kpi, i) => (
+                  <Card
+                    key={kpi.label}
+                    data-ocid={`reporting.isg.kpi.card.${i + 1}`}
+                    className={`bg-gradient-to-br border ${kpi.bg}`}
+                  >
+                    <CardHeader className="pb-2 pt-4 px-4">
+                      <CardTitle className="text-xs font-medium text-muted-foreground">
+                        {kpi.label}
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="px-4 pb-4">
+                      <div className={`text-2xl font-bold ${kpi.color}`}>
+                        {kpi.value}
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+              <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+                <Card
+                  data-ocid="reporting.isg.incidents_by_type.card"
+                  className="bg-card border-border"
+                >
+                  <CardHeader>
+                    <CardTitle className="text-base">
+                      İSG Olay Türlerine Göre Dağılım
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    {companyISG.length === 0 ? (
+                      <div
+                        data-ocid="reporting.isg.incidents.empty_state"
+                        className="flex items-center justify-center h-40 text-muted-foreground text-sm"
+                      >
+                        Henüz İSG olayı kaydı yok.
+                      </div>
+                    ) : (
+                      <ResponsiveContainer width="100%" height={240}>
+                        <BarChart
+                          data={isgByType}
+                          margin={{ top: 4, right: 8, left: 8, bottom: 4 }}
+                        >
+                          <CartesianGrid
+                            strokeDasharray="3 3"
+                            stroke="oklch(0.26 0.01 264)"
+                          />
+                          <XAxis
+                            dataKey="tip"
+                            tick={{ fill: "oklch(0.6 0.02 264)", fontSize: 11 }}
+                            axisLine={false}
+                            tickLine={false}
+                          />
+                          <YAxis
+                            tick={{ fill: "oklch(0.6 0.02 264)", fontSize: 11 }}
+                            axisLine={false}
+                            tickLine={false}
+                          />
+                          <Tooltip
+                            contentStyle={{
+                              backgroundColor: "oklch(0.16 0.01 264)",
+                              border: "1px solid oklch(0.26 0.01 264)",
+                              borderRadius: "8px",
+                              color: "oklch(0.92 0.01 264)",
+                            }}
+                          />
+                          <Bar
+                            dataKey="adet"
+                            radius={[4, 4, 0, 0]}
+                            name="Olay Sayısı"
+                          >
+                            {isgByType.map((entry) => (
+                              <Cell key={entry.tip} fill={entry.color} />
+                            ))}
+                          </Bar>
+                        </BarChart>
+                      </ResponsiveContainer>
+                    )}
+                  </CardContent>
+                </Card>
+                <Card
+                  data-ocid="reporting.isg.mr_status.card"
+                  className="bg-card border-border"
+                >
+                  <CardHeader>
+                    <CardTitle className="text-base">
+                      Malzeme Talep Durumu
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    {companyMRs.length === 0 ? (
+                      <div
+                        data-ocid="reporting.isg.mr.empty_state"
+                        className="flex items-center justify-center h-40 text-muted-foreground text-sm"
+                      >
+                        Henüz malzeme talebi yok.
+                      </div>
+                    ) : (
+                      <ResponsiveContainer width="100%" height={240}>
+                        <PieChart>
+                          <Pie
+                            data={mrByStatus}
+                            dataKey="value"
+                            nameKey="name"
+                            cx="50%"
+                            cy="50%"
+                            outerRadius={90}
+                            label={({ name, value }) => `${name}: ${value}`}
+                            labelLine={false}
+                          >
+                            {mrByStatus.map((entry) => (
+                              <Cell key={entry.name} fill={entry.color} />
+                            ))}
+                          </Pie>
+                          <Tooltip
+                            contentStyle={{
+                              backgroundColor: "oklch(0.16 0.01 264)",
+                              border: "1px solid oklch(0.26 0.01 264)",
+                              borderRadius: "8px",
+                              color: "oklch(0.92 0.01 264)",
+                            }}
+                          />
+                          <Legend
+                            wrapperStyle={{
+                              color: "oklch(0.7 0.02 264)",
+                              fontSize: "12px",
+                            }}
+                          />
+                        </PieChart>
+                      </ResponsiveContainer>
+                    )}
+                  </CardContent>
+                </Card>
+              </div>
+              {openRFIs > 0 && (
+                <Card
+                  data-ocid="reporting.isg.open_rfis.card"
+                  className="bg-card border-border"
+                >
+                  <CardHeader>
+                    <CardTitle className="text-base">Açık RFI'lar</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-2">
+                      {companyRFIs
+                        .filter((r) => r.status === "Açık")
+                        .slice(0, 10)
+                        .map((rfi, i) => (
+                          <div
+                            key={rfi.id}
+                            data-ocid={`reporting.isg.rfi.item.${i + 1}`}
+                            className="flex items-center justify-between p-3 rounded-lg bg-accent/30 border border-border"
+                          >
+                            <div>
+                              <p className="text-sm font-medium">
+                                {rfi.rfiNo} – {rfi.subject}
+                              </p>
+                              <p className="text-xs text-muted-foreground">
+                                Sorumlu: {rfi.assignedTo}
+                              </p>
+                            </div>
+                            <Badge
+                              className={
+                                rfi.dueDate < new Date().toISOString()
+                                  ? "bg-rose-500/20 text-rose-400 border-rose-500/30"
+                                  : "bg-amber-500/20 text-amber-400 border-amber-500/30"
+                              }
+                            >
+                              {rfi.dueDate < new Date().toISOString()
+                                ? "Gecikmiş"
+                                : "Açık"}
+                            </Badge>
+                          </div>
+                        ))}
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+            </div>
+          );
+        })()}
+
+      {/* ── KAPANIŞ RAPORLARI TAB ──────────────────────────────────────────── */}
+      {activeTab === "kapanış" && (
+        <ClosureReportsTab
+          projects={projects}
+          tasks={tasks}
+          expenses={expenses}
+          companyId={activeCompanyId || ""}
+        />
+      )}
+    </div>
+  );
+}
+
+function EVMSection({ projects, expenses }: any) {
+  const [selectedProjId, setSelectedProjId] = useState("");
+
+  const project = projects.find((p: any) => p.id === selectedProjId);
+
+  const calcEVM = () => {
+    if (!project) return null;
+    const budget = project.budget || 0;
+    const progress = project.progress || 0;
+    const today = new Date();
+    const start = project.startDate ? new Date(project.startDate) : null;
+    const end = project.endDate ? new Date(project.endDate) : null;
+
+    const EV = budget * (progress / 100);
+    const AC = expenses
+      .filter(
+        (e: any) => e.projectId === selectedProjId && e.status === "Onaylandı",
+      )
+      .reduce((s: number, e: any) => s + e.amount, 0);
+
+    let PV = EV;
+    if (start && end && end > start) {
+      const totalDays = (end.getTime() - start.getTime()) / 86400000;
+      const elapsedDays = Math.max(
+        0,
+        (today.getTime() - start.getTime()) / 86400000,
+      );
+      const timeRatio = Math.min(1, elapsedDays / totalDays);
+      PV = budget * timeRatio;
+    }
+
+    const CPI = AC > 0 ? EV / AC : null;
+    const SPI = PV > 0 ? EV / PV : null;
+    const budgetVariance = EV - AC;
+    const scheduleVariance = EV - PV;
+    const EAC = CPI && CPI > 0 ? AC + (budget - EV) / CPI : null;
+
+    return {
+      EV,
+      AC,
+      PV,
+      CPI,
+      SPI,
+      budgetVariance,
+      scheduleVariance,
+      EAC,
+      budget,
+    };
+  };
+
+  const evm = calcEVM();
+
+  const getColor = (val: number | null) => {
+    if (val === null) return "text-muted-foreground";
+    if (val >= 1.0) return "text-green-400";
+    if (val >= 0.8) return "text-amber-400";
+    return "text-red-400";
+  };
+
+  const formatCurrency = (n: number) =>
+    new Intl.NumberFormat("tr-TR", {
+      style: "currency",
+      currency: "TRY",
+      maximumFractionDigits: 0,
+    }).format(n);
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <h2 className="text-lg font-semibold text-foreground">
+          EVM Analizi (Kazanılmış Değer)
+        </h2>
+        <div className="w-56">
+          <Select value={selectedProjId} onValueChange={setSelectedProjId}>
+            <SelectTrigger
+              data-ocid="reporting.evm.project.select"
+              className="bg-card border-border"
+            >
+              <SelectValue placeholder="Proje seçin..." />
+            </SelectTrigger>
+            <SelectContent className="bg-card border-border">
+              {projects.map((p: any) => (
+                <SelectItem key={p.id} value={p.id}>
+                  {p.title}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
+
+      {!selectedProjId ? (
+        <Card
+          data-ocid="reporting.evm.empty_state"
+          className="bg-card border-border"
+        >
+          <CardContent className="flex items-center justify-center py-12">
+            <p className="text-muted-foreground">
+              EVM analizi için proje seçin
+            </p>
+          </CardContent>
+        </Card>
+      ) : evm ? (
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          <Card
+            data-ocid="reporting.evm.cpi.card"
+            className="bg-card border-border"
+          >
+            <CardHeader className="pb-2 pt-4 px-4">
+              <CardTitle className="text-xs text-muted-foreground font-medium">
+                CPI (Maliyet Perf.)
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="px-4 pb-4">
+              <p className={`text-2xl font-bold ${getColor(evm.CPI)}`}>
+                {evm.CPI !== null ? evm.CPI.toFixed(2) : "—"}
+              </p>
+              <p className="text-xs text-muted-foreground mt-1">
+                {evm.CPI !== null && evm.CPI >= 1
+                  ? "Bütçe altında ✓"
+                  : evm.CPI !== null
+                    ? "Bütçe aşımı riski ⚠"
+                    : "Veri yok"}
+              </p>
+            </CardContent>
+          </Card>
+
+          <Card
+            data-ocid="reporting.evm.spi.card"
+            className="bg-card border-border"
+          >
+            <CardHeader className="pb-2 pt-4 px-4">
+              <CardTitle className="text-xs text-muted-foreground font-medium">
+                SPI (Zaman Perf.)
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="px-4 pb-4">
+              <p className={`text-2xl font-bold ${getColor(evm.SPI)}`}>
+                {evm.SPI !== null ? evm.SPI.toFixed(2) : "—"}
+              </p>
+              <p className="text-xs text-muted-foreground mt-1">
+                {evm.SPI !== null && evm.SPI >= 1
+                  ? "Zamanında ✓"
+                  : evm.SPI !== null
+                    ? "Gecikme riski ⚠"
+                    : "Veri yok"}
+              </p>
+            </CardContent>
+          </Card>
+
+          <Card
+            data-ocid="reporting.evm.budget_variance.card"
+            className="bg-card border-border"
+          >
+            <CardHeader className="pb-2 pt-4 px-4">
+              <CardTitle className="text-xs text-muted-foreground font-medium">
+                Bütçe Varyansı
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="px-4 pb-4">
+              <p
+                className={`text-lg font-bold ${evm.budgetVariance >= 0 ? "text-green-400" : "text-red-400"}`}
+              >
+                {formatCurrency(evm.budgetVariance)}
+              </p>
+              <p className="text-xs text-muted-foreground mt-1">EV - AC</p>
+            </CardContent>
+          </Card>
+
+          <Card
+            data-ocid="reporting.evm.eac.card"
+            className="bg-card border-border"
+          >
+            <CardHeader className="pb-2 pt-4 px-4">
+              <CardTitle className="text-xs text-muted-foreground font-medium">
+                Tahmini Tamamlanma (EAC)
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="px-4 pb-4">
+              <p className="text-lg font-bold text-foreground">
+                {evm.EAC !== null ? formatCurrency(evm.EAC) : "—"}
+              </p>
+              <p className="text-xs text-muted-foreground mt-1">
+                Bütçe: {formatCurrency(evm.budget)}
+              </p>
             </CardContent>
           </Card>
         </div>
-      </div>
+      ) : null}
     </div>
   );
 }

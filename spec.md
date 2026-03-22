@@ -1,40 +1,35 @@
 # ProjectVerse
 
 ## Current State
-v43 kapsamlı inşaat/saha ERP SaaS platformu. Mevcut modüller: Dashboard, Projeler (Kanban/Gantt/Milestone), Saha Operasyonları, İletişim, Belgeler, İK (izin/mesai/vardiya/sertifika/bordro), Finans (bütçe/fatura/onay), Satın Alma, Envanter, Araç & Ekipman, Taşeron Yönetimi, CRM, Teklif & Keşif, Kalite & Güvenlik, Şantiye Logu, Çizim & Planlar, Toplantı Tutanakları, Punch List, Kaynak Takvimi, Risk Kaydı, Raporlama. Tüm veriler backend-synced (v42+). 16 karakterli kod bazlı kimlik doğrulama.
+v46: Comprehensive construction ERP with 30+ modules all functional. All module data persistent via Motoko backend. Amber/gold theme, Turkish default, RBAC, multi-tenant.
+
+Modules: Dashboard, Projects, HR, Finance (with Hakediş), Purchasing, Inventory, Field Ops, Documents, Communication, Reporting, Quality & Safety, CRM, Subcontractors, Equipment, Quotes, ISG, SiteLog, Drawings, Meetings, PunchList, ResourceCalendar, RiskRegister, Contracts, MaterialRequests, ClientReport.
 
 ## Requested Changes (Diff)
 
 ### Add
-1. **Hakediş Yönetimi** (Finans altında yeni sekme): iş kalemi bazlı hakediş cetveli, % tamamlanma, onay zinciri, kesinti/stopaj hesabı
-2. **İSG Modülü** (yeni sayfa): kaza/ramak kala bildirimleri, KKD takibi, toolbox talk kayıtları, olay soruşturma formu
-3. **Tedarikçi Performans Değerlendirmesi** (Satın Alma altında yeni sekme): puan sistemi, teslimat/kalite skoru, sipariş geçmişi analizi
-4. **Özelleştirilebilir Dashboard**: kullanıcı widget seçimi, rol bazlı varsayılan düzen, widget sürükleme/kaldırma
-5. **Vardiya & Puantaj** (İK altında yeni sekme): giriş/çıkış saati bazlı puantaj, ay sonu puantaj cetveli, onay akışı
-6. **Bildirim & Uyarı Merkezi** (header'dan erişilebilir panel): sertifika son kullanma, geciken görev, onay bekleyen kayıtlar için otomatik uyarılar
+1. **Nakit Akış Projeksiyonu** - New tab in Finance: monthly cash flow projection table and chart (planned income vs. expense by month)
+2. **Şantiye Fotoğraf Galerisi** - New page `SitePhotos`: project-based photo gallery, filterable by date/tag/location, uses blob-storage
+3. **İmar & Yapı Ruhsatı Takibi** - New page `Permits`: permit type, issuing authority, validity date, renewal alerts
+4. **Tedarikçi Fiyat Kataloğu** - New tab in Purchasing: supplier-based material price catalog, usable in quote preparation
+5. **Personel Öz Servis Portalı** - New page `SelfService`: employees can view their own leave requests, payroll history, certificates
+6. **Proje Kapanış Raporu** - New tab/section in Projects or Reporting: auto-generated closure report for completed projects (budget vs actual, duration deviation, quality findings)
 
 ### Modify
-- AppContext: hakediş, ISG, tedarikçi değerlendirme, puantaj, bildirimler için state eklenir
-- App.tsx: `isg` ve yeni sayfa key'leri eklenir
-- Layout.tsx: İSG sidebar'a eklenir (OPERASYONLAR grubuna), Quotes sidebar'a eklenir
-- Finance.tsx: Hakediş sekmesi eklenir
-- Purchasing.tsx: Tedarikçi Performans sekmesi eklenir
-- HumanResources.tsx: Puantaj sekmesi eklenir
-- Dashboard.tsx: widget seçimi ve özelleştirme eklenir
-- Layout.tsx header: bildirim zili genişletilir
+- App.tsx: Add new page types and route to new pages
+- Layout.tsx: Add new pages to sidebar navigation
+- Finance.tsx: Add Nakit Akış tab
+- Purchasing.tsx: Add Tedarikçi Fiyat Kataloğu tab
 
 ### Remove
-- Hiçbir mevcut özellik kaldırılmıyor
+Nothing removed.
 
 ## Implementation Plan
-**Tur 1:**
-1. AppContext'e hakediş, ISG, tedarikçi değerlendirme, puantaj state'leri ekle
-2. ISG sayfası oluştur (ISG.tsx)
-3. Finance.tsx'e Hakediş sekmesi ekle
-4. Purchasing.tsx'e Tedarikçi Performans sekmesi ekle
-5. HumanResources.tsx'e Puantaj sekmesi ekle
-6. App.tsx ve Layout.tsx güncelle
-
-**Tur 2:**
-7. Dashboard'a özelleştirilebilir widget sistemi ekle
-8. Layout header'a Bildirim & Uyarı Merkezi paneli ekle (sertifika/görev/fatura uyarıları otomatik üret)
+1. Create SitePhotos.tsx page (photo gallery with upload, project filter, tag/date filter)
+2. Create Permits.tsx page (permit CRUD, validity tracking, renewal alerts)
+3. Create SelfService.tsx page (personal leave, payroll, certifications view)
+4. Add Nakit Akış tab to Finance.tsx
+5. Add Tedarikçi Fiyat Kataloğu tab to Purchasing.tsx
+6. Add Proje Kapanış Raporu tab to Reporting.tsx
+7. Update App.tsx with new page routes
+8. Update Layout.tsx sidebar with new navigation items
