@@ -36,6 +36,7 @@ import type {
   MaintenanceFault,
 } from "../contexts/AppContext";
 import { useApp } from "../contexts/AppContext";
+import EquipmentFuelCost from "./tabs/EquipmentFuelCost";
 
 const STATUS_LABELS: Record<EquipmentStatus, { label: string; cls: string }> = {
   active: {
@@ -254,6 +255,9 @@ export default function Equipment() {
           </TabsTrigger>
           <TabsTrigger data-ocid="equipment.audit.tab" value="audit">
             Denetim Logu
+          </TabsTrigger>
+          <TabsTrigger data-ocid="equipment.fuelcost.tab" value="fuelcost">
+            Yakıt & Maliyet
           </TabsTrigger>
         </TabsList>
 
@@ -954,6 +958,13 @@ export default function Equipment() {
               </table>
             </div>
           )}
+        </TabsContent>
+        {/* ─── FUEL COST TAB ─── */}
+        <TabsContent value="fuelcost" className="mt-4">
+          <EquipmentFuelCost
+            companyId={activeCompanyId || ""}
+            equipment={equipment}
+          />
         </TabsContent>
       </Tabs>
 

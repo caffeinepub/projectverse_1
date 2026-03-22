@@ -49,6 +49,7 @@ import { useState } from "react";
 import AccessDenied from "../components/AccessDenied";
 import { useApp } from "../contexts/AppContext";
 import type { SupplierEvaluation } from "../contexts/AppContext";
+import TenderManagement from "./tabs/TenderManagement";
 
 import type {
   Order,
@@ -972,6 +973,13 @@ export default function Purchasing() {
             className="data-[state=active]:gradient-bg data-[state=active]:text-white"
           >
             Fiyat Kataloğu
+          </TabsTrigger>
+          <TabsTrigger
+            data-ocid="purchasing.tender.tab"
+            value="tender"
+            className="data-[state=active]:gradient-bg data-[state=active]:text-white"
+          >
+            İhale Yönetimi
           </TabsTrigger>
         </TabsList>
 
@@ -2160,6 +2168,15 @@ export default function Purchasing() {
         <PriceCatalogTab
           companyId={activeCompanyId || ""}
           suppliers={suppliers}
+        />
+      </TabsContent>
+
+      {/* ── İHALE YÖNETİMİ TAB ─────────────────────────────────────── */}
+      <TabsContent value="tender" className="mt-6">
+        <TenderManagement
+          companyId={activeCompanyId || ""}
+          suppliers={suppliers}
+          projects={projects}
         />
       </TabsContent>
     </div>

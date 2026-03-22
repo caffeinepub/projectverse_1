@@ -34,6 +34,8 @@ import {
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { useApp } from "../contexts/AppContext";
+import SubcontractorSelfService from "./tabs/SubcontractorSelfService";
+import WorkOrdersTab from "./tabs/WorkOrdersTab";
 
 interface Subcontractor {
   id: string;
@@ -605,6 +607,20 @@ export default function SubcontractorManagement() {
             className="data-[state=active]:bg-amber-500/20 data-[state=active]:text-amber-300"
           >
             Denetim Logu
+          </TabsTrigger>
+          <TabsTrigger
+            value="selfservice"
+            data-ocid="subcontractor.selfservice.tab"
+            className="data-[state=active]:bg-amber-500/20 data-[state=active]:text-amber-300"
+          >
+            Öz Servis
+          </TabsTrigger>
+          <TabsTrigger
+            value="workorders"
+            data-ocid="subcontractor.workorders.tab"
+            className="data-[state=active]:bg-amber-500/20 data-[state=active]:text-amber-300"
+          >
+            İş Emirleri
           </TabsTrigger>
         </TabsList>
 
@@ -1210,6 +1226,20 @@ export default function SubcontractorManagement() {
               </table>
             </div>
           )}
+        </TabsContent>
+
+        {/* Self Service Tab */}
+        <TabsContent value="selfservice" className="mt-6">
+          <SubcontractorSelfService
+            companyId={companyId}
+            subcontractors={subcontractors}
+          />
+        </TabsContent>
+        <TabsContent value="workorders" className="mt-6">
+          <WorkOrdersTab
+            companyId={companyId}
+            subcontractors={subcontractors}
+          />
         </TabsContent>
       </Tabs>
     </div>

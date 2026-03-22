@@ -33,6 +33,7 @@ import {
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { type CrmContact, type CrmLead, useApp } from "../contexts/AppContext";
+import ComplaintsTab from "./tabs/ComplaintsTab";
 
 type ContactType = CrmContact["type"];
 type LeadStatus = CrmLead["status"];
@@ -396,6 +397,9 @@ export default function CRM() {
           </TabsTrigger>
           <TabsTrigger value="audit" data-ocid="crm.audit_tab">
             Denetim Logu
+          </TabsTrigger>
+          <TabsTrigger value="complaints" data-ocid="crm.complaints_tab">
+            Şikayetler
           </TabsTrigger>
         </TabsList>
 
@@ -887,6 +891,9 @@ export default function CRM() {
               </table>
             </div>
           )}
+        </TabsContent>
+        <TabsContent value="complaints" className="mt-4">
+          <ComplaintsTab companyId={crmCompanyId} />
         </TabsContent>
       </Tabs>
     </div>

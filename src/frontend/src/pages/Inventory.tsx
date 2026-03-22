@@ -41,6 +41,8 @@ import {
 import { useEffect, useState } from "react";
 import AccessDenied from "../components/AccessDenied";
 import { useApp } from "../contexts/AppContext";
+import InventoryCount from "./tabs/InventoryCount";
+import LocationsTab from "./tabs/LocationsTab";
 
 import type { MovementType, StockStatus } from "../contexts/AppContext";
 
@@ -479,6 +481,20 @@ export default function Inventory() {
           >
             Denetim Logu
           </TabsTrigger>
+          <TabsTrigger
+            data-ocid="inventory.count.tab"
+            value="count"
+            className="data-[state=active]:gradient-bg data-[state=active]:text-white"
+          >
+            Stok Sayımı
+          </TabsTrigger>
+          <TabsTrigger
+            data-ocid="inventory.locations.tab"
+            value="locations"
+            className="data-[state=active]:gradient-bg data-[state=active]:text-white"
+          >
+            Depo Lokasyonları
+          </TabsTrigger>
         </TabsList>
 
         {/* ── STOCK CARDS TAB ───────────────────────────────────────────── */}
@@ -819,6 +835,20 @@ export default function Inventory() {
               </Table>
             </CardContent>
           </Card>
+        </TabsContent>
+
+        {/* ── STOK SAYIMI TAB ─── */}
+        <TabsContent value="count" className="mt-6">
+          <InventoryCount
+            companyId={activeCompanyId || ""}
+            stockItems={stockItems}
+          />
+        </TabsContent>
+        <TabsContent value="locations" className="mt-6">
+          <LocationsTab
+            companyId={activeCompanyId || ""}
+            stockItems={stockItems}
+          />
         </TabsContent>
       </Tabs>
 

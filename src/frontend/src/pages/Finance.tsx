@@ -47,6 +47,7 @@ import React from "react";
 import { useEffect, useMemo, useState } from "react";
 import AccessDenied from "../components/AccessDenied";
 import { useApp } from "../contexts/AppContext";
+import AdvancesTab from "./tabs/AdvancesTab";
 
 import type {
   AuditLog,
@@ -814,6 +815,13 @@ export default function Finance() {
             className="data-[state=active]:gradient-bg data-[state=active]:text-white text-xs md:text-sm"
           >
             Nakit Akış
+          </TabsTrigger>
+          <TabsTrigger
+            data-ocid="finance.advances.tab"
+            value="advances"
+            className="data-[state=active]:gradient-bg data-[state=active]:text-white text-xs md:text-sm"
+          >
+            Avans & Harcama
           </TabsTrigger>
         </TabsList>
 
@@ -2107,6 +2115,10 @@ export default function Finance() {
         {/* ── NAKİT AKIŞ TAB ─────────────────────────────────────────────── */}
         <TabsContent value="cashflow" className="space-y-5">
           <CashFlowTab companyId={activeCompanyId || ""} />
+        </TabsContent>
+        {/* ── AVANS & HARCAMA TAB ───────────────────────────────────────── */}
+        <TabsContent value="advances" className="space-y-5">
+          <AdvancesTab companyId={activeCompanyId || ""} />
         </TabsContent>
       </Tabs>
     </div>

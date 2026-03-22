@@ -810,6 +810,7 @@ export default function Reporting() {
           { id: "risk", label: "Risk & Kalite" },
           { id: "isg", label: "İSG & Saha" },
           { id: "kapanış", label: "Kapanış Raporları" },
+          { id: "segri", label: "S-Eğrisi" },
         ].map((tab) => (
           <button
             type="button"
@@ -2775,6 +2776,11 @@ export default function Reporting() {
           companyId={activeCompanyId || ""}
         />
       )}
+
+      {/* ── S-EĞRİSİ TAB ──────────────────────────────────────────────────── */}
+      {activeTab === "segri" && (
+        <SCurveSection projects={projects} tasks={tasks} />
+      )}
     </div>
   );
 }
@@ -2968,6 +2974,201 @@ function EVMSection({ projects, expenses }: any) {
           </Card>
         </div>
       ) : null}
+    </div>
+  );
+}
+
+// ─── S-Eğrisi Section ────────────────────────────────────────────────────────
+function SCurveSection({ projects, tasks }: { projects: any[]; tasks: any[] }) {
+  const [selectedProjId, setSelectedProjId] = useState("");
+  const activeProjects = projects.filter(
+    (p: any) => p.status !== "Tamamlandı" && p.startDate && p.endDate,
+  );
+  const project = activeProjects.find((p: any) => p.id === selectedProjId);
+
+  const curveData = React.useMemo(() => {
+    if (!project) return [];
+    const start = new Date(project.startDate);
+    const end = new Date(project.endDate);
+    const totalDays = Math.max((end.getTime() - start.getTime()) / 86400000, 1);
+    const projectTasks = tasks.filter(
+      (t: any) => t.projectId === project.id || t.project === project.title,
+    );
+    const totalTasks = projectTasks.length || 1;
+    const completedTasks = projectTasks.filter(
+      (t: any) => t.status === "Tamamlandı",
+    );
+
+    // Generate monthly points
+    const points: { month: string; planned: number; actual: number }[] = [];
+    const now = new Date();
+    let cursor = new Date(start);
+    cursor.setDate(1);
+
+    while (cursor <= end && points.length < 24) {
+      const daysElapsed = Math.max(
+        (cursor.getTime() - start.getTime()) / 86400000,
+        0,
+      );
+      const progress = Math.min(daysElapsed / totalDays, 1);
+      // S-curve: slow start, fast middle, slow end
+      const sCurve =
+        progress < 0.5
+          ? 2 * progress * progress
+          : 1 - 2 * (1 - progress) * (1 - progress);
+      const plannedPct = Math.round(sCurve * 100);
+
+      // Actual: based on completed tasks due before this date
+      const doneByDate = completedTasks.filter((t: any) => {
+        const due = t.dueDate || t.endDate || "";
+        return due && new Date(due) <= cursor;
+      }).length;
+      const actualPct = Math.min(
+        Math.round((doneByDate / totalTasks) * 100),
+        100,
+      );
+
+      points.push({
+        month: `${cursor.getFullYear()}-${String(cursor.getMonth() + 1).padStart(2, "0")}`,
+        planned: plannedPct,
+        actual: cursor <= now ? actualPct : Number.NaN,
+      });
+
+      cursor.setMonth(cursor.getMonth() + 1);
+    }
+    return points;
+  }, [project, tasks]);
+
+  return (
+    <div className="space-y-5">
+      <div>
+        <h2 className="text-xl font-bold text-foreground">
+          S-Eğrisi & İlerleme Analizi
+        </h2>
+        <p className="text-sm text-muted-foreground mt-1">
+          Planlanan vs. gerçekleşen proje ilerlemesi
+        </p>
+      </div>
+
+      <div className="max-w-xs">
+        <Select
+          value={selectedProjId}
+          onValueChange={(v) => setSelectedProjId(v)}
+        >
+          <SelectTrigger
+            data-ocid="reporting.segri.select"
+            className="bg-card border-border"
+          >
+            <SelectValue placeholder="Proje seçin" />
+          </SelectTrigger>
+          <SelectContent className="bg-card border-border">
+            {activeProjects.map((p: any) => (
+              <SelectItem key={p.id} value={p.id}>
+                {p.title}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+
+      {!selectedProjId ? (
+        <div
+          data-ocid="reporting.segri.empty_state"
+          className="text-center py-16"
+        >
+          <Activity className="w-12 h-12 mx-auto mb-3 text-amber-500/30" />
+          <p className="text-muted-foreground">
+            S-eğrisi görüntülemek için bir proje seçin.
+          </p>
+        </div>
+      ) : curveData.length === 0 ? (
+        <div className="text-center py-16">
+          <p className="text-muted-foreground">
+            Bu proje için veri hesaplanamadı.
+          </p>
+        </div>
+      ) : (
+        <Card
+          data-ocid="reporting.segri.card"
+          className="bg-card border-border"
+        >
+          <CardHeader>
+            <CardTitle className="text-base">
+              {project?.title} — İlerleme Eğrisi
+            </CardTitle>
+            <p className="text-xs text-muted-foreground">
+              {project?.startDate} → {project?.endDate}
+            </p>
+          </CardHeader>
+          <CardContent>
+            <ResponsiveContainer width="100%" height={320}>
+              <LineChart
+                data={curveData}
+                margin={{ top: 5, right: 20, left: 0, bottom: 5 }}
+              >
+                <CartesianGrid strokeDasharray="3 3" stroke="oklch(0.3 0 0)" />
+                <XAxis
+                  dataKey="month"
+                  tick={{ fontSize: 10, fill: "oklch(0.6 0 0)" }}
+                />
+                <YAxis
+                  unit="%"
+                  tick={{ fontSize: 10, fill: "oklch(0.6 0 0)" }}
+                  domain={[0, 100]}
+                />
+                <Tooltip
+                  contentStyle={{
+                    backgroundColor: "oklch(0.2 0 0)",
+                    border: "1px solid oklch(0.3 0 0)",
+                    borderRadius: "8px",
+                  }}
+                  labelStyle={{ color: "oklch(0.85 0 0)" }}
+                  formatter={(value: any) =>
+                    Number.isNaN(value) ? ["—", ""] : [`${value}%`]
+                  }
+                />
+                <Legend />
+                <Line
+                  type="monotone"
+                  dataKey="planned"
+                  name="Planlanan"
+                  stroke="oklch(0.65 0.15 250)"
+                  strokeWidth={2}
+                  dot={false}
+                  strokeDasharray="5 5"
+                />
+                <Line
+                  type="monotone"
+                  dataKey="actual"
+                  name="Gerçekleşen"
+                  stroke="oklch(0.75 0.18 75)"
+                  strokeWidth={2.5}
+                  dot={{ fill: "oklch(0.75 0.18 75)", r: 3 }}
+                  connectNulls={false}
+                />
+              </LineChart>
+            </ResponsiveContainer>
+
+            <div className="flex items-center gap-6 mt-3 justify-center">
+              <div className="flex items-center gap-2">
+                <div
+                  className="w-6 h-0.5 bg-blue-400"
+                  style={{ borderTop: "2px dashed" }}
+                />
+                <span className="text-xs text-muted-foreground">
+                  Planlanan (S-eğrisi)
+                </span>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="w-6 h-0.5 bg-amber-400" />
+                <span className="text-xs text-muted-foreground">
+                  Gerçekleşen
+                </span>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }

@@ -64,6 +64,8 @@ import type {
   TrainingRecord,
 } from "../contexts/AppContext";
 import { useApp } from "../contexts/AppContext";
+import PerformanceReview from "./tabs/PerformanceReview";
+import RecruitmentTab from "./tabs/RecruitmentTab";
 
 const DAYS = ["Pzt", "Sal", "Çar", "Per", "Cum", "Cmt", "Paz"];
 const SHIFT_KEYS = ["sabah", "ogleden", "gece", "izin", ""] as const;
@@ -1692,6 +1694,20 @@ export default function HumanResources() {
           >
             Puantaj
           </TabsTrigger>
+          <TabsTrigger
+            data-ocid="hr.performance.tab"
+            value="performance"
+            className="text-xs md:text-sm"
+          >
+            Performans
+          </TabsTrigger>
+          <TabsTrigger
+            data-ocid="hr.recruitment.tab"
+            value="recruitment"
+            className="text-xs md:text-sm"
+          >
+            İşe Alım
+          </TabsTrigger>
         </TabsList>
 
         {/* ─── PERSONNEL TAB ─── */}
@@ -2942,6 +2958,17 @@ export default function HumanResources() {
               </div>
             );
           })()}
+        </TabsContent>
+
+        {/* ─── PERFORMANCE TAB ─── */}
+        <TabsContent value="performance" className="mt-4">
+          <PerformanceReview
+            companyId={activeCompanyId || ""}
+            personnel={personnel}
+          />
+        </TabsContent>
+        <TabsContent value="recruitment" className="mt-4 space-y-6">
+          <RecruitmentTab companyId={activeCompanyId || ""} />
         </TabsContent>
       </Tabs>
 
