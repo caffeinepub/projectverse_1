@@ -38,6 +38,13 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
+import {
+  PolarAngleAxis,
+  PolarGrid,
+  PolarRadiusAxis,
+  Radar,
+  RadarChart,
+} from "recharts";
 import AccessDenied from "../components/AccessDenied";
 import { useApp } from "../contexts/AppContext";
 
@@ -409,6 +416,59 @@ export default function Reporting() {
       // ignore parse errors
     }
   }, [activeCompanyId]);
+
+  // v49 Module Data from localStorage
+  const loadLS = <T,>(key: string, fallback: T): T => {
+    try {
+      const s = localStorage.getItem(key);
+      return s ? (JSON.parse(s) as T) : fallback;
+    } catch {
+      return fallback;
+    }
+  };
+
+  type Job = { status: string; department?: string };
+  type Candidate = { stage: string; jobId?: string };
+  type Onboarding = { completed: boolean };
+  type Advance = {
+    status: string;
+    amount?: number;
+    category?: string;
+    date?: string;
+  };
+  type Complaint = { status: string; category?: string };
+  type Location = { name: string; capacity?: number; currentStock?: number };
+  type SubWorkOrder = {
+    status: string;
+    subcontractorId?: string;
+    plannedEnd?: string;
+  };
+
+  const recruitmentJobs = loadLS<Job[]>(
+    `pv_recruitment_jobs_${activeCompanyId}`,
+    [],
+  );
+  const recruitmentCandidates = loadLS<Candidate[]>(
+    `pv_recruitment_candidates_${activeCompanyId}`,
+    [],
+  );
+  const recruitmentOnboarding = loadLS<Onboarding[]>(
+    `pv_recruitment_onboarding_${activeCompanyId}`,
+    [],
+  );
+  const advances = loadLS<Advance[]>(`pv_advances_${activeCompanyId}`, []);
+  const complaints = loadLS<Complaint[]>(
+    `pv_complaints_${activeCompanyId}`,
+    [],
+  );
+  const warehouseLocations = loadLS<Location[]>(
+    `pv_locations_${activeCompanyId}`,
+    [],
+  );
+  const subWorkOrders = loadLS<SubWorkOrder[]>(
+    `pv_sub_workorders_${activeCompanyId}`,
+    [],
+  );
 
   const totalCustomers = crmContacts.length;
   const openOpportunities = crmLeads.filter(
@@ -811,6 +871,11 @@ export default function Reporting() {
           { id: "isg", label: "İSG & Saha" },
           { id: "kapanış", label: "Kapanış Raporları" },
           { id: "segri", label: "S-Eğrisi" },
+          { id: "iseAlim", label: "İşe Alım & Onboarding" },
+          { id: "avans", label: "Avans & Harcama" },
+          { id: "sikayet", label: "Şikayet & Talepler" },
+          { id: "depo", label: "Depo & Lokasyon" },
+          { id: "taseronIs", label: "Taşeron İş Emirleri" },
         ].map((tab) => (
           <button
             type="button"
@@ -2781,6 +2846,776 @@ export default function Reporting() {
       {activeTab === "segri" && (
         <SCurveSection projects={projects} tasks={tasks} />
       )}
+
+      {/* İşe Alım & Onboarding Tab */}
+      {activeTab === "iseAlim" && (
+        <div className="space-y-6">
+          {recruitmentJobs.length === 0 &&
+          recruitmentCandidates.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-20 text-center">
+              <div className="w-16 h-16 rounded-full bg-amber-500/10 flex items-center justify-center mb-4 animate-pulse">
+                <span className="text-2xl">👥</span>
+              </div>
+              <h3 className="text-lg font-semibold text-foreground mb-2">
+                Henüz İşe Alım Verisi Yok
+              </h3>
+              <p className="text-muted-foreground text-sm">
+                İşe Alım & Onboarding modülünden veri girişi yapıldıkça burada
+                görünecek.
+              </p>
+            </div>
+          ) : (
+            <>
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                {[
+                  {
+                    label: "Açık Pozisyon",
+                    value: recruitmentJobs.filter(
+                      (j: Job) => j.status === "open" || j.status === "Aktif",
+                    ).length,
+                    color: "text-amber-400",
+                  },
+                  {
+                    label: "Toplam Aday",
+                    value: recruitmentCandidates.length,
+                    color: "text-blue-400",
+                  },
+                  {
+                    label: "Onboarding Bekleyen",
+                    value: recruitmentOnboarding.filter(
+                      (o: Onboarding) => !o.completed,
+                    ).length,
+                    color: "text-orange-400",
+                  },
+                  {
+                    label: "Tamamlanan Onboarding",
+                    value: recruitmentOnboarding.filter(
+                      (o: Onboarding) => o.completed,
+                    ).length,
+                    color: "text-green-400",
+                  },
+                ].map((kpi) => (
+                  <Card key={kpi.label} className="bg-card border-border">
+                    <CardContent className="p-4">
+                      <p className="text-xs text-muted-foreground mb-1">
+                        {kpi.label}
+                      </p>
+                      <p className={`text-3xl font-bold ${kpi.color}`}>
+                        {kpi.value}
+                      </p>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <Card className="bg-card border-border">
+                  <CardHeader>
+                    <CardTitle className="text-sm text-foreground">
+                      Aday Pipeline Dağılımı
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    {(() => {
+                      const stages = [
+                        "Başvuru",
+                        "Mülakat",
+                        "Teklif",
+                        "İşe Alındı",
+                        "Reddedildi",
+                      ];
+                      const data = stages
+                        .map((s) => ({
+                          name: s,
+                          count: recruitmentCandidates.filter(
+                            (c: Candidate) => c.stage === s,
+                          ).length,
+                        }))
+                        .filter((d) => d.count > 0);
+                      return data.length > 0 ? (
+                        <ResponsiveContainer width="100%" height={200}>
+                          <BarChart data={data}>
+                            <XAxis
+                              dataKey="name"
+                              tick={{ fill: "oklch(0.65 0 0)", fontSize: 11 }}
+                            />
+                            <YAxis
+                              tick={{ fill: "oklch(0.65 0 0)", fontSize: 11 }}
+                              allowDecimals={false}
+                            />
+                            <Tooltip
+                              contentStyle={{
+                                background: "oklch(0.15 0 0)",
+                                border: "1px solid oklch(0.25 0 0)",
+                                borderRadius: 8,
+                              }}
+                            />
+                            <Bar
+                              dataKey="count"
+                              name="Aday"
+                              fill="oklch(0.72 0.18 75)"
+                              radius={[4, 4, 0, 0]}
+                            />
+                          </BarChart>
+                        </ResponsiveContainer>
+                      ) : (
+                        <p className="text-center text-muted-foreground py-8 text-sm">
+                          Aday verisi yok
+                        </p>
+                      );
+                    })()}
+                  </CardContent>
+                </Card>
+                <Card className="bg-card border-border">
+                  <CardHeader>
+                    <CardTitle className="text-sm text-foreground">
+                      Onboarding Tamamlanma
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    {recruitmentOnboarding.length > 0 ? (
+                      <>
+                        <div className="flex items-center justify-center py-4">
+                          <div className="relative w-32 h-32">
+                            <svg
+                              viewBox="0 0 36 36"
+                              className="w-32 h-32 -rotate-90"
+                              aria-label="Onboarding tamamlanma oranı"
+                              role="img"
+                            >
+                              <circle
+                                cx="18"
+                                cy="18"
+                                r="15.9"
+                                fill="none"
+                                stroke="oklch(0.25 0 0)"
+                                strokeWidth="3"
+                              />
+                              <circle
+                                cx="18"
+                                cy="18"
+                                r="15.9"
+                                fill="none"
+                                stroke="oklch(0.72 0.18 75)"
+                                strokeWidth="3"
+                                strokeDasharray={`${Math.round((recruitmentOnboarding.filter((o: Onboarding) => o.completed).length / recruitmentOnboarding.length) * 100)} 100`}
+                              />
+                            </svg>
+                            <div className="absolute inset-0 flex items-center justify-center">
+                              <span className="text-2xl font-bold text-amber-400">
+                                {Math.round(
+                                  (recruitmentOnboarding.filter(
+                                    (o: Onboarding) => o.completed,
+                                  ).length /
+                                    recruitmentOnboarding.length) *
+                                    100,
+                                )}
+                                %
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                        <p className="text-center text-sm text-muted-foreground">
+                          {
+                            recruitmentOnboarding.filter(
+                              (o: Onboarding) => o.completed,
+                            ).length
+                          }{" "}
+                          / {recruitmentOnboarding.length} tamamlandı
+                        </p>
+                      </>
+                    ) : (
+                      <p className="text-center text-muted-foreground py-8 text-sm">
+                        Onboarding verisi yok
+                      </p>
+                    )}
+                  </CardContent>
+                </Card>
+              </div>
+            </>
+          )}
+        </div>
+      )}
+
+      {/* Avans & Harcama Tab */}
+      {activeTab === "avans" && (
+        <div className="space-y-6">
+          {advances.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-20 text-center">
+              <div className="w-16 h-16 rounded-full bg-amber-500/10 flex items-center justify-center mb-4 animate-pulse">
+                <span className="text-2xl">💰</span>
+              </div>
+              <h3 className="text-lg font-semibold text-foreground mb-2">
+                Henüz Avans Verisi Yok
+              </h3>
+              <p className="text-muted-foreground text-sm">
+                Finans &gt; Avans & Harcama modülünden veri girişi yapıldıkça
+                burada görünecek.
+              </p>
+            </div>
+          ) : (
+            <>
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                {[
+                  {
+                    label: "Toplam Avans",
+                    value: `₺${advances.reduce((s: number, a: Advance) => s + (a.amount || 0), 0).toLocaleString("tr-TR")}`,
+                    color: "text-amber-400",
+                  },
+                  {
+                    label: "Onay Bekleyen",
+                    value: advances.filter(
+                      (a: Advance) =>
+                        a.status === "pending" || a.status === "Beklemede",
+                    ).length,
+                    color: "text-orange-400",
+                  },
+                  {
+                    label: "Onaylanan",
+                    value: advances.filter(
+                      (a: Advance) =>
+                        a.status === "approved" || a.status === "Onaylandı",
+                    ).length,
+                    color: "text-green-400",
+                  },
+                  {
+                    label: "Reddedilen",
+                    value: advances.filter(
+                      (a: Advance) =>
+                        a.status === "rejected" || a.status === "Reddedildi",
+                    ).length,
+                    color: "text-red-400",
+                  },
+                ].map((kpi) => (
+                  <Card key={kpi.label} className="bg-card border-border">
+                    <CardContent className="p-4">
+                      <p className="text-xs text-muted-foreground mb-1">
+                        {kpi.label}
+                      </p>
+                      <p className={`text-2xl font-bold ${kpi.color}`}>
+                        {kpi.value}
+                      </p>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <Card className="bg-card border-border">
+                  <CardHeader>
+                    <CardTitle className="text-sm text-foreground">
+                      Kategori Bazlı Harcama
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    {(() => {
+                      const cats: Record<string, number> = {};
+                      for (const a of advances) {
+                        const c = (a as Advance).category || "Diğer";
+                        cats[c] = (cats[c] || 0) + ((a as Advance).amount || 0);
+                      }
+                      const data = Object.entries(cats).map(
+                        ([name, value]) => ({ name, value }),
+                      );
+                      const COLORS = [
+                        "oklch(0.72 0.18 75)",
+                        "oklch(0.65 0.15 250)",
+                        "oklch(0.70 0.15 150)",
+                        "oklch(0.65 0.18 30)",
+                        "oklch(0.60 0.15 300)",
+                      ];
+                      return data.length > 0 ? (
+                        <ResponsiveContainer width="100%" height={200}>
+                          <PieChart>
+                            <Pie
+                              data={data}
+                              cx="50%"
+                              cy="50%"
+                              outerRadius={70}
+                              dataKey="value"
+                              nameKey="name"
+                            >
+                              {data.map((entry, i) => (
+                                <Cell
+                                  key={entry.name}
+                                  fill={COLORS[i % COLORS.length]}
+                                />
+                              ))}
+                            </Pie>
+                            <Tooltip
+                              contentStyle={{
+                                background: "oklch(0.15 0 0)",
+                                border: "1px solid oklch(0.25 0 0)",
+                                borderRadius: 8,
+                              }}
+                              formatter={(v: unknown) => [
+                                `₺${Number(v).toLocaleString("tr-TR")}`,
+                                "",
+                              ]}
+                            />
+                          </PieChart>
+                        </ResponsiveContainer>
+                      ) : (
+                        <p className="text-center text-muted-foreground py-8 text-sm">
+                          Kategori verisi yok
+                        </p>
+                      );
+                    })()}
+                  </CardContent>
+                </Card>
+                <Card className="bg-card border-border">
+                  <CardHeader>
+                    <CardTitle className="text-sm text-foreground">
+                      Aylık Harcama Trendi
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    {(() => {
+                      const nowDate = new Date();
+                      const months = Array.from({ length: 6 }, (_, i) => {
+                        const d = new Date(
+                          nowDate.getFullYear(),
+                          nowDate.getMonth() - 5 + i,
+                          1,
+                        );
+                        return {
+                          key: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`,
+                          label: d
+                            .toLocaleString("tr-TR", { month: "short" })
+                            .replace(".", ""),
+                        };
+                      });
+                      const data = months.map((m) => ({
+                        month: m.label,
+                        tutar: advances
+                          .filter((a: Advance) => a.date?.startsWith(m.key))
+                          .reduce(
+                            (s: number, a: Advance) => s + (a.amount || 0),
+                            0,
+                          ),
+                      }));
+                      return (
+                        <ResponsiveContainer width="100%" height={200}>
+                          <LineChart data={data}>
+                            <XAxis
+                              dataKey="month"
+                              tick={{ fill: "oklch(0.65 0 0)", fontSize: 11 }}
+                            />
+                            <YAxis
+                              tick={{ fill: "oklch(0.65 0 0)", fontSize: 11 }}
+                            />
+                            <Tooltip
+                              contentStyle={{
+                                background: "oklch(0.15 0 0)",
+                                border: "1px solid oklch(0.25 0 0)",
+                                borderRadius: 8,
+                              }}
+                              formatter={(v: unknown) => [
+                                `₺${Number(v).toLocaleString("tr-TR")}`,
+                                "Avans",
+                              ]}
+                            />
+                            <Line
+                              type="monotone"
+                              dataKey="tutar"
+                              stroke="oklch(0.72 0.18 75)"
+                              strokeWidth={2.5}
+                              dot={{ fill: "oklch(0.72 0.18 75)", r: 4 }}
+                            />
+                          </LineChart>
+                        </ResponsiveContainer>
+                      );
+                    })()}
+                  </CardContent>
+                </Card>
+              </div>
+            </>
+          )}
+        </div>
+      )}
+
+      {/* Şikayet & Talep Tab */}
+      {activeTab === "sikayet" && (
+        <div className="space-y-6">
+          {complaints.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-20 text-center">
+              <div className="w-16 h-16 rounded-full bg-amber-500/10 flex items-center justify-center mb-4 animate-pulse">
+                <span className="text-2xl">📋</span>
+              </div>
+              <h3 className="text-lg font-semibold text-foreground mb-2">
+                Henüz Şikayet Verisi Yok
+              </h3>
+              <p className="text-muted-foreground text-sm">
+                CRM &gt; Şikayet & Talepler modülünden veri girişi yapıldıkça
+                burada görünecek.
+              </p>
+            </div>
+          ) : (
+            <>
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                {(() => {
+                  const open = complaints.filter(
+                    (c: Complaint) =>
+                      c.status !== "closed" &&
+                      c.status !== "Kapatıldı" &&
+                      c.status !== "resolved" &&
+                      c.status !== "Çözüldü",
+                  ).length;
+                  const closed = complaints.filter(
+                    (c: Complaint) =>
+                      c.status === "closed" ||
+                      c.status === "Kapatıldı" ||
+                      c.status === "resolved" ||
+                      c.status === "Çözüldü",
+                  ).length;
+                  const rate =
+                    complaints.length > 0
+                      ? Math.round((closed / complaints.length) * 100)
+                      : 0;
+                  return [
+                    {
+                      label: "Toplam Şikayet",
+                      value: complaints.length,
+                      color: "text-amber-400",
+                    },
+                    { label: "Açık", value: open, color: "text-orange-400" },
+                    {
+                      label: "Çözüldü",
+                      value: closed,
+                      color: "text-green-400",
+                    },
+                    {
+                      label: "Çözüm Oranı",
+                      value: `%${rate}`,
+                      color: "text-blue-400",
+                    },
+                  ].map((kpi) => (
+                    <Card key={kpi.label} className="bg-card border-border">
+                      <CardContent className="p-4">
+                        <p className="text-xs text-muted-foreground mb-1">
+                          {kpi.label}
+                        </p>
+                        <p className={`text-2xl font-bold ${kpi.color}`}>
+                          {kpi.value}
+                        </p>
+                      </CardContent>
+                    </Card>
+                  ));
+                })()}
+              </div>
+              <Card className="bg-card border-border">
+                <CardHeader>
+                  <CardTitle className="text-sm text-foreground">
+                    Kategori Bazlı Şikayet Dağılımı
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {(() => {
+                    const cats: Record<string, number> = {};
+                    for (const c of complaints) {
+                      const cat = (c as Complaint).category || "Diğer";
+                      cats[cat] = (cats[cat] || 0) + 1;
+                    }
+                    const data = Object.entries(cats)
+                      .map(([name, value]) => ({ name, value }))
+                      .sort((a, b) => b.value - a.value);
+                    const COLORS = [
+                      "oklch(0.72 0.18 75)",
+                      "oklch(0.65 0.15 250)",
+                      "oklch(0.70 0.15 150)",
+                      "oklch(0.65 0.18 30)",
+                      "oklch(0.60 0.15 300)",
+                    ];
+                    return data.length > 0 ? (
+                      <ResponsiveContainer width="100%" height={220}>
+                        <BarChart data={data} layout="vertical">
+                          <XAxis
+                            type="number"
+                            tick={{ fill: "oklch(0.65 0 0)", fontSize: 11 }}
+                            allowDecimals={false}
+                          />
+                          <YAxis
+                            type="category"
+                            dataKey="name"
+                            tick={{ fill: "oklch(0.65 0 0)", fontSize: 11 }}
+                            width={120}
+                          />
+                          <Tooltip
+                            contentStyle={{
+                              background: "oklch(0.15 0 0)",
+                              border: "1px solid oklch(0.25 0 0)",
+                              borderRadius: 8,
+                            }}
+                          />
+                          <Bar
+                            dataKey="value"
+                            name="Adet"
+                            radius={[0, 4, 4, 0]}
+                          >
+                            {data.map((entry, i) => (
+                              <Cell
+                                key={entry.name}
+                                fill={COLORS[i % COLORS.length]}
+                              />
+                            ))}
+                          </Bar>
+                        </BarChart>
+                      </ResponsiveContainer>
+                    ) : (
+                      <p className="text-center text-muted-foreground py-8 text-sm">
+                        Veri yok
+                      </p>
+                    );
+                  })()}
+                </CardContent>
+              </Card>
+            </>
+          )}
+        </div>
+      )}
+
+      {/* Depo & Lokasyon Tab */}
+      {activeTab === "depo" && (
+        <div className="space-y-6">
+          {warehouseLocations.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-20 text-center">
+              <div className="w-16 h-16 rounded-full bg-amber-500/10 flex items-center justify-center mb-4 animate-pulse">
+                <span className="text-2xl">🏭</span>
+              </div>
+              <h3 className="text-lg font-semibold text-foreground mb-2">
+                Henüz Depo Verisi Yok
+              </h3>
+              <p className="text-muted-foreground text-sm">
+                Envanter &gt; Depo Lokasyonları modülünden veri girişi
+                yapıldıkça burada görünecek.
+              </p>
+            </div>
+          ) : (
+            <>
+              <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
+                {[
+                  {
+                    label: "Toplam Lokasyon",
+                    value: warehouseLocations.length,
+                    color: "text-amber-400",
+                  },
+                  {
+                    label: "Kritik Doluluk (>%80)",
+                    value: warehouseLocations.filter(
+                      (l: Location) =>
+                        (l.capacity || 0) > 0 &&
+                        (l.currentStock || 0) / (l.capacity || 1) > 0.8,
+                    ).length,
+                    color: "text-red-400",
+                  },
+                  {
+                    label: "Ortalama Doluluk",
+                    value: `%${warehouseLocations.length > 0 ? Math.round(warehouseLocations.reduce((s: number, l: Location) => s + ((l.capacity || 0) > 0 ? Math.min(100, ((l.currentStock || 0) / (l.capacity || 1)) * 100) : 0), 0) / warehouseLocations.length) : 0}`,
+                    color: "text-blue-400",
+                  },
+                ].map((kpi) => (
+                  <Card key={kpi.label} className="bg-card border-border">
+                    <CardContent className="p-4">
+                      <p className="text-xs text-muted-foreground mb-1">
+                        {kpi.label}
+                      </p>
+                      <p className={`text-3xl font-bold ${kpi.color}`}>
+                        {kpi.value}
+                      </p>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+              <Card className="bg-card border-border">
+                <CardHeader>
+                  <CardTitle className="text-sm text-foreground">
+                    Lokasyon Doluluk Oranları
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  {warehouseLocations
+                    .slice(0, 10)
+                    .map((loc: Location, i: number) => {
+                      const pct =
+                        (loc.capacity || 0) > 0
+                          ? Math.min(
+                              100,
+                              Math.round(
+                                ((loc.currentStock || 0) /
+                                  (loc.capacity || 1)) *
+                                  100,
+                              ),
+                            )
+                          : 0;
+                      return (
+                        <div
+                          key={loc.name}
+                          data-ocid={`reporting.depo.item.${i + 1}`}
+                        >
+                          <div className="flex justify-between text-xs mb-1">
+                            <span className="text-foreground">{loc.name}</span>
+                            <span
+                              className={
+                                pct > 80
+                                  ? "text-red-400"
+                                  : pct > 60
+                                    ? "text-amber-400"
+                                    : "text-green-400"
+                              }
+                            >
+                              {pct}%
+                            </span>
+                          </div>
+                          <Progress value={pct} className="h-1.5" />
+                        </div>
+                      );
+                    })}
+                </CardContent>
+              </Card>
+            </>
+          )}
+        </div>
+      )}
+
+      {/* Taşeron İş Emirleri Tab */}
+      {activeTab === "taseronIs" && (
+        <div className="space-y-6">
+          {subWorkOrders.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-20 text-center">
+              <div className="w-16 h-16 rounded-full bg-amber-500/10 flex items-center justify-center mb-4 animate-pulse">
+                <span className="text-2xl">🔧</span>
+              </div>
+              <h3 className="text-lg font-semibold text-foreground mb-2">
+                Henüz Taşeron İş Emri Verisi Yok
+              </h3>
+              <p className="text-muted-foreground text-sm">
+                Taşeron Yönetimi &gt; İş Emirleri modülünden veri girişi
+                yapıldıkça burada görünecek.
+              </p>
+            </div>
+          ) : (
+            <>
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                {(() => {
+                  const open = subWorkOrders.filter(
+                    (w: SubWorkOrder) =>
+                      w.status !== "completed" && w.status !== "Tamamlandı",
+                  ).length;
+                  const completed = subWorkOrders.filter(
+                    (w: SubWorkOrder) =>
+                      w.status === "completed" || w.status === "Tamamlandı",
+                  ).length;
+                  const overdue = subWorkOrders.filter((w: SubWorkOrder) => {
+                    if (
+                      !w.plannedEnd ||
+                      w.status === "completed" ||
+                      w.status === "Tamamlandı"
+                    )
+                      return false;
+                    return new Date(w.plannedEnd) < new Date();
+                  }).length;
+                  const delayRate =
+                    subWorkOrders.length > 0
+                      ? Math.round((overdue / subWorkOrders.length) * 100)
+                      : 0;
+                  return [
+                    {
+                      label: "Toplam İş Emri",
+                      value: subWorkOrders.length,
+                      color: "text-amber-400",
+                    },
+                    { label: "Açık", value: open, color: "text-orange-400" },
+                    {
+                      label: "Tamamlandı",
+                      value: completed,
+                      color: "text-green-400",
+                    },
+                    {
+                      label: "Gecikme Oranı",
+                      value: `%${delayRate}`,
+                      color: "text-red-400",
+                    },
+                  ].map((kpi) => (
+                    <Card key={kpi.label} className="bg-card border-border">
+                      <CardContent className="p-4">
+                        <p className="text-xs text-muted-foreground mb-1">
+                          {kpi.label}
+                        </p>
+                        <p className={`text-2xl font-bold ${kpi.color}`}>
+                          {kpi.value}
+                        </p>
+                      </CardContent>
+                    </Card>
+                  ));
+                })()}
+              </div>
+              <Card className="bg-card border-border">
+                <CardHeader>
+                  <CardTitle className="text-sm text-foreground">
+                    Taşeron Bazlı İş Yükü
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {(() => {
+                    const byContractor: Record<string, number> = {};
+                    for (const w of subWorkOrders) {
+                      const id =
+                        (w as SubWorkOrder).subcontractorId || "Belirsiz";
+                      byContractor[id] = (byContractor[id] || 0) + 1;
+                    }
+                    const data = Object.entries(byContractor)
+                      .map(([name, value]) => ({
+                        name: name.length > 16 ? `${name.slice(0, 16)}…` : name,
+                        value,
+                      }))
+                      .sort((a, b) => b.value - a.value)
+                      .slice(0, 8);
+                    return data.length > 0 ? (
+                      <ResponsiveContainer width="100%" height={220}>
+                        <BarChart data={data}>
+                          <XAxis
+                            dataKey="name"
+                            tick={{ fill: "oklch(0.65 0 0)", fontSize: 10 }}
+                          />
+                          <YAxis
+                            tick={{ fill: "oklch(0.65 0 0)", fontSize: 11 }}
+                            allowDecimals={false}
+                          />
+                          <Tooltip
+                            contentStyle={{
+                              background: "oklch(0.15 0 0)",
+                              border: "1px solid oklch(0.25 0 0)",
+                              borderRadius: 8,
+                            }}
+                          />
+                          <Bar
+                            dataKey="value"
+                            name="İş Emri"
+                            fill="oklch(0.72 0.18 75)"
+                            radius={[4, 4, 0, 0]}
+                          />
+                        </BarChart>
+                      </ResponsiveContainer>
+                    ) : (
+                      <p className="text-center text-muted-foreground py-8 text-sm">
+                        Veri yok
+                      </p>
+                    );
+                  })()}
+                </CardContent>
+              </Card>
+            </>
+          )}
+        </div>
+      )}
+
+      {activeTab === "benchmark" && (
+        <BenchmarkTab
+          projects={projects}
+          expenses={expenses}
+          riskItems={riskItems}
+          ncrRecords={ncrRecords}
+          hrPersonnel={hrPersonnel}
+        />
+      )}
     </div>
   );
 }
@@ -3168,6 +4003,432 @@ function SCurveSection({ projects, tasks }: { projects: any[]; tasks: any[] }) {
             </div>
           </CardContent>
         </Card>
+      )}
+    </div>
+  );
+}
+function BenchmarkTab({
+  projects,
+  expenses,
+  riskItems,
+  ncrRecords,
+  hrPersonnel,
+}: {
+  projects: any[];
+  expenses: any[];
+  riskItems: any[];
+  ncrRecords: any[];
+  hrPersonnel: any[];
+}) {
+  const [selectedIds, setSelectedIds] = React.useState<string[]>([]);
+
+  const toggleProject = (id: string) => {
+    setSelectedIds((prev) =>
+      prev.includes(id)
+        ? prev.filter((x) => x !== id)
+        : prev.length < 6
+          ? [...prev, id]
+          : prev,
+    );
+  };
+
+  const selected = projects.filter((p) => selectedIds.includes(p.id));
+
+  const calcMetrics = (p: any) => {
+    const budget = p.budget || 0;
+    const spent = expenses
+      .filter(
+        (e: any) =>
+          e.projectId === p.id &&
+          (e.status === "Onaylandı" || e.status === "approved"),
+      )
+      .reduce((s: number, e: any) => s + (e.amount || 0), 0);
+    const budgetVariance = budget > 0 ? ((spent - budget) / budget) * 100 : 0;
+
+    const startDate = p.startDate ? new Date(p.startDate) : null;
+    const endDate = p.endDate ? new Date(p.endDate) : null;
+    const today = new Date();
+    let scheduleVariance = 0;
+    if (startDate && endDate) {
+      const totalDays = Math.max(
+        1,
+        (endDate.getTime() - startDate.getTime()) / 86400000,
+      );
+      const elapsed = (today.getTime() - startDate.getTime()) / 86400000;
+      const expectedProgress = Math.min(100, (elapsed / totalDays) * 100);
+      scheduleVariance = (p.progress || 0) - expectedProgress;
+    }
+
+    const openRisks = riskItems.filter(
+      (r: any) => r.projectId === p.id && r.status !== "Kapatıldı",
+    ).length;
+    const openPunch = (p.punchItems || []).filter(
+      (x: any) => x.status !== "Kapatıldı",
+    ).length;
+    const ncrCount = ncrRecords.filter((n: any) => n.projectId === p.id).length;
+    const personnelCount = hrPersonnel.filter(
+      (h: any) => h.projectId === p.id || h.companyId,
+    ).length;
+
+    return {
+      budgetVariance: Math.round(budgetVariance * 10) / 10,
+      scheduleVariance: Math.round(scheduleVariance),
+      totalExpense: spent,
+      completion: p.progress || 0,
+      openRisks,
+      openPunch,
+      ncrCount,
+      personnelCount,
+    };
+  };
+
+  const exportCSV = () => {
+    const rows = [
+      ["Metrik", ...selected.map((p) => p.title)],
+      [
+        "Bütçe Sapması (%)",
+        ...selected.map((p) => calcMetrics(p).budgetVariance),
+      ],
+      [
+        "Süre Sapması (gün)",
+        ...selected.map((p) => calcMetrics(p).scheduleVariance),
+      ],
+      ["Toplam Gider (₺)", ...selected.map((p) => calcMetrics(p).totalExpense)],
+      ["Tamamlanma (%)", ...selected.map((p) => calcMetrics(p).completion)],
+      ["Açık Risk", ...selected.map((p) => calcMetrics(p).openRisks)],
+      ["Punch List Açık", ...selected.map((p) => calcMetrics(p).openPunch)],
+      ["NCR Sayısı", ...selected.map((p) => calcMetrics(p).ncrCount)],
+      [
+        "Personel Sayısı",
+        ...selected.map((p) => calcMetrics(p).personnelCount),
+      ],
+    ];
+    const csv = rows.map((r) => r.join(",")).join("\n");
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "benchmark.csv";
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const PROJECT_COLORS = [
+    "oklch(0.75 0.18 75)",
+    "oklch(0.55 0.18 250)",
+    "oklch(0.65 0.18 160)",
+    "oklch(0.6 0.2 10)",
+    "oklch(0.7 0.15 310)",
+    "oklch(0.65 0.18 200)",
+  ];
+
+  const barData = selected.map((p, i) => ({
+    name: p.title.length > 12 ? `${p.title.slice(0, 12)}…` : p.title,
+    budgetVariance: calcMetrics(p).budgetVariance,
+    fill: PROJECT_COLORS[i % PROJECT_COLORS.length],
+  }));
+
+  const radarData = [
+    { subject: "Zaman" },
+    { subject: "Bütçe" },
+    { subject: "Kalite" },
+    { subject: "Güvenlik" },
+    { subject: "Kaynak" },
+  ].map((d) => {
+    const row: any = { subject: d.subject };
+    selected.forEach((p, i) => {
+      const m = calcMetrics(p);
+      let score = 50;
+      if (d.subject === "Zaman")
+        score = Math.max(0, Math.min(100, 50 + m.scheduleVariance));
+      if (d.subject === "Bütçe")
+        score = Math.max(
+          0,
+          Math.min(100, 100 - Math.abs(m.budgetVariance) * 2),
+        );
+      if (d.subject === "Kalite")
+        score = Math.max(
+          0,
+          Math.min(100, 100 - m.ncrCount * 10 - m.openPunch * 5),
+        );
+      if (d.subject === "Güvenlik")
+        score = Math.max(0, Math.min(100, 100 - m.openRisks * 15));
+      if (d.subject === "Kaynak") score = Math.min(100, m.personnelCount * 5);
+      row[`proj_${i}`] = Math.round(score);
+    });
+    return row;
+  });
+
+  const metrics = [
+    {
+      key: "budgetVariance",
+      label: "Bütçe Sapması (%)",
+      fmt: (v: number) => `${v > 0 ? "+" : ""}${v}%`,
+      warn: (v: number) => v > 10,
+    },
+    {
+      key: "scheduleVariance",
+      label: "Süre Sapması (gün)",
+      fmt: (v: number) => `${v > 0 ? "+" : ""}${v} gün`,
+      warn: (v: number) => v < -5,
+    },
+    {
+      key: "totalExpense",
+      label: "Toplam Gider",
+      fmt: (v: number) => `${v.toLocaleString("tr-TR")} ₺`,
+      warn: () => false,
+    },
+    {
+      key: "completion",
+      label: "Tamamlanma %",
+      fmt: (v: number) => `${v}%`,
+      warn: () => false,
+    },
+    {
+      key: "openRisks",
+      label: "Açık Risk Sayısı",
+      fmt: (v: number) => String(v),
+      warn: (v: number) => v > 3,
+    },
+    {
+      key: "openPunch",
+      label: "Punch List Açık",
+      fmt: (v: number) => String(v),
+      warn: (v: number) => v > 5,
+    },
+    {
+      key: "ncrCount",
+      label: "NCR Sayısı",
+      fmt: (v: number) => String(v),
+      warn: (v: number) => v > 2,
+    },
+    {
+      key: "personnelCount",
+      label: "Personel Sayısı",
+      fmt: (v: number) => String(v),
+      warn: () => false,
+    },
+  ];
+
+  return (
+    <div className="space-y-6">
+      {/* Project Selector */}
+      <Card className="bg-card border-border">
+        <CardHeader className="pb-3">
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-base">Proje Seçimi (max 6)</CardTitle>
+            {selected.length > 0 && (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={exportCSV}
+                className="text-xs"
+              >
+                <Download className="w-3 h-3 mr-1" />
+                CSV İndir
+              </Button>
+            )}
+          </div>
+        </CardHeader>
+        <CardContent>
+          <div className="flex flex-wrap gap-2">
+            {projects.map((p, i) => {
+              const isSelected = selectedIds.includes(p.id);
+              return (
+                <button
+                  type="button"
+                  key={p.id}
+                  data-ocid={`benchmark.project.toggle.${i + 1}`}
+                  onClick={() => toggleProject(p.id)}
+                  className={`px-3 py-1.5 rounded-full text-sm font-medium border transition-all ${isSelected ? "bg-amber-500/20 border-amber-500/40 text-amber-400" : "border-border text-muted-foreground hover:border-primary/40 hover:text-foreground"}`}
+                >
+                  {p.title}
+                </button>
+              );
+            })}
+            {projects.length === 0 && (
+              <p className="text-sm text-muted-foreground">
+                Henüz proje bulunmuyor.
+              </p>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+
+      {selected.length < 2 ? (
+        <div data-ocid="benchmark.empty_state" className="text-center py-16">
+          <BarChart3 className="w-12 h-12 mx-auto mb-3 text-amber-500/30" />
+          <p className="text-muted-foreground">
+            Karşılaştırma için en az 2 proje seçin.
+          </p>
+        </div>
+      ) : (
+        <>
+          {/* Comparison Table */}
+          <Card
+            data-ocid="benchmark.table.card"
+            className="bg-card border-border overflow-hidden"
+          >
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base">Karşılaştırma Tablosu</CardTitle>
+            </CardHeader>
+            <CardContent className="p-0">
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-border">
+                      <th className="text-left p-3 text-muted-foreground font-medium">
+                        Metrik
+                      </th>
+                      {selected.map((p, i) => (
+                        <th
+                          key={p.id}
+                          className="text-center p-3 font-semibold"
+                          style={{
+                            color: PROJECT_COLORS[i % PROJECT_COLORS.length],
+                          }}
+                        >
+                          {p.title.length > 14
+                            ? `${p.title.slice(0, 14)}…`
+                            : p.title}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {metrics.map((metric, mi) => (
+                      <tr
+                        key={metric.key}
+                        className={mi % 2 === 0 ? "bg-background/30" : ""}
+                      >
+                        <td className="p-3 text-muted-foreground">
+                          {metric.label}
+                        </td>
+                        {selected.map((p) => {
+                          const val = (calcMetrics(p) as any)[metric.key];
+                          const isWarn = metric.warn(val);
+                          return (
+                            <td key={p.id} className="p-3 text-center">
+                              <span
+                                className={
+                                  isWarn
+                                    ? "text-rose-400 font-semibold"
+                                    : "text-foreground"
+                                }
+                              >
+                                {metric.fmt(val)}
+                              </span>
+                            </td>
+                          );
+                        })}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Bar Chart */}
+          <Card
+            data-ocid="benchmark.barchart.card"
+            className="bg-card border-border"
+          >
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base">
+                Bütçe Sapması (%) Karşılaştırması
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <ResponsiveContainer width="100%" height={240}>
+                <BarChart
+                  data={barData}
+                  margin={{ top: 5, right: 20, left: 0, bottom: 5 }}
+                >
+                  <CartesianGrid
+                    strokeDasharray="3 3"
+                    stroke="oklch(0.3 0 0)"
+                  />
+                  <XAxis
+                    dataKey="name"
+                    tick={{ fontSize: 11, fill: "oklch(0.6 0 0)" }}
+                  />
+                  <YAxis
+                    unit="%"
+                    tick={{ fontSize: 11, fill: "oklch(0.6 0 0)" }}
+                  />
+                  <Tooltip
+                    contentStyle={{
+                      backgroundColor: "oklch(0.2 0 0)",
+                      border: "1px solid oklch(0.3 0 0)",
+                      borderRadius: "8px",
+                    }}
+                    labelStyle={{ color: "oklch(0.85 0 0)" }}
+                    formatter={(v: any) => [`${v}%`, "Bütçe Sapması"]}
+                  />
+                  <Bar dataKey="budgetVariance" radius={[4, 4, 0, 0]}>
+                    {barData.map((entry) => (
+                      <Cell key={entry.name} fill={entry.fill} />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </CardContent>
+          </Card>
+
+          {/* Radar Chart */}
+          <Card
+            data-ocid="benchmark.radarchart.card"
+            className="bg-card border-border"
+          >
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base">
+                Çok Boyutlu Performans Analizi
+              </CardTitle>
+              <p className="text-xs text-muted-foreground">
+                Zaman, Bütçe, Kalite, Güvenlik, Kaynak (0–100 normalize)
+              </p>
+            </CardHeader>
+            <CardContent>
+              <ResponsiveContainer width="100%" height={280}>
+                <RadarChart
+                  data={radarData}
+                  margin={{ top: 10, right: 20, bottom: 10, left: 20 }}
+                >
+                  <PolarGrid stroke="oklch(0.3 0 0)" />
+                  <PolarAngleAxis
+                    dataKey="subject"
+                    tick={{ fontSize: 12, fill: "oklch(0.7 0 0)" }}
+                  />
+                  <PolarRadiusAxis
+                    angle={90}
+                    domain={[0, 100]}
+                    tick={{ fontSize: 9, fill: "oklch(0.5 0 0)" }}
+                  />
+                  {selected.map((p, i) => (
+                    <Radar
+                      key={p.id}
+                      name={p.title}
+                      dataKey={`proj_${i}`}
+                      stroke={PROJECT_COLORS[i % PROJECT_COLORS.length]}
+                      fill={PROJECT_COLORS[i % PROJECT_COLORS.length]}
+                      fillOpacity={0.15}
+                      strokeWidth={2}
+                    />
+                  ))}
+                  <Legend />
+                  <Tooltip
+                    contentStyle={{
+                      backgroundColor: "oklch(0.2 0 0)",
+                      border: "1px solid oklch(0.3 0 0)",
+                      borderRadius: "8px",
+                    }}
+                  />
+                </RadarChart>
+              </ResponsiveContainer>
+            </CardContent>
+          </Card>
+        </>
       )}
     </div>
   );

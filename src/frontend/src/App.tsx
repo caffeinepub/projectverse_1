@@ -10,22 +10,29 @@ import {
   useApp,
 } from "./contexts/AppContext";
 import AccountTypeSelect from "./pages/AccountTypeSelect";
+import ApprovalWorkflows from "./pages/ApprovalWorkflows";
+import BoQLibrary from "./pages/BoQLibrary";
 import CRM from "./pages/CRM";
 import ClientReport from "./pages/ClientReport";
 import Communication from "./pages/Communication";
 import CompanySelect from "./pages/CompanySelect";
 import CompanySettings from "./pages/CompanySettings";
 import Contracts from "./pages/Contracts";
+import Correspondence from "./pages/Correspondence";
+import DLP from "./pages/DLP";
 import Dashboard from "./pages/Dashboard";
 import Documents from "./pages/Documents";
 import Drawings from "./pages/Drawings";
 import Equipment from "./pages/Equipment";
 import FieldOps from "./pages/FieldOps";
 import Finance from "./pages/Finance";
+import HolidayCalendar from "./pages/HolidayCalendar";
 import HumanResources from "./pages/HumanResources";
 import ISG from "./pages/ISG";
+import Insurance from "./pages/Insurance";
 import Inventory from "./pages/Inventory";
 import InviteJoin from "./pages/InviteJoin";
+import KPITargets from "./pages/KPITargets";
 import LanguageSelect from "./pages/LanguageSelect";
 import Login from "./pages/Login";
 import MaterialRequests from "./pages/MaterialRequests";
@@ -34,6 +41,8 @@ import PendingApproval from "./pages/PendingApproval";
 import Permits from "./pages/Permits";
 import Profile from "./pages/Profile";
 import ProjectDetail from "./pages/ProjectDetail";
+import ProjectHub from "./pages/ProjectHub";
+import ProjectTemplates from "./pages/ProjectTemplates";
 import Projects from "./pages/Projects";
 import PunchList from "./pages/PunchList";
 import Purchasing from "./pages/Purchasing";
@@ -48,6 +57,7 @@ import SelfService from "./pages/SelfService";
 import SiteLog from "./pages/SiteLog";
 import SitePhotos from "./pages/SitePhotos";
 import SubcontractorManagement from "./pages/SubcontractorManagement";
+import Timesheet from "./pages/Timesheet";
 
 type Screen =
   | "lang"
@@ -90,7 +100,17 @@ type AppPage =
   | "clientReport"
   | "sitePhotos"
   | "permits"
-  | "selfService";
+  | "selfService"
+  | "correspondence"
+  | "insurance"
+  | "dlp"
+  | "projectTemplates"
+  | "timesheet"
+  | "approvalWorkflows"
+  | "kpiTargets"
+  | "projectHub"
+  | "holidayCalendar"
+  | "boqLibrary";
 
 function Inner() {
   const {
@@ -243,6 +263,16 @@ function Inner() {
     else if (p === "sitePhotos") setPage("sitePhotos");
     else if (p === "permits") setPage("permits");
     else if (p === "selfService") setPage("selfService");
+    else if (p === "correspondence") setPage("correspondence");
+    else if (p === "insurance") setPage("insurance");
+    else if (p === "dlp") setPage("dlp");
+    else if (p === "projectTemplates") setPage("projectTemplates");
+    else if (p === "timesheet") setPage("timesheet");
+    else if (p === "approvalWorkflows") setPage("approvalWorkflows");
+    else if (p === "kpiTargets") setPage("kpiTargets");
+    else if (p === "projectHub") setPage("projectHub");
+    else if (p === "holidayCalendar") setPage("holidayCalendar");
+    else if (p === "boqLibrary") setPage("boqLibrary");
     else setPage(p as AppPage);
   };
 
@@ -323,6 +353,21 @@ function Inner() {
       {page === "sitePhotos" && <SitePhotos />}
       {page === "permits" && <Permits />}
       {page === "selfService" && <SelfService />}
+      {page === "correspondence" && <Correspondence />}
+      {page === "insurance" && <Insurance />}
+      {page === "dlp" && <DLP />}
+      {page === "projectTemplates" && <ProjectTemplates />}
+      {page === "timesheet" && <Timesheet />}
+      {page === "approvalWorkflows" && <ApprovalWorkflows />}
+      {page === "kpiTargets" && <KPITargets />}
+      {page === "projectHub" && selectedProjectId && (
+        <ProjectHub
+          projectId={selectedProjectId}
+          onBack={() => setPage("projects")}
+        />
+      )}
+      {page === "holidayCalendar" && <HolidayCalendar />}
+      {page === "boqLibrary" && <BoQLibrary />}
     </Layout>
   );
 }

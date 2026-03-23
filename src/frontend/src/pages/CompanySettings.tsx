@@ -27,6 +27,8 @@ import {
   Copy,
   Edit2,
   Key,
+  Layers,
+  Plus,
   RefreshCw,
   Trash2,
   UserPlus,
@@ -1064,6 +1066,316 @@ function PersonnelTab({ companyId }: { companyId: string }) {
   );
 }
 
+interface CustomField {
+  id: string;
+  name: string;
+  type: "Metin" | "Sayı" | "Tarih" | "Açılır Liste";
+  required: boolean;
+  options?: string[];
+}
+
+interface CustomFieldsStore {
+  projects: CustomField[];
+  personnel: CustomField[];
+  equipment: CustomField[];
+}
+
+function loadCustomFields(companyId: string): CustomFieldsStore {
+  const raw = localStorage.getItem(`customFields_${companyId}`);
+  return raw ? JSON.parse(raw) : { projects: [], personnel: [], equipment: [] };
+}
+
+function saveCustomFields(companyId: string, data: CustomFieldsStore) {
+  localStorage.setItem(`customFields_${companyId}`, JSON.stringify(data));
+}
+
+type FieldSection = "projects" | "personnel" | "equipment";
+
+const SECTION_LABELS: Record<FieldSection, string> = {
+  projects: "Projeler",
+  personnel: "Personel",
+  equipment: "Ekipman",
+};
+
+function CustomFieldsTab({ companyId }: { companyId: string }) {
+  const [store, setStore] = useState<CustomFieldsStore>(() =>
+    loadCustomFields(companyId),
+  );
+  const [activeSection, setActiveSection] = useState<FieldSection>("projects");
+  const [open, setOpen] = useState(false);
+  const [editField, setEditField] = useState<CustomField | null>(null);
+  const [form, setForm] = useState({
+    name: "",
+    type: "Metin" as CustomField["type"],
+    required: false,
+    options: "",
+  });
+
+  const persist = (updated: CustomFieldsStore) => {
+    setStore(updated);
+    saveCustomFields(companyId, updated);
+  };
+
+  const openAdd = () => {
+    setEditField(null);
+    setForm({ name: "", type: "Metin", required: false, options: "" });
+    setOpen(true);
+  };
+
+  const openEdit = (f: CustomField) => {
+    setEditField(f);
+    setForm({
+      name: f.name,
+      type: f.type,
+      required: f.required,
+      options: (f.options || []).join(", "),
+    });
+    setOpen(true);
+  };
+
+  const handleSave = () => {
+    if (!form.name.trim()) {
+      import("sonner").then(({ toast }) => toast.error("Alan adı zorunludur."));
+      return;
+    }
+    const field: CustomField = {
+      id: editField?.id || `cf_${Date.now()}`,
+      name: form.name.trim(),
+      type: form.type,
+      required: form.required,
+      options:
+        form.type === "Açılır Liste"
+          ? form.options
+              .split(",")
+              .map((s) => s.trim())
+              .filter(Boolean)
+          : undefined,
+    };
+    const current = store[activeSection];
+    const updated = editField
+      ? current.map((f) => (f.id === editField.id ? field : f))
+      : [...current, field];
+    persist({ ...store, [activeSection]: updated });
+    setOpen(false);
+    import("sonner").then(({ toast }) =>
+      toast.success(editField ? "Alan güncellendi." : "Alan eklendi."),
+    );
+  };
+
+  const handleDelete = (id: string) => {
+    persist({
+      ...store,
+      [activeSection]: store[activeSection].filter((f) => f.id !== id),
+    });
+    import("sonner").then(({ toast }) => toast.success("Alan silindi."));
+  };
+
+  const fields = store[activeSection];
+
+  return (
+    <div className="glass-card rounded-xl p-6 space-y-5">
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="font-semibold text-foreground flex items-center gap-2">
+            <Layers className="w-4 h-4 text-amber-400" />
+            Özel Alanlar
+          </h2>
+          <p className="text-sm text-muted-foreground mt-1">
+            Proje, personel ve ekipman formlarına özel alanlar ekleyin
+          </p>
+        </div>
+        <Button
+          data-ocid="customfields.primary_button"
+          className="gradient-bg text-white"
+          onClick={openAdd}
+        >
+          <Plus className="w-4 h-4 mr-2" />
+          Alan Ekle
+        </Button>
+      </div>
+
+      {/* Section Tabs */}
+      <div className="flex gap-2">
+        {(["projects", "personnel", "equipment"] as FieldSection[]).map((s) => (
+          <button
+            type="button"
+            key={s}
+            data-ocid={`customfields.${s}.tab`}
+            onClick={() => setActiveSection(s)}
+            className={`px-4 py-1.5 rounded-md text-sm font-medium transition-colors ${activeSection === s ? "bg-amber-500/20 text-amber-400 border border-amber-500/30" : "text-muted-foreground hover:text-foreground hover:bg-accent"}`}
+          >
+            {SECTION_LABELS[s]}
+          </button>
+        ))}
+      </div>
+
+      {/* Field List */}
+      {fields.length === 0 ? (
+        <div data-ocid="customfields.empty_state" className="text-center py-12">
+          <Layers className="w-10 h-10 mx-auto mb-3 text-amber-500/30" />
+          <p className="text-muted-foreground text-sm">
+            {SECTION_LABELS[activeSection]} için henüz özel alan tanımlanmamış.
+          </p>
+        </div>
+      ) : (
+        <div className="space-y-2">
+          {fields.map((field, idx) => (
+            <div
+              key={field.id}
+              data-ocid={`customfields.item.${idx + 1}`}
+              className="flex items-center gap-3 p-3 rounded-lg bg-background/50 border border-border"
+            >
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2">
+                  <span className="font-medium text-sm text-foreground">
+                    {field.name}
+                  </span>
+                  {field.required && (
+                    <Badge
+                      variant="outline"
+                      className="text-xs text-rose-400 border-rose-500/30"
+                    >
+                      Zorunlu
+                    </Badge>
+                  )}
+                </div>
+                <div className="flex items-center gap-2 mt-0.5">
+                  <span className="text-xs text-muted-foreground">
+                    {field.type}
+                  </span>
+                  {field.options && field.options.length > 0 && (
+                    <span className="text-xs text-muted-foreground">
+                      · {field.options.join(", ")}
+                    </span>
+                  )}
+                </div>
+              </div>
+              <Button
+                size="icon"
+                variant="ghost"
+                data-ocid={`customfields.edit_button.${idx + 1}`}
+                className="h-7 w-7 text-muted-foreground hover:text-amber-400"
+                onClick={() => openEdit(field)}
+              >
+                <Edit2 className="h-3.5 w-3.5" />
+              </Button>
+              <Button
+                size="icon"
+                variant="ghost"
+                data-ocid={`customfields.delete_button.${idx + 1}`}
+                className="h-7 w-7 text-muted-foreground hover:text-rose-400"
+                onClick={() => handleDelete(field.id)}
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+              </Button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Add/Edit Dialog */}
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent
+          data-ocid="customfields.dialog"
+          className="bg-card border-border max-w-md"
+        >
+          <DialogHeader>
+            <DialogTitle>
+              {editField ? "Alanı Düzenle" : "Yeni Özel Alan"}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label>Alan Adı *</Label>
+              <Input
+                data-ocid="customfields.name.input"
+                className="mt-1 bg-background border-border"
+                value={form.name}
+                onChange={(e) =>
+                  setForm((f) => ({ ...f, name: e.target.value }))
+                }
+                placeholder="ör. Proje Kodu"
+              />
+            </div>
+            <div>
+              <Label>Alan Türü *</Label>
+              <Select
+                value={form.type}
+                onValueChange={(v) =>
+                  setForm((f) => ({ ...f, type: v as CustomField["type"] }))
+                }
+              >
+                <SelectTrigger
+                  data-ocid="customfields.type.select"
+                  className="mt-1 bg-background border-border"
+                >
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent className="bg-card border-border">
+                  {(
+                    [
+                      "Metin",
+                      "Sayı",
+                      "Tarih",
+                      "Açılır Liste",
+                    ] as CustomField["type"][]
+                  ).map((t) => (
+                    <SelectItem key={t} value={t}>
+                      {t}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            {form.type === "Açılır Liste" && (
+              <div>
+                <Label>Seçenekler (virgülle ayırın)</Label>
+                <Input
+                  className="mt-1 bg-background border-border"
+                  value={form.options}
+                  onChange={(e) =>
+                    setForm((f) => ({ ...f, options: e.target.value }))
+                  }
+                  placeholder="ör. Seçenek 1, Seçenek 2"
+                />
+              </div>
+            )}
+            <div className="flex items-center gap-2">
+              <Checkbox
+                data-ocid="customfields.required.checkbox"
+                id="cf-required"
+                checked={form.required}
+                onCheckedChange={(v) =>
+                  setForm((f) => ({ ...f, required: !!v }))
+                }
+              />
+              <Label htmlFor="cf-required" className="cursor-pointer">
+                Zorunlu alan
+              </Label>
+            </div>
+          </div>
+          <DialogFooter className="mt-4">
+            <Button
+              data-ocid="customfields.cancel_button"
+              variant="outline"
+              onClick={() => setOpen(false)}
+            >
+              İptal
+            </Button>
+            <Button
+              data-ocid="customfields.save_button"
+              className="gradient-bg text-white"
+              onClick={handleSave}
+            >
+              Kaydet
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
 export default function CompanySettings() {
   const { t, currentCompany, companies, setCompanies } = useApp();
   const [inviteCode, setInviteCode] = useState("");
@@ -1131,6 +1443,12 @@ export default function CompanySettings() {
           </TabsTrigger>
           <TabsTrigger data-ocid="settings.invite_tab" value="invite">
             Davet
+          </TabsTrigger>
+          <TabsTrigger
+            data-ocid="settings.customfields_tab"
+            value="customfields"
+          >
+            Özel Alanlar
           </TabsTrigger>
         </TabsList>
 
@@ -1221,6 +1539,9 @@ export default function CompanySettings() {
               {t.generateInvite}
             </Button>
           </div>
+        </TabsContent>
+        <TabsContent value="customfields">
+          {currentCompany && <CustomFieldsTab companyId={currentCompany.id} />}
         </TabsContent>
       </Tabs>
     </div>

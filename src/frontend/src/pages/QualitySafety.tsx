@@ -18,6 +18,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import {
@@ -25,6 +33,7 @@ import {
   AlertTriangle,
   CheckCircle2,
   ClipboardList,
+  Edit2,
   FileCheck,
   FileWarning,
   HardHat,
@@ -128,6 +137,334 @@ const INC_STATUS_COLORS: Record<IncidentStatus, string> = {
   incelemede: "bg-yellow-500/20 text-yellow-400 border-yellow-500/30",
   kapali: "bg-green-500/20 text-green-400 border-green-500/30",
 };
+
+function InspectionTestsTab({ companyId }: { companyId: string }) {
+  const storageKey = `pv_inspection_tests_${companyId}`;
+  type TestResult = "Geçti" | "Kaldı" | "Bekliyor";
+  interface InspectionTest {
+    id: string;
+    testNo: string;
+    project: string;
+    testType: string;
+    date: string;
+    result: TestResult;
+    standard: string;
+    certNo: string;
+    description: string;
+  }
+  const [tests, setTests] = useState<InspectionTest[]>(() => {
+    try {
+      return JSON.parse(localStorage.getItem(storageKey) || "[]");
+    } catch {
+      return [];
+    }
+  });
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [editId, setEditId] = useState<string | null>(null);
+  const EMPTY = {
+    project: "",
+    testType: "",
+    date: "",
+    result: "Bekliyor" as TestResult,
+    standard: "",
+    certNo: "",
+    description: "",
+  };
+  const [form, setForm] = useState(EMPTY);
+
+  useEffect(() => {
+    localStorage.setItem(storageKey, JSON.stringify(tests));
+  }, [tests, storageKey]);
+
+  const openAdd = () => {
+    setEditId(null);
+    setForm(EMPTY);
+    setDialogOpen(true);
+  };
+  const openEdit = (t: InspectionTest) => {
+    setEditId(t.id);
+    setForm({
+      project: t.project,
+      testType: t.testType,
+      date: t.date,
+      result: t.result,
+      standard: t.standard,
+      certNo: t.certNo,
+      description: t.description,
+    });
+    setDialogOpen(true);
+  };
+  const handleSave = () => {
+    if (!form.testType || !form.date) return;
+    if (editId) {
+      setTests((p) => p.map((x) => (x.id === editId ? { ...x, ...form } : x)));
+    } else {
+      const testNo = `TST-${String(tests.length + 1).padStart(4, "0")}`;
+      setTests((p) => [...p, { id: crypto.randomUUID(), testNo, ...form }]);
+    }
+    setDialogOpen(false);
+  };
+
+  const RESULT_STYLES: Record<TestResult, string> = {
+    Geçti: "bg-green-500/15 text-green-400 border-green-500/30",
+    Kaldı: "bg-red-500/15 text-red-400 border-red-500/30",
+    Bekliyor: "bg-amber-500/15 text-amber-400 border-amber-500/30",
+  };
+
+  const TEST_TYPES = [
+    "Beton Basınç Testi",
+    "Zemin Etüdü",
+    "Kaynak Muayenesi",
+    "Elektrik Testi",
+    "Su Yalıtım Testi",
+    "Yangın Testi",
+    "Yük Testi",
+    "Ultrasonik Test",
+    "Radyografik Test",
+    "Diğer",
+  ];
+
+  return (
+    <div className="space-y-4">
+      <div className="flex justify-end">
+        <Button
+          data-ocid="quality.inspection_test.open_modal_button"
+          onClick={openAdd}
+          className="gradient-bg text-white"
+        >
+          <Plus className="w-4 h-4 mr-2" /> Test Kaydı Ekle
+        </Button>
+      </div>
+      <Card className="bg-card border-border">
+        <CardContent className="p-0">
+          {tests.length === 0 ? (
+            <div
+              data-ocid="quality.inspection_test.empty_state"
+              className="flex flex-col items-center justify-center py-16 text-center"
+            >
+              <ClipboardList className="w-12 h-12 text-muted-foreground/40 mb-3" />
+              <p className="text-muted-foreground font-medium">
+                Henüz test kaydı yok
+              </p>
+            </div>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow className="border-border hover:bg-transparent">
+                  <TableHead className="text-muted-foreground">
+                    Test No
+                  </TableHead>
+                  <TableHead className="text-muted-foreground">Proje</TableHead>
+                  <TableHead className="text-muted-foreground">
+                    Test Türü
+                  </TableHead>
+                  <TableHead className="text-muted-foreground">Tarih</TableHead>
+                  <TableHead className="text-muted-foreground">Sonuç</TableHead>
+                  <TableHead className="text-muted-foreground">
+                    Standart
+                  </TableHead>
+                  <TableHead className="text-muted-foreground">
+                    Sertifika No
+                  </TableHead>
+                  <TableHead />
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {tests.map((t, idx) => (
+                  <TableRow
+                    key={t.id}
+                    data-ocid={`quality.inspection_test.item.${idx + 1}`}
+                    className="border-border hover:bg-muted/30"
+                  >
+                    <TableCell className="font-mono text-xs text-amber-400">
+                      {t.testNo}
+                    </TableCell>
+                    <TableCell className="text-sm text-muted-foreground">
+                      {t.project || "-"}
+                    </TableCell>
+                    <TableCell className="text-sm font-medium text-foreground">
+                      {t.testType}
+                    </TableCell>
+                    <TableCell className="text-sm text-muted-foreground">
+                      {t.date}
+                    </TableCell>
+                    <TableCell>
+                      <Badge
+                        className={`text-xs border ${RESULT_STYLES[t.result]}`}
+                      >
+                        {t.result}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-sm text-muted-foreground">
+                      {t.standard || "-"}
+                    </TableCell>
+                    <TableCell className="text-sm text-muted-foreground">
+                      {t.certNo || "-"}
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex gap-1">
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          className="h-7 w-7"
+                          data-ocid={`quality.inspection_test.edit_button.${idx + 1}`}
+                          onClick={() => openEdit(t)}
+                        >
+                          <Edit2 className="w-3.5 h-3.5" />
+                        </Button>
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          className="h-7 w-7 text-destructive"
+                          data-ocid={`quality.inspection_test.delete_button.${idx + 1}`}
+                          onClick={() =>
+                            setTests((p) => p.filter((x) => x.id !== t.id))
+                          }
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </CardContent>
+      </Card>
+      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+        <DialogContent
+          data-ocid="quality.inspection_test.dialog"
+          className="bg-card border-border max-w-lg"
+        >
+          <DialogHeader>
+            <DialogTitle className="text-foreground">
+              {editId ? "Test Kaydını Düzenle" : "Yeni Test Kaydı"}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="grid grid-cols-2 gap-4 py-2">
+            <div className="space-y-1.5">
+              <Label className="text-muted-foreground">Proje</Label>
+              <Input
+                className="border-border bg-background"
+                placeholder="Proje adı"
+                value={form.project}
+                onChange={(e) =>
+                  setForm((p) => ({ ...p, project: e.target.value }))
+                }
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-muted-foreground">Test Türü *</Label>
+              <Select
+                value={form.testType}
+                onValueChange={(v) => setForm((p) => ({ ...p, testType: v }))}
+              >
+                <SelectTrigger
+                  className="border-border bg-background"
+                  data-ocid="quality.inspection_test.select"
+                >
+                  <SelectValue placeholder="Tür seçin" />
+                </SelectTrigger>
+                <SelectContent>
+                  {TEST_TYPES.map((t) => (
+                    <SelectItem key={t} value={t}>
+                      {t}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-muted-foreground">Tarih *</Label>
+              <Input
+                data-ocid="quality.inspection_test.input"
+                type="date"
+                className="border-border bg-background"
+                value={form.date}
+                onChange={(e) =>
+                  setForm((p) => ({ ...p, date: e.target.value }))
+                }
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-muted-foreground">Sonuç</Label>
+              <Select
+                value={form.result}
+                onValueChange={(v) =>
+                  setForm((p) => ({ ...p, result: v as TestResult }))
+                }
+              >
+                <SelectTrigger
+                  className="border-border bg-background"
+                  data-ocid="quality.inspection_test.result.select"
+                >
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Bekliyor">Bekliyor</SelectItem>
+                  <SelectItem value="Geçti">Geçti</SelectItem>
+                  <SelectItem value="Kaldı">Kaldı</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-muted-foreground">Standart</Label>
+              <Input
+                className="border-border bg-background"
+                placeholder="TS EN 12350-2"
+                value={form.standard}
+                onChange={(e) =>
+                  setForm((p) => ({ ...p, standard: e.target.value }))
+                }
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-muted-foreground">Sertifika No</Label>
+              <Input
+                className="border-border bg-background"
+                placeholder="SRT-001"
+                value={form.certNo}
+                onChange={(e) =>
+                  setForm((p) => ({ ...p, certNo: e.target.value }))
+                }
+              />
+            </div>
+            <div className="col-span-2 space-y-1.5">
+              <Label className="text-muted-foreground">Açıklama</Label>
+              <Textarea
+                className="border-border bg-background resize-none"
+                rows={2}
+                value={form.description}
+                onChange={(e) =>
+                  setForm((p) => ({ ...p, description: e.target.value }))
+                }
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              data-ocid="quality.inspection_test.cancel_button"
+              variant="outline"
+              className="border-border"
+              onClick={() => setDialogOpen(false)}
+            >
+              İptal
+            </Button>
+            <Button
+              data-ocid="quality.inspection_test.submit_button"
+              className="gradient-bg text-white"
+              onClick={handleSave}
+              disabled={!form.testType || !form.date}
+            >
+              {editId ? "Güncelle" : "Ekle"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
 
 export default function QualitySafety() {
   const {
@@ -490,6 +827,12 @@ export default function QualitySafety() {
           <TabsTrigger value="ncr" data-ocid="quality_safety.ncr_tab">
             <AlertOctagon className="w-4 h-4 mr-1.5" />
             NCR Kayıtları
+          </TabsTrigger>
+          <TabsTrigger
+            value="inspectiontests"
+            data-ocid="quality_safety.inspectiontests_tab"
+          >
+            Muayene & Testler
           </TabsTrigger>
         </TabsList>
 
@@ -1017,6 +1360,9 @@ export default function QualitySafety() {
             setNcrRecords={setNcrRecords}
             canEdit={canEdit}
           />
+        </TabsContent>
+        <TabsContent value="inspectiontests" className="mt-4">
+          <InspectionTestsTab companyId={currentCompany?.id || "default"} />
         </TabsContent>
       </Tabs>
     </div>

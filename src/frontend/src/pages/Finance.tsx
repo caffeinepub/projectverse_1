@@ -35,9 +35,13 @@ import {
   CheckCircle2,
   Clock,
   DollarSign,
+  Edit,
   FileText,
+  GitBranch,
+  Globe,
   Plus,
   Receipt,
+  Trash2,
   TrendingDown,
   TrendingUp,
   Upload,
@@ -96,6 +100,581 @@ interface CashFlowEntry {
   type: "gelir" | "gider";
   category: string;
   description: string;
+}
+
+function BudgetRevisionsTab({ companyId }: { companyId: string }) {
+  const storageKey = `pv_budget_revisions_${companyId}`;
+
+  type RevStatus = "Taslak" | "Onaylandı" | "Reddedildi";
+  interface BudgetRevision {
+    id: string;
+    revNo: string;
+    date: string;
+    description: string;
+    oldBudget: string;
+    newBudget: string;
+    status: RevStatus;
+    approver: string;
+  }
+
+  const [revisions, setRevisions] = useState<BudgetRevision[]>(() => {
+    try {
+      return JSON.parse(localStorage.getItem(storageKey) || "[]");
+    } catch {
+      return [];
+    }
+  });
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [editId, setEditId] = useState<string | null>(null);
+  const EMPTY = {
+    date: "",
+    description: "",
+    oldBudget: "",
+    newBudget: "",
+    status: "Taslak" as RevStatus,
+    approver: "",
+  };
+  const [form, setForm] = useState(EMPTY);
+
+  useEffect(() => {
+    localStorage.setItem(storageKey, JSON.stringify(revisions));
+  }, [revisions, storageKey]);
+
+  const openAdd = () => {
+    setEditId(null);
+    setForm(EMPTY);
+    setDialogOpen(true);
+  };
+  const openEdit = (r: BudgetRevision) => {
+    setEditId(r.id);
+    setForm({
+      date: r.date,
+      description: r.description,
+      oldBudget: r.oldBudget,
+      newBudget: r.newBudget,
+      status: r.status,
+      approver: r.approver,
+    });
+    setDialogOpen(true);
+  };
+  const handleSave = () => {
+    if (!form.description || !form.date) return;
+    if (editId) {
+      setRevisions((p) =>
+        p.map((r) => (r.id === editId ? { ...r, ...form } : r)),
+      );
+    } else {
+      const revNo = `REV-${String(revisions.length + 1).padStart(3, "0")}`;
+      setRevisions((p) => [...p, { id: crypto.randomUUID(), revNo, ...form }]);
+    }
+    setDialogOpen(false);
+  };
+
+  const STATUS_STYLES: Record<RevStatus, string> = {
+    Taslak: "bg-gray-500/15 text-gray-400 border-gray-500/30",
+    Onaylandı: "bg-green-500/15 text-green-400 border-green-500/30",
+    Reddedildi: "bg-red-500/15 text-red-400 border-red-500/30",
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="flex justify-end">
+        <Button
+          data-ocid="finance.budget_revision.open_modal_button"
+          onClick={openAdd}
+          className="gradient-bg text-white"
+        >
+          <Plus className="w-4 h-4 mr-2" /> Revizyon Ekle
+        </Button>
+      </div>
+      <Card className="bg-card border-border">
+        <CardContent className="p-0">
+          {revisions.length === 0 ? (
+            <div
+              data-ocid="finance.budget_revision.empty_state"
+              className="flex flex-col items-center justify-center py-16 text-center"
+            >
+              <GitBranch className="w-12 h-12 text-muted-foreground/40 mb-3" />
+              <p className="text-muted-foreground font-medium">
+                Henüz revizyon kaydı yok
+              </p>
+            </div>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow className="border-border hover:bg-transparent">
+                  <TableHead className="text-muted-foreground">
+                    Rev No
+                  </TableHead>
+                  <TableHead className="text-muted-foreground">Tarih</TableHead>
+                  <TableHead className="text-muted-foreground">
+                    Açıklama
+                  </TableHead>
+                  <TableHead className="text-muted-foreground">
+                    Eski Bütçe
+                  </TableHead>
+                  <TableHead className="text-muted-foreground">
+                    Yeni Bütçe
+                  </TableHead>
+                  <TableHead className="text-muted-foreground">Durum</TableHead>
+                  <TableHead className="text-muted-foreground">
+                    Onaylayan
+                  </TableHead>
+                  <TableHead />
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {revisions.map((r, idx) => (
+                  <TableRow
+                    key={r.id}
+                    data-ocid={`finance.budget_revision.item.${idx + 1}`}
+                    className="border-border hover:bg-muted/30"
+                  >
+                    <TableCell className="font-mono text-xs text-amber-400">
+                      {r.revNo}
+                    </TableCell>
+                    <TableCell className="text-sm text-muted-foreground">
+                      {r.date}
+                    </TableCell>
+                    <TableCell className="text-sm font-medium text-foreground max-w-48 truncate">
+                      {r.description}
+                    </TableCell>
+                    <TableCell className="text-sm text-muted-foreground">
+                      {r.oldBudget ? fmt(Number(r.oldBudget)) : "-"}
+                    </TableCell>
+                    <TableCell className="text-sm font-medium text-foreground">
+                      {r.newBudget ? fmt(Number(r.newBudget)) : "-"}
+                    </TableCell>
+                    <TableCell>
+                      <Badge
+                        className={`text-xs border ${STATUS_STYLES[r.status]}`}
+                      >
+                        {r.status}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-sm text-muted-foreground">
+                      {r.approver || "-"}
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex gap-1">
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          className="h-7 w-7"
+                          onClick={() => openEdit(r)}
+                        >
+                          <Edit className="w-3.5 h-3.5" />
+                        </Button>
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          className="h-7 w-7 text-destructive"
+                          onClick={() =>
+                            setRevisions((p) => p.filter((x) => x.id !== r.id))
+                          }
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </CardContent>
+      </Card>
+      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+        <DialogContent
+          data-ocid="finance.budget_revision.dialog"
+          className="bg-card border-border max-w-lg"
+        >
+          <DialogHeader>
+            <DialogTitle className="text-foreground">
+              {editId ? "Revizyonu Düzenle" : "Yeni Revizyon"}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="grid grid-cols-2 gap-4 py-2">
+            <div className="space-y-1.5">
+              <Label className="text-muted-foreground">Tarih *</Label>
+              <Input
+                data-ocid="finance.budget_revision.input"
+                type="date"
+                className="border-border bg-background"
+                value={form.date}
+                onChange={(e) =>
+                  setForm((p) => ({ ...p, date: e.target.value }))
+                }
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-muted-foreground">Durum</Label>
+              <Select
+                value={form.status}
+                onValueChange={(v) =>
+                  setForm((p) => ({ ...p, status: v as RevStatus }))
+                }
+              >
+                <SelectTrigger
+                  className="border-border bg-background"
+                  data-ocid="finance.budget_revision.select"
+                >
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Taslak">Taslak</SelectItem>
+                  <SelectItem value="Onaylandı">Onaylandı</SelectItem>
+                  <SelectItem value="Reddedildi">Reddedildi</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="col-span-2 space-y-1.5">
+              <Label className="text-muted-foreground">Açıklama *</Label>
+              <Input
+                className="border-border bg-background"
+                placeholder="Revizyon açıklaması"
+                value={form.description}
+                onChange={(e) =>
+                  setForm((p) => ({ ...p, description: e.target.value }))
+                }
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-muted-foreground">Eski Bütçe (₺)</Label>
+              <Input
+                type="number"
+                className="border-border bg-background"
+                value={form.oldBudget}
+                onChange={(e) =>
+                  setForm((p) => ({ ...p, oldBudget: e.target.value }))
+                }
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-muted-foreground">Yeni Bütçe (₺)</Label>
+              <Input
+                type="number"
+                className="border-border bg-background"
+                value={form.newBudget}
+                onChange={(e) =>
+                  setForm((p) => ({ ...p, newBudget: e.target.value }))
+                }
+              />
+            </div>
+            <div className="col-span-2 space-y-1.5">
+              <Label className="text-muted-foreground">Onaylayan</Label>
+              <Input
+                className="border-border bg-background"
+                placeholder="Onaylayan kişi"
+                value={form.approver}
+                onChange={(e) =>
+                  setForm((p) => ({ ...p, approver: e.target.value }))
+                }
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              data-ocid="finance.budget_revision.cancel_button"
+              variant="outline"
+              className="border-border"
+              onClick={() => setDialogOpen(false)}
+            >
+              İptal
+            </Button>
+            <Button
+              data-ocid="finance.budget_revision.submit_button"
+              className="gradient-bg text-white"
+              onClick={handleSave}
+              disabled={!form.description || !form.date}
+            >
+              {editId ? "Güncelle" : "Ekle"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
+function CurrenciesTab({ companyId }: { companyId: string }) {
+  const DEFAULT_CURRENCIES = [
+    { code: "TRY", name: "Türk Lirası", symbol: "₺", rate: 1.0 },
+    { code: "USD", name: "Amerikan Doları", symbol: "$", rate: 32.5 },
+    { code: "EUR", name: "Euro", symbol: "€", rate: 35.1 },
+    { code: "GBP", name: "İngiliz Sterlini", symbol: "£", rate: 41.2 },
+    { code: "JPY", name: "Japon Yeni", symbol: "¥", rate: 0.22 },
+    { code: "CHF", name: "İsviçre Frangı", symbol: "Fr", rate: 36.8 },
+    {
+      code: "AED",
+      name: "Birleşik Arap Emirlikleri Dirhemi",
+      symbol: "AED",
+      rate: 8.85,
+    },
+  ];
+
+  interface Currency {
+    code: string;
+    name: string;
+    symbol: string;
+    rate: number;
+    updatedAt?: string;
+  }
+
+  const [currencies, setCurrencies] = React.useState<Currency[]>(() => {
+    try {
+      const s = localStorage.getItem(`pv_currencies_${companyId}`);
+      return s ? JSON.parse(s) : DEFAULT_CURRENCIES;
+    } catch {
+      return DEFAULT_CURRENCIES;
+    }
+  });
+
+  const [editingCode, setEditingCode] = React.useState<string | null>(null);
+  const [editRate, setEditRate] = React.useState("");
+  const [addOpen, setAddOpen] = React.useState(false);
+  const [newCur, setNewCur] = React.useState({
+    code: "",
+    name: "",
+    symbol: "",
+    rate: "",
+  });
+
+  const persist = (updated: Currency[]) => {
+    setCurrencies(updated);
+    localStorage.setItem(`pv_currencies_${companyId}`, JSON.stringify(updated));
+  };
+
+  const handleUpdateRate = (code: string) => {
+    const rate = Number.parseFloat(editRate);
+    if (Number.isNaN(rate) || rate <= 0) return;
+    persist(
+      currencies.map((c) =>
+        c.code === code
+          ? { ...c, rate, updatedAt: new Date().toISOString() }
+          : c,
+      ),
+    );
+    setEditingCode(null);
+  };
+
+  const handleAdd = () => {
+    if (!newCur.code.trim() || !newCur.name.trim()) return;
+    const rate = Number.parseFloat(newCur.rate) || 1;
+    persist([
+      ...currencies,
+      {
+        code: newCur.code.toUpperCase(),
+        name: newCur.name,
+        symbol: newCur.symbol || newCur.code,
+        rate,
+        updatedAt: new Date().toISOString(),
+      },
+    ]);
+    setNewCur({ code: "", name: "", symbol: "", rate: "" });
+    setAddOpen(false);
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <div>
+          <p className="text-sm text-muted-foreground">
+            Döviz kurları manuel olarak güncellenir. TRY baz para birimi olarak
+            sabitlenmiştir.
+          </p>
+        </div>
+        <Button
+          data-ocid="finance.currencies.primary_button"
+          className="gradient-bg text-white"
+          size="sm"
+          onClick={() => setAddOpen(true)}
+        >
+          <Plus className="h-4 w-4 mr-2" />
+          Para Birimi Ekle
+        </Button>
+      </div>
+
+      <div className="rounded-xl border border-border overflow-hidden">
+        <table className="w-full text-sm">
+          <thead>
+            <tr
+              className="border-b border-border"
+              style={{ background: "oklch(0.15 0.018 245)" }}
+            >
+              <th className="text-left px-4 py-3 font-medium text-muted-foreground">
+                Kod
+              </th>
+              <th className="text-left px-4 py-3 font-medium text-muted-foreground">
+                Para Birimi
+              </th>
+              <th className="text-left px-4 py-3 font-medium text-muted-foreground">
+                Sembol
+              </th>
+              <th className="text-right px-4 py-3 font-medium text-muted-foreground">
+                Kur (TRY)
+              </th>
+              <th className="text-left px-4 py-3 font-medium text-muted-foreground">
+                Son Güncelleme
+              </th>
+              <th className="px-4 py-3" />
+            </tr>
+          </thead>
+          <tbody>
+            {currencies.map((cur, idx) => (
+              <tr
+                key={cur.code}
+                data-ocid={`finance.currencies.row.${idx + 1}`}
+                className="border-b border-border/50 hover:bg-muted/10 transition-colors"
+              >
+                <td className="px-4 py-3">
+                  <span className="font-mono font-bold text-primary">
+                    {cur.code}
+                  </span>
+                </td>
+                <td className="px-4 py-3 text-foreground/80">{cur.name}</td>
+                <td className="px-4 py-3 text-muted-foreground">
+                  {cur.symbol}
+                </td>
+                <td className="px-4 py-3 text-right">
+                  {editingCode === cur.code ? (
+                    <div className="flex items-center gap-2 justify-end">
+                      <Input
+                        type="number"
+                        value={editRate}
+                        onChange={(e) => setEditRate(e.target.value)}
+                        className="w-24 h-7 text-right bg-background border-border text-sm"
+                        step="0.0001"
+                        min={0}
+                        autoFocus
+                      />
+                      <Button
+                        size="sm"
+                        className="h-7 gradient-bg text-white"
+                        onClick={() => handleUpdateRate(cur.code)}
+                      >
+                        <Check className="h-3 w-3" />
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="h-7 w-7 p-0"
+                        onClick={() => setEditingCode(null)}
+                      >
+                        <X className="h-3 w-3" />
+                      </Button>
+                    </div>
+                  ) : (
+                    <span className="font-semibold">
+                      {cur.rate.toLocaleString("tr-TR", {
+                        minimumFractionDigits: 4,
+                      })}
+                    </span>
+                  )}
+                </td>
+                <td className="px-4 py-3 text-xs text-muted-foreground">
+                  {cur.updatedAt
+                    ? new Date(cur.updatedAt).toLocaleString("tr-TR")
+                    : "Varsayılan"}
+                </td>
+                <td className="px-4 py-3">
+                  {cur.code !== "TRY" && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      data-ocid={`finance.currencies.secondary_button.${idx + 1}`}
+                      className="h-7 text-xs border-border"
+                      onClick={() => {
+                        setEditingCode(cur.code);
+                        setEditRate(String(cur.rate));
+                      }}
+                    >
+                      <Globe className="h-3 w-3 mr-1" />
+                      Kur Güncelle
+                    </Button>
+                  )}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      <Dialog open={addOpen} onOpenChange={setAddOpen}>
+        <DialogContent
+          data-ocid="finance.currencies.dialog"
+          className="bg-card border-border"
+        >
+          <DialogHeader>
+            <DialogTitle>Yeni Para Birimi Ekle</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label>Kod (örn: CAD)</Label>
+                <Input
+                  value={newCur.code}
+                  onChange={(e) =>
+                    setNewCur((p) => ({ ...p, code: e.target.value }))
+                  }
+                  className="mt-1 bg-background border-border"
+                  placeholder="USD"
+                />
+              </div>
+              <div>
+                <Label>Sembol</Label>
+                <Input
+                  value={newCur.symbol}
+                  onChange={(e) =>
+                    setNewCur((p) => ({ ...p, symbol: e.target.value }))
+                  }
+                  className="mt-1 bg-background border-border"
+                  placeholder="$"
+                />
+              </div>
+            </div>
+            <div>
+              <Label>Para Birimi Adı</Label>
+              <Input
+                value={newCur.name}
+                onChange={(e) =>
+                  setNewCur((p) => ({ ...p, name: e.target.value }))
+                }
+                className="mt-1 bg-background border-border"
+                placeholder="Kanada Doları"
+              />
+            </div>
+            <div>
+              <Label>Kur (TRY karşılığı)</Label>
+              <Input
+                type="number"
+                value={newCur.rate}
+                onChange={(e) =>
+                  setNewCur((p) => ({ ...p, rate: e.target.value }))
+                }
+                className="mt-1 bg-background border-border"
+                placeholder="0.0000"
+                min={0}
+                step="0.0001"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setAddOpen(false)}>
+              İptal
+            </Button>
+            <Button
+              className="gradient-bg text-white"
+              onClick={handleAdd}
+              disabled={!newCur.code.trim() || !newCur.name.trim()}
+            >
+              Ekle
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
 }
 
 function CashFlowTab({ companyId }: { companyId: string }) {
@@ -822,6 +1401,21 @@ export default function Finance() {
             className="data-[state=active]:gradient-bg data-[state=active]:text-white text-xs md:text-sm"
           >
             Avans & Harcama
+          </TabsTrigger>
+          <TabsTrigger
+            data-ocid="finance.budget_revisions.tab"
+            value="budget_revisions"
+            className="data-[state=active]:gradient-bg data-[state=active]:text-white text-xs md:text-sm"
+          >
+            Bütçe Revizyonları
+          </TabsTrigger>
+          <TabsTrigger
+            data-ocid="finance.currencies.tab"
+            value="currencies"
+            className="data-[state=active]:gradient-bg data-[state=active]:text-white text-xs md:text-sm"
+          >
+            <Globe className="h-4 w-4 mr-1" />
+            Para Birimleri
           </TabsTrigger>
         </TabsList>
 
@@ -2119,6 +2713,14 @@ export default function Finance() {
         {/* ── AVANS & HARCAMA TAB ───────────────────────────────────────── */}
         <TabsContent value="advances" className="space-y-5">
           <AdvancesTab companyId={activeCompanyId || ""} />
+        </TabsContent>
+        {/* ── BÜÜÇE REVIZYON TAB ── */}
+        <TabsContent value="budget_revisions" className="space-y-5">
+          <BudgetRevisionsTab companyId={activeCompanyId || ""} />
+        </TabsContent>
+        {/* ── PARA BİRİMLERİ TAB ── */}
+        <TabsContent value="currencies" className="space-y-5">
+          <CurrenciesTab companyId={activeCompanyId || ""} />
         </TabsContent>
       </Tabs>
     </div>

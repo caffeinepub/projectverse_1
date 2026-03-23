@@ -32,6 +32,7 @@ import { Textarea } from "@/components/ui/textarea";
 import {
   BarChart3,
   CalendarDays,
+  CalendarRange,
   Check,
   ChevronLeft,
   ChevronRight,
@@ -1708,6 +1709,13 @@ export default function HumanResources() {
           >
             İşe Alım
           </TabsTrigger>
+          <TabsTrigger
+            data-ocid="hr.capacity.tab"
+            value="capacity"
+            className="text-xs md:text-sm"
+          >
+            Kapasite Planı
+          </TabsTrigger>
         </TabsList>
 
         {/* ─── PERSONNEL TAB ─── */}
@@ -2970,6 +2978,9 @@ export default function HumanResources() {
         <TabsContent value="recruitment" className="mt-4 space-y-6">
           <RecruitmentTab companyId={activeCompanyId || ""} />
         </TabsContent>
+        <TabsContent value="capacity" className="mt-4">
+          <CapacityPlanTab companyId={activeCompanyId || ""} />
+        </TabsContent>
       </Tabs>
 
       {/* ─── Personnel Detail Sheet ─── */}
@@ -3195,6 +3206,199 @@ export default function HumanResources() {
           )}
         </SheetContent>
       </Sheet>
+    </div>
+  );
+}
+
+function CapacityPlanTab({ companyId }: { companyId: string }) {
+  const storageKey = `pv_capacity_plan_${companyId}`;
+  const MONTHS = [
+    "Öca",
+    "Şub",
+    "Mar",
+    "Nis",
+    "May",
+    "Haz",
+    "Tem",
+    "Ağu",
+    "Eyl",
+    "Éki",
+    "Kas",
+    "Ara",
+  ];
+
+  interface CapacityEntry {
+    id: string;
+    personnelName: string;
+    assignments: string[]; // 12 months
+  }
+
+  const [entries, setEntries] = useState<CapacityEntry[]>(() => {
+    try {
+      return JSON.parse(localStorage.getItem(storageKey) || "[]");
+    } catch {
+      return [];
+    }
+  });
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [form, setForm] = useState({
+    personnelName: "",
+    assignments: Array(12).fill("Müsait"),
+  });
+
+  useEffect(() => {
+    localStorage.setItem(storageKey, JSON.stringify(entries));
+  }, [entries, storageKey]);
+
+  const handleSave = () => {
+    if (!form.personnelName) return;
+    setEntries((p) => [
+      ...p,
+      { id: crypto.randomUUID(), ...form, assignments: [...form.assignments] },
+    ]);
+    setForm({ personnelName: "", assignments: Array(12).fill("Müsait") });
+    setDialogOpen(false);
+  };
+
+  return (
+    <div className="mt-4 space-y-4">
+      <div className="flex justify-end">
+        <Button
+          data-ocid="hr.capacity.open_modal_button"
+          onClick={() => setDialogOpen(true)}
+          className="gradient-bg text-white"
+        >
+          <Plus className="w-4 h-4 mr-2" /> Personel Ekle
+        </Button>
+      </div>
+      <Card className="bg-card border-border overflow-x-auto">
+        <CardContent className="p-0">
+          {entries.length === 0 ? (
+            <div
+              data-ocid="hr.capacity.empty_state"
+              className="flex flex-col items-center justify-center py-16 text-center"
+            >
+              <CalendarRange className="w-12 h-12 text-muted-foreground/40 mb-3" />
+              <p className="text-muted-foreground font-medium">
+                Henüz kapasite planı yok
+              </p>
+              <p className="text-muted-foreground/60 text-sm mt-1">
+                Personel ekleyerek aylara göre proje ataması yapın
+              </p>
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="border-b border-border">
+                    <th className="text-left py-3 px-4 text-muted-foreground font-medium w-40 min-w-40">
+                      Personel
+                    </th>
+                    {MONTHS.map((m) => (
+                      <th
+                        key={m}
+                        className="py-3 px-2 text-center text-muted-foreground font-medium min-w-20"
+                      >
+                        {m}
+                      </th>
+                    ))}
+                    <th className="py-3 px-2 w-8" />
+                  </tr>
+                </thead>
+                <tbody>
+                  {entries.map((e, idx) => (
+                    <tr
+                      key={e.id}
+                      data-ocid={`hr.capacity.item.${idx + 1}`}
+                      className="border-b border-border hover:bg-muted/20"
+                    >
+                      <td className="py-2 px-4 font-medium text-foreground">
+                        {e.personnelName}
+                      </td>
+                      {e.assignments.map((a, mi) => (
+                        // biome-ignore lint/suspicious/noArrayIndexKey: month index is stable
+                        <td key={mi} className="py-2 px-1">
+                          <input
+                            type="text"
+                            className="w-full bg-transparent border border-transparent hover:border-border focus:border-amber-500 rounded px-1 py-0.5 text-center text-xs outline-none"
+                            value={a}
+                            onChange={(ev) => {
+                              const newAssign = [...e.assignments];
+                              newAssign[mi] = ev.target.value;
+                              setEntries((p) =>
+                                p.map((x) =>
+                                  x.id === e.id
+                                    ? { ...x, assignments: newAssign }
+                                    : x,
+                                ),
+                              );
+                            }}
+                          />
+                        </td>
+                      ))}
+                      <td className="py-2 px-2">
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          className="h-6 w-6 text-destructive"
+                          data-ocid={`hr.capacity.delete_button.${idx + 1}`}
+                          onClick={() =>
+                            setEntries((p) => p.filter((x) => x.id !== e.id))
+                          }
+                        >
+                          <Trash2 className="w-3 h-3" />
+                        </Button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+        <DialogContent
+          data-ocid="hr.capacity.dialog"
+          className="bg-card border-border max-w-md"
+        >
+          <DialogHeader>
+            <DialogTitle className="text-foreground">Personel Ekle</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 py-2">
+            <div className="space-y-1.5">
+              <Label className="text-muted-foreground">Personel Adı *</Label>
+              <Input
+                data-ocid="hr.capacity.input"
+                className="border-border bg-background"
+                placeholder="Ad Soyad"
+                value={form.personnelName}
+                onChange={(e) =>
+                  setForm((p) => ({ ...p, personnelName: e.target.value }))
+                }
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              data-ocid="hr.capacity.cancel_button"
+              variant="outline"
+              className="border-border"
+              onClick={() => setDialogOpen(false)}
+            >
+              İptal
+            </Button>
+            <Button
+              data-ocid="hr.capacity.submit_button"
+              className="gradient-bg text-white"
+              onClick={handleSave}
+              disabled={!form.personnelName}
+            >
+              Ekle
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
