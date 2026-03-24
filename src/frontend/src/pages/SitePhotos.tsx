@@ -16,6 +16,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import {
   Camera,
@@ -98,6 +99,11 @@ export default function SitePhotos() {
   });
 
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Before/After comparison state
+  const [compareLocation, setCompareLocation] = useState("");
+  const [beforePhotoId, setBeforePhotoId] = useState("");
+  const [afterPhotoId, setAfterPhotoId] = useState("");
 
   const companyProjects = projects.filter(
     (p) => p.companyId === activeCompanyId,
@@ -289,317 +295,502 @@ export default function SitePhotos() {
         ))}
       </div>
 
-      {/* Photo Grid */}
-      {filteredPhotos.length === 0 ? (
-        <div
-          data-ocid="sitephotos.empty_state"
-          className="flex flex-col items-center justify-center py-20 text-center"
-        >
-          <div className="w-20 h-20 rounded-full bg-amber-500/10 flex items-center justify-center mb-4">
-            <Camera className="w-10 h-10 text-amber-400/50" />
-          </div>
-          <h3 className="text-lg font-semibold text-foreground mb-2">
-            Fotoğraf Yok
-          </h3>
-          <p className="text-muted-foreground text-sm mb-4">
-            Şantiye fotoğraflarını yükleyerek dokümantasyona başlayın
-          </p>
-          <Button
-            onClick={() => setUploadOpen(true)}
-            className="gradient-bg text-white gap-2"
+      <Tabs defaultValue="gallery">
+        <TabsList className="bg-card border border-border">
+          <TabsTrigger
+            data-ocid="sitephotos.gallery.tab"
+            value="gallery"
+            className="data-[state=active]:gradient-bg data-[state=active]:text-white"
           >
-            <Upload className="w-4 h-4" />
-            İlk Fotoğrafı Yükle
-          </Button>
-        </div>
-      ) : (
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
-          {filteredPhotos.map((photo, idx) => (
-            <button
-              type="button"
-              key={photo.id}
-              data-ocid={`sitephotos.item.${idx + 1}`}
-              className="group relative rounded-xl overflow-hidden border border-border bg-card cursor-pointer hover:border-amber-500/50 transition-all text-left w-full"
-              onClick={() =>
-                openLightbox(filteredPhotos.findIndex((p) => p.id === photo.id))
-              }
+            <Camera className="w-4 h-4 mr-2" />
+            Galeri
+          </TabsTrigger>
+          <TabsTrigger
+            data-ocid="sitephotos.compare.tab"
+            value="compare"
+            className="data-[state=active]:gradient-bg data-[state=active]:text-white"
+          >
+            Önce / Sonra Karşılaştırma
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="gallery" className="mt-4">
+          {/* Photo Grid */}
+          {filteredPhotos.length === 0 ? (
+            <div
+              data-ocid="sitephotos.empty_state"
+              className="flex flex-col items-center justify-center py-20 text-center"
             >
-              <div className="aspect-square bg-muted">
-                <img
-                  src={photo.dataUrl}
-                  alt={photo.description || "Şantiye fotoğrafı"}
-                  className="w-full h-full object-cover"
-                />
+              <div className="w-20 h-20 rounded-full bg-amber-500/10 flex items-center justify-center mb-4">
+                <Camera className="w-10 h-10 text-amber-400/50" />
               </div>
-              <div className="p-2">
-                <Badge
-                  className={`text-[10px] px-1.5 py-0 border ${TAG_COLORS[photo.tag]}`}
-                >
-                  {TAG_LABELS[photo.tag]}
-                </Badge>
-                <p className="text-xs text-muted-foreground mt-1 truncate">
-                  {getProjectName(photo.projectId)}
-                </p>
-                {photo.location && (
-                  <p className="text-[10px] text-muted-foreground/70 flex items-center gap-0.5 mt-0.5">
-                    <MapPin className="w-2.5 h-2.5" />
-                    {photo.location}
-                  </p>
-                )}
-              </div>
-              <button
-                type="button"
-                data-ocid={`sitephotos.delete_button.${idx + 1}`}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  handleDelete(photo.id);
-                }}
-                className="absolute top-2 right-2 w-6 h-6 rounded-full bg-black/60 text-white opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center"
+              <h3 className="text-lg font-semibold text-foreground mb-2">
+                Fotoğraf Yok
+              </h3>
+              <p className="text-muted-foreground text-sm mb-4">
+                Şantiye fotoğraflarını yükleyerek dokümantasyona başlayın
+              </p>
+              <Button
+                onClick={() => setUploadOpen(true)}
+                className="gradient-bg text-white gap-2"
               >
-                <Trash2 className="w-3 h-3" />
-              </button>
-            </button>
-          ))}
-        </div>
-      )}
-
-      {/* Lightbox */}
-      <Dialog open={lightboxOpen} onOpenChange={setLightboxOpen}>
-        <DialogContent
-          data-ocid="sitephotos.dialog"
-          className="bg-card border-border max-w-3xl"
-        >
-          {filteredPhotos[lightboxIndex] && (
-            <>
-              <DialogHeader>
-                <DialogTitle className="flex items-center gap-2">
-                  <Camera className="w-4 h-4 text-amber-400" />
-                  {filteredPhotos[lightboxIndex].description ||
-                    "Fotoğraf Detayı"}
-                </DialogTitle>
-              </DialogHeader>
-              <div className="relative">
-                <img
-                  src={filteredPhotos[lightboxIndex].dataUrl}
-                  alt="Şantiye"
-                  className="w-full rounded-lg object-contain max-h-[60vh]"
-                />
-                {lightboxIndex > 0 && (
-                  <button
-                    type="button"
-                    onClick={() => setLightboxIndex((i) => i - 1)}
-                    className="absolute left-2 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-black/60 text-white flex items-center justify-center hover:bg-black/80"
-                  >
-                    <ChevronLeft className="w-4 h-4" />
-                  </button>
-                )}
-                {lightboxIndex < filteredPhotos.length - 1 && (
-                  <button
-                    type="button"
-                    onClick={() => setLightboxIndex((i) => i + 1)}
-                    className="absolute right-2 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-black/60 text-white flex items-center justify-center hover:bg-black/80"
-                  >
-                    <ChevronRight className="w-4 h-4" />
-                  </button>
-                )}
-              </div>
-              <div className="grid grid-cols-2 gap-4 text-sm">
-                <div>
-                  <span className="text-muted-foreground">Proje: </span>
-                  <span className="text-foreground">
-                    {getProjectName(filteredPhotos[lightboxIndex].projectId)}
-                  </span>
-                </div>
-                <div>
-                  <span className="text-muted-foreground">Tarih: </span>
-                  <span className="text-foreground">
-                    {filteredPhotos[lightboxIndex].date}
-                  </span>
-                </div>
-                <div>
-                  <span className="text-muted-foreground">Etiket: </span>
-                  <Badge
-                    className={`text-xs border ${TAG_COLORS[filteredPhotos[lightboxIndex].tag]}`}
-                  >
-                    {TAG_LABELS[filteredPhotos[lightboxIndex].tag]}
-                  </Badge>
-                </div>
-                <div>
-                  <span className="text-muted-foreground">Yükleyen: </span>
-                  <span className="text-foreground">
-                    {filteredPhotos[lightboxIndex].uploadedBy}
-                  </span>
-                </div>
-                {filteredPhotos[lightboxIndex].location && (
-                  <div className="col-span-2">
-                    <span className="text-muted-foreground">Konum: </span>
-                    <span className="text-foreground">
-                      {filteredPhotos[lightboxIndex].location}
-                    </span>
-                  </div>
-                )}
-                {filteredPhotos[lightboxIndex].description && (
-                  <div className="col-span-2">
-                    <span className="text-muted-foreground">Açıklama: </span>
-                    <span className="text-foreground">
-                      {filteredPhotos[lightboxIndex].description}
-                    </span>
-                  </div>
-                )}
-              </div>
-              <div className="flex justify-between items-center text-xs text-muted-foreground">
-                <span>
-                  {lightboxIndex + 1} / {filteredPhotos.length}
-                </span>
-                <Button
-                  data-ocid="sitephotos.close_button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setLightboxOpen(false)}
-                  className="border-border"
+                <Upload className="w-4 h-4" />
+                İlk Fotoğrafı Yükle
+              </Button>
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
+              {filteredPhotos.map((photo, idx) => (
+                <button
+                  type="button"
+                  key={photo.id}
+                  data-ocid={`sitephotos.item.${idx + 1}`}
+                  className="group relative rounded-xl overflow-hidden border border-border bg-card cursor-pointer hover:border-amber-500/50 transition-all text-left w-full"
+                  onClick={() =>
+                    openLightbox(
+                      filteredPhotos.findIndex((p) => p.id === photo.id),
+                    )
+                  }
                 >
-                  <X className="w-3 h-3 mr-1" /> Kapat
-                </Button>
-              </div>
-            </>
+                  <div className="aspect-square bg-muted">
+                    <img
+                      src={photo.dataUrl}
+                      alt={photo.description || "Şantiye fotoğrafı"}
+                      className="w-full h-full object-cover"
+                    />
+                  </div>
+                  <div className="p-2">
+                    <Badge
+                      className={`text-[10px] px-1.5 py-0 border ${TAG_COLORS[photo.tag]}`}
+                    >
+                      {TAG_LABELS[photo.tag]}
+                    </Badge>
+                    <p className="text-xs text-muted-foreground mt-1 truncate">
+                      {getProjectName(photo.projectId)}
+                    </p>
+                    {photo.location && (
+                      <p className="text-[10px] text-muted-foreground/70 flex items-center gap-0.5 mt-0.5">
+                        <MapPin className="w-2.5 h-2.5" />
+                        {photo.location}
+                      </p>
+                    )}
+                  </div>
+                  <button
+                    type="button"
+                    data-ocid={`sitephotos.delete_button.${idx + 1}`}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleDelete(photo.id);
+                    }}
+                    className="absolute top-2 right-2 w-6 h-6 rounded-full bg-black/60 text-white opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center"
+                  >
+                    <Trash2 className="w-3 h-3" />
+                  </button>
+                </button>
+              ))}
+            </div>
           )}
-        </DialogContent>
-      </Dialog>
 
-      {/* Upload Dialog */}
-      <Dialog open={uploadOpen} onOpenChange={setUploadOpen}>
-        <DialogContent
-          data-ocid="sitephotos.upload.dialog"
-          className="bg-card border-border max-w-md"
-        >
-          <DialogHeader>
-            <DialogTitle>Fotoğraf Yükle</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4">
-            {/* File Drop */}
-            <button
-              type="button"
-              onClick={() => fileInputRef.current?.click()}
-              className="border-2 border-dashed border-border rounded-xl p-8 text-center cursor-pointer hover:border-amber-500/50 transition-colors"
+          {/* Lightbox */}
+          <Dialog open={lightboxOpen} onOpenChange={setLightboxOpen}>
+            <DialogContent
+              data-ocid="sitephotos.dialog"
+              className="bg-card border-border max-w-3xl"
             >
-              {newPhoto.dataUrl ? (
-                <img
-                  src={newPhoto.dataUrl}
-                  alt="Önizleme"
-                  className="max-h-40 mx-auto rounded object-contain"
-                />
-              ) : (
+              {filteredPhotos[lightboxIndex] && (
                 <>
-                  <Upload className="w-8 h-8 mx-auto text-muted-foreground mb-2" />
-                  <p className="text-sm text-muted-foreground">
-                    Fotoğraf seçmek için tıklayın
-                  </p>
+                  <DialogHeader>
+                    <DialogTitle className="flex items-center gap-2">
+                      <Camera className="w-4 h-4 text-amber-400" />
+                      {filteredPhotos[lightboxIndex].description ||
+                        "Fotoğraf Detayı"}
+                    </DialogTitle>
+                  </DialogHeader>
+                  <div className="relative">
+                    <img
+                      src={filteredPhotos[lightboxIndex].dataUrl}
+                      alt="Şantiye"
+                      className="w-full rounded-lg object-contain max-h-[60vh]"
+                    />
+                    {lightboxIndex > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => setLightboxIndex((i) => i - 1)}
+                        className="absolute left-2 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-black/60 text-white flex items-center justify-center hover:bg-black/80"
+                      >
+                        <ChevronLeft className="w-4 h-4" />
+                      </button>
+                    )}
+                    {lightboxIndex < filteredPhotos.length - 1 && (
+                      <button
+                        type="button"
+                        onClick={() => setLightboxIndex((i) => i + 1)}
+                        className="absolute right-2 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-black/60 text-white flex items-center justify-center hover:bg-black/80"
+                      >
+                        <ChevronRight className="w-4 h-4" />
+                      </button>
+                    )}
+                  </div>
+                  <div className="grid grid-cols-2 gap-4 text-sm">
+                    <div>
+                      <span className="text-muted-foreground">Proje: </span>
+                      <span className="text-foreground">
+                        {getProjectName(
+                          filteredPhotos[lightboxIndex].projectId,
+                        )}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-muted-foreground">Tarih: </span>
+                      <span className="text-foreground">
+                        {filteredPhotos[lightboxIndex].date}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-muted-foreground">Etiket: </span>
+                      <Badge
+                        className={`text-xs border ${TAG_COLORS[filteredPhotos[lightboxIndex].tag]}`}
+                      >
+                        {TAG_LABELS[filteredPhotos[lightboxIndex].tag]}
+                      </Badge>
+                    </div>
+                    <div>
+                      <span className="text-muted-foreground">Yükleyen: </span>
+                      <span className="text-foreground">
+                        {filteredPhotos[lightboxIndex].uploadedBy}
+                      </span>
+                    </div>
+                    {filteredPhotos[lightboxIndex].location && (
+                      <div className="col-span-2">
+                        <span className="text-muted-foreground">Konum: </span>
+                        <span className="text-foreground">
+                          {filteredPhotos[lightboxIndex].location}
+                        </span>
+                      </div>
+                    )}
+                    {filteredPhotos[lightboxIndex].description && (
+                      <div className="col-span-2">
+                        <span className="text-muted-foreground">
+                          Açıklama:{" "}
+                        </span>
+                        <span className="text-foreground">
+                          {filteredPhotos[lightboxIndex].description}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                  <div className="flex justify-between items-center text-xs text-muted-foreground">
+                    <span>
+                      {lightboxIndex + 1} / {filteredPhotos.length}
+                    </span>
+                    <Button
+                      data-ocid="sitephotos.close_button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setLightboxOpen(false)}
+                      className="border-border"
+                    >
+                      <X className="w-3 h-3 mr-1" /> Kapat
+                    </Button>
+                  </div>
                 </>
               )}
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="image/*"
-                className="hidden"
-                onChange={handleFileSelect}
-              />
-            </button>
-            <div>
-              <Label>Proje *</Label>
-              <Select
-                value={newPhoto.projectId}
-                onValueChange={(v) =>
-                  setNewPhoto((prev) => ({ ...prev, projectId: v }))
-                }
-              >
-                <SelectTrigger
-                  data-ocid="sitephotos.upload.project_select"
-                  className="bg-background border-border mt-1"
+            </DialogContent>
+          </Dialog>
+
+          {/* Upload Dialog */}
+          <Dialog open={uploadOpen} onOpenChange={setUploadOpen}>
+            <DialogContent
+              data-ocid="sitephotos.upload.dialog"
+              className="bg-card border-border max-w-md"
+            >
+              <DialogHeader>
+                <DialogTitle>Fotoğraf Yükle</DialogTitle>
+              </DialogHeader>
+              <div className="space-y-4">
+                {/* File Drop */}
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  className="border-2 border-dashed border-border rounded-xl p-8 text-center cursor-pointer hover:border-amber-500/50 transition-colors"
                 >
-                  <SelectValue placeholder="Proje seçin" />
-                </SelectTrigger>
-                <SelectContent className="bg-card border-border">
-                  {companyProjects.map((p) => (
-                    <SelectItem key={p.id} value={p.id}>
-                      {p.title}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+                  {newPhoto.dataUrl ? (
+                    <img
+                      src={newPhoto.dataUrl}
+                      alt="Önizleme"
+                      className="max-h-40 mx-auto rounded object-contain"
+                    />
+                  ) : (
+                    <>
+                      <Upload className="w-8 h-8 mx-auto text-muted-foreground mb-2" />
+                      <p className="text-sm text-muted-foreground">
+                        Fotoğraf seçmek için tıklayın
+                      </p>
+                    </>
+                  )}
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={handleFileSelect}
+                  />
+                </button>
+                <div>
+                  <Label>Proje *</Label>
+                  <Select
+                    value={newPhoto.projectId}
+                    onValueChange={(v) =>
+                      setNewPhoto((prev) => ({ ...prev, projectId: v }))
+                    }
+                  >
+                    <SelectTrigger
+                      data-ocid="sitephotos.upload.project_select"
+                      className="bg-background border-border mt-1"
+                    >
+                      <SelectValue placeholder="Proje seçin" />
+                    </SelectTrigger>
+                    <SelectContent className="bg-card border-border">
+                      {companyProjects.map((p) => (
+                        <SelectItem key={p.id} value={p.id}>
+                          {p.title}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label>Etiket</Label>
+                  <Select
+                    value={newPhoto.tag}
+                    onValueChange={(v) =>
+                      setNewPhoto((prev) => ({
+                        ...prev,
+                        tag: v as SitePhoto["tag"],
+                      }))
+                    }
+                  >
+                    <SelectTrigger
+                      data-ocid="sitephotos.upload.tag_select"
+                      className="bg-background border-border mt-1"
+                    >
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent className="bg-card border-border">
+                      <SelectItem value="ilerleme">İlerleme</SelectItem>
+                      <SelectItem value="sorun">Sorun</SelectItem>
+                      <SelectItem value="genel">Genel</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label>Konum</Label>
+                  <Input
+                    data-ocid="sitephotos.upload.location_input"
+                    value={newPhoto.location}
+                    onChange={(e) =>
+                      setNewPhoto((prev) => ({
+                        ...prev,
+                        location: e.target.value,
+                      }))
+                    }
+                    placeholder="Ör: Zemin kat, Blok A"
+                    className="bg-background border-border mt-1"
+                  />
+                </div>
+                <div>
+                  <Label>Açıklama</Label>
+                  <Textarea
+                    data-ocid="sitephotos.upload.textarea"
+                    value={newPhoto.description}
+                    onChange={(e) =>
+                      setNewPhoto((prev) => ({
+                        ...prev,
+                        description: e.target.value,
+                      }))
+                    }
+                    placeholder="Fotoğraf hakkında kısa açıklama"
+                    className="bg-background border-border mt-1 resize-none"
+                    rows={2}
+                  />
+                </div>
+                <div className="flex gap-2 justify-end">
+                  <Button
+                    data-ocid="sitephotos.upload.cancel_button"
+                    variant="outline"
+                    onClick={() => setUploadOpen(false)}
+                    className="border-border"
+                  >
+                    İptal
+                  </Button>
+                  <Button
+                    data-ocid="sitephotos.upload.submit_button"
+                    onClick={handleUpload}
+                    disabled={!newPhoto.dataUrl || !newPhoto.projectId}
+                    className="gradient-bg text-white"
+                  >
+                    Yükle
+                  </Button>
+                </div>
+              </div>
+            </DialogContent>
+          </Dialog>
+        </TabsContent>
+
+        <TabsContent value="compare" className="mt-4">
+          <div className="space-y-6">
             <div>
-              <Label>Etiket</Label>
-              <Select
-                value={newPhoto.tag}
-                onValueChange={(v) =>
-                  setNewPhoto((prev) => ({
-                    ...prev,
-                    tag: v as SitePhoto["tag"],
-                  }))
+              <span className="text-sm font-medium text-foreground block mb-2">
+                Konum Seçin
+              </span>
+              {(() => {
+                const locations = [
+                  ...new Set(photos.map((p) => p.location).filter(Boolean)),
+                ];
+                if (locations.length === 0) {
+                  return (
+                    <div
+                      data-ocid="sitephotos.compare.empty_state"
+                      className="flex flex-col items-center justify-center py-16 text-center"
+                    >
+                      <Camera className="w-12 h-12 text-muted-foreground/30 mb-4" />
+                      <p className="text-muted-foreground">
+                        Karşılaştırma için konumlu fotoğraf yok
+                      </p>
+                    </div>
+                  );
                 }
-              >
-                <SelectTrigger
-                  data-ocid="sitephotos.upload.tag_select"
-                  className="bg-background border-border mt-1"
-                >
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent className="bg-card border-border">
-                  <SelectItem value="ilerleme">İlerleme</SelectItem>
-                  <SelectItem value="sorun">Sorun</SelectItem>
-                  <SelectItem value="genel">Genel</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div>
-              <Label>Konum</Label>
-              <Input
-                data-ocid="sitephotos.upload.location_input"
-                value={newPhoto.location}
-                onChange={(e) =>
-                  setNewPhoto((prev) => ({ ...prev, location: e.target.value }))
-                }
-                placeholder="Ör: Zemin kat, Blok A"
-                className="bg-background border-border mt-1"
-              />
-            </div>
-            <div>
-              <Label>Açıklama</Label>
-              <Textarea
-                data-ocid="sitephotos.upload.textarea"
-                value={newPhoto.description}
-                onChange={(e) =>
-                  setNewPhoto((prev) => ({
-                    ...prev,
-                    description: e.target.value,
-                  }))
-                }
-                placeholder="Fotoğraf hakkında kısa açıklama"
-                className="bg-background border-border mt-1 resize-none"
-                rows={2}
-              />
-            </div>
-            <div className="flex gap-2 justify-end">
-              <Button
-                data-ocid="sitephotos.upload.cancel_button"
-                variant="outline"
-                onClick={() => setUploadOpen(false)}
-                className="border-border"
-              >
-                İptal
-              </Button>
-              <Button
-                data-ocid="sitephotos.upload.submit_button"
-                onClick={handleUpload}
-                disabled={!newPhoto.dataUrl || !newPhoto.projectId}
-                className="gradient-bg text-white"
-              >
-                Yükle
-              </Button>
+                const locationPhotos = photos
+                  .filter((p) => p.location === compareLocation)
+                  .sort((a, b) => a.date.localeCompare(b.date));
+                return (
+                  <>
+                    <select
+                      data-ocid="sitephotos.compare.location.select"
+                      value={compareLocation}
+                      onChange={(e) => {
+                        setCompareLocation(e.target.value);
+                        const lPhotos = photos
+                          .filter((p) => p.location === e.target.value)
+                          .sort((a, b) => a.date.localeCompare(b.date));
+                        setBeforePhotoId(lPhotos[0]?.id || "");
+                        setAfterPhotoId(lPhotos[lPhotos.length - 1]?.id || "");
+                      }}
+                      className="bg-card border border-border rounded-md px-3 py-2 text-sm text-foreground w-full max-w-xs"
+                    >
+                      <option value="">Konum seçin...</option>
+                      {locations.map((loc) => (
+                        <option key={loc} value={loc}>
+                          {loc} (
+                          {photos.filter((p) => p.location === loc).length}{" "}
+                          fotoğraf)
+                        </option>
+                      ))}
+                    </select>
+
+                    {compareLocation && locationPhotos.length < 2 ? (
+                      <p className="text-muted-foreground text-sm mt-4">
+                        Karşılaştırma için en az 2 fotoğraf gerekli
+                      </p>
+                    ) : (
+                      compareLocation && (
+                        <div className="mt-4 space-y-4">
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                              <span className="text-xs text-muted-foreground block mb-1">
+                                Önce
+                              </span>
+                              <select
+                                data-ocid="sitephotos.compare.before.select"
+                                value={beforePhotoId}
+                                onChange={(e) =>
+                                  setBeforePhotoId(e.target.value)
+                                }
+                                className="bg-card border border-border rounded-md px-3 py-2 text-sm text-foreground w-full mb-2"
+                              >
+                                {locationPhotos.map((p) => (
+                                  <option key={p.id} value={p.id}>
+                                    {p.date} - {p.description || "Fotoğraf"}
+                                  </option>
+                                ))}
+                              </select>
+                              {beforePhotoId &&
+                                (() => {
+                                  const ph = locationPhotos.find(
+                                    (p) => p.id === beforePhotoId,
+                                  );
+                                  return ph ? (
+                                    <div className="rounded-xl overflow-hidden border border-border">
+                                      <img
+                                        src={ph.dataUrl}
+                                        alt="Önce"
+                                        className="w-full aspect-video object-cover"
+                                      />
+                                      <div className="p-2 bg-card">
+                                        <p className="text-xs text-muted-foreground">
+                                          {ph.date}
+                                        </p>
+                                        <p className="text-sm">
+                                          {ph.description}
+                                        </p>
+                                      </div>
+                                    </div>
+                                  ) : null;
+                                })()}
+                            </div>
+                            <div>
+                              <span className="text-xs text-muted-foreground block mb-1">
+                                Sonra
+                              </span>
+                              <select
+                                data-ocid="sitephotos.compare.after.select"
+                                value={afterPhotoId}
+                                onChange={(e) =>
+                                  setAfterPhotoId(e.target.value)
+                                }
+                                className="bg-card border border-border rounded-md px-3 py-2 text-sm text-foreground w-full mb-2"
+                              >
+                                {locationPhotos.map((p) => (
+                                  <option key={p.id} value={p.id}>
+                                    {p.date} - {p.description || "Fotoğraf"}
+                                  </option>
+                                ))}
+                              </select>
+                              {afterPhotoId &&
+                                (() => {
+                                  const ph = locationPhotos.find(
+                                    (p) => p.id === afterPhotoId,
+                                  );
+                                  return ph ? (
+                                    <div className="rounded-xl overflow-hidden border border-border">
+                                      <img
+                                        src={ph.dataUrl}
+                                        alt="Sonra"
+                                        className="w-full aspect-video object-cover"
+                                      />
+                                      <div className="p-2 bg-card">
+                                        <p className="text-xs text-muted-foreground">
+                                          {ph.date}
+                                        </p>
+                                        <p className="text-sm">
+                                          {ph.description}
+                                        </p>
+                                      </div>
+                                    </div>
+                                  ) : null;
+                                })()}
+                            </div>
+                          </div>
+                        </div>
+                      )
+                    )}
+                  </>
+                );
+              })()}
             </div>
           </div>
-        </DialogContent>
-      </Dialog>
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }

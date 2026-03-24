@@ -21,6 +21,7 @@ import {
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Textarea } from "@/components/ui/textarea";
 import {
   CheckCircle2,
   Clock,
@@ -1450,6 +1451,9 @@ export default function CompanySettings() {
           >
             Özel Alanlar
           </TabsTrigger>
+          <TabsTrigger data-ocid="settings.brand_tab" value="brand">
+            Marka Yönetimi
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="general">
@@ -1543,7 +1547,282 @@ export default function CompanySettings() {
         <TabsContent value="customfields">
           {currentCompany && <CustomFieldsTab companyId={currentCompany.id} />}
         </TabsContent>
+        <TabsContent value="brand">
+          <BrandSettingsTab companyId={currentCompany?.id || ""} />
+        </TabsContent>
       </Tabs>
+    </div>
+  );
+}
+
+function BrandSettingsTab({ companyId }: { companyId: string }) {
+  const storageKey = `pv_brand_settings_${companyId}`;
+
+  const [brandForm, setBrandForm] = useState(() => {
+    try {
+      const s = localStorage.getItem(storageKey);
+      return s
+        ? JSON.parse(s)
+        : {
+            logo: "",
+            color: "#f59e0b",
+            taxNo: "",
+            address: "",
+            phone: "",
+            email: "",
+            website: "",
+            reportHeader: "",
+            reportFooter: "",
+          };
+    } catch {
+      return {
+        logo: "",
+        color: "#f59e0b",
+        taxNo: "",
+        address: "",
+        phone: "",
+        email: "",
+        website: "",
+        reportHeader: "",
+        reportFooter: "",
+      };
+    }
+  });
+  const [saved, setSaved] = useState(false);
+
+  const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      setBrandForm((p: typeof brandForm) => ({
+        ...p,
+        logo: ev.target?.result as string,
+      }));
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleSave = () => {
+    localStorage.setItem(storageKey, JSON.stringify(brandForm));
+    setSaved(true);
+    setTimeout(() => setSaved(false), 2000);
+  };
+
+  return (
+    <div className="glass-card rounded-xl p-6 space-y-6">
+      <h2 className="font-semibold text-foreground">Marka Yönetimi</h2>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        {/* Logo */}
+        <div>
+          <Label>Şirket Logosu</Label>
+          {brandForm.logo && (
+            <div className="mt-2 mb-3 p-3 rounded-lg bg-card border border-border inline-block">
+              <img
+                src={brandForm.logo}
+                alt="Şirket logosu"
+                className="h-16 object-contain"
+              />
+            </div>
+          )}
+          <div className="mt-2">
+            <Input
+              data-ocid="brand.logo.upload_button"
+              type="file"
+              accept="image/*"
+              onChange={handleLogoUpload}
+              className="bg-card border-border"
+            />
+          </div>
+        </div>
+
+        {/* Color */}
+        <div>
+          <Label>Şirket Rengi</Label>
+          <div className="flex items-center gap-3 mt-2">
+            <Input
+              data-ocid="brand.color.input"
+              type="color"
+              value={brandForm.color}
+              onChange={(e) =>
+                setBrandForm((p: typeof brandForm) => ({
+                  ...p,
+                  color: e.target.value,
+                }))
+              }
+              className="w-14 h-10 p-1 bg-card border-border rounded cursor-pointer"
+            />
+            <div
+              className="w-10 h-10 rounded-lg border border-border"
+              style={{ backgroundColor: brandForm.color }}
+            />
+            <span className="text-sm text-muted-foreground font-mono">
+              {brandForm.color}
+            </span>
+          </div>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div>
+          <Label>Vergi Numarası</Label>
+          <Input
+            data-ocid="brand.taxno.input"
+            value={brandForm.taxNo}
+            onChange={(e) =>
+              setBrandForm((p: typeof brandForm) => ({
+                ...p,
+                taxNo: e.target.value,
+              }))
+            }
+            className="mt-1 bg-card border-border"
+            placeholder="1234567890"
+          />
+        </div>
+        <div>
+          <Label>İletişim Telefonu</Label>
+          <Input
+            data-ocid="brand.phone.input"
+            value={brandForm.phone}
+            onChange={(e) =>
+              setBrandForm((p: typeof brandForm) => ({
+                ...p,
+                phone: e.target.value,
+              }))
+            }
+            className="mt-1 bg-card border-border"
+            placeholder="+90 212 000 00 00"
+          />
+        </div>
+        <div>
+          <Label>E-posta</Label>
+          <Input
+            data-ocid="brand.email.input"
+            value={brandForm.email}
+            onChange={(e) =>
+              setBrandForm((p: typeof brandForm) => ({
+                ...p,
+                email: e.target.value,
+              }))
+            }
+            className="mt-1 bg-card border-border"
+            placeholder="info@sirket.com"
+          />
+        </div>
+        <div>
+          <Label>Web Sitesi</Label>
+          <Input
+            data-ocid="brand.website.input"
+            value={brandForm.website}
+            onChange={(e) =>
+              setBrandForm((p: typeof brandForm) => ({
+                ...p,
+                website: e.target.value,
+              }))
+            }
+            className="mt-1 bg-card border-border"
+            placeholder="https://www.sirket.com"
+          />
+        </div>
+      </div>
+
+      <div>
+        <Label>Adres</Label>
+        <Textarea
+          data-ocid="brand.address.textarea"
+          value={brandForm.address}
+          onChange={(e) =>
+            setBrandForm((p: typeof brandForm) => ({
+              ...p,
+              address: e.target.value,
+            }))
+          }
+          className="mt-1 bg-card border-border resize-none"
+          rows={2}
+          placeholder="Şirket adresi"
+        />
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div>
+          <Label>Rapor Başlığı</Label>
+          <Input
+            data-ocid="brand.report_header.input"
+            value={brandForm.reportHeader}
+            onChange={(e) =>
+              setBrandForm((p: typeof brandForm) => ({
+                ...p,
+                reportHeader: e.target.value,
+              }))
+            }
+            className="mt-1 bg-card border-border"
+            placeholder="Rapor üst bilgisi"
+          />
+        </div>
+        <div>
+          <Label>Rapor Alt Bilgisi</Label>
+          <Input
+            data-ocid="brand.report_footer.input"
+            value={brandForm.reportFooter}
+            onChange={(e) =>
+              setBrandForm((p: typeof brandForm) => ({
+                ...p,
+                reportFooter: e.target.value,
+              }))
+            }
+            className="mt-1 bg-card border-border"
+            placeholder="Rapor alt bilgisi"
+          />
+        </div>
+      </div>
+
+      {/* Report Preview */}
+      {(brandForm.reportHeader || brandForm.reportFooter) && (
+        <div>
+          <Label className="mb-2 block">Rapor Önizleme</Label>
+          <div className="rounded-xl border border-border overflow-hidden">
+            {brandForm.reportHeader && (
+              <div
+                className="p-4 border-b border-border flex items-center gap-3"
+                style={{ background: `${brandForm.color}22` }}
+              >
+                {brandForm.logo && (
+                  <img
+                    src={brandForm.logo}
+                    alt="logo"
+                    className="h-10 object-contain"
+                  />
+                )}
+                <span className="font-semibold text-foreground">
+                  {brandForm.reportHeader}
+                </span>
+              </div>
+            )}
+            <div className="p-4 bg-card min-h-[80px] flex items-center justify-center">
+              <span className="text-muted-foreground text-sm italic">
+                Rapor içeriği burada görünür
+              </span>
+            </div>
+            {brandForm.reportFooter && (
+              <div
+                className="p-3 border-t border-border text-center text-xs text-muted-foreground"
+                style={{ background: `${brandForm.color}11` }}
+              >
+                {brandForm.reportFooter}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      <Button
+        data-ocid="brand.save_button"
+        onClick={handleSave}
+        className="gradient-bg text-white"
+      >
+        {saved ? "✓ Kaydedildi" : "Kaydet"}
+      </Button>
     </div>
   );
 }

@@ -453,6 +453,7 @@ export interface Message {
 }
 
 export interface Channel {
+  projectId?: string;
   id: string;
   name: string;
   section: "Genel" | "Projeler";

@@ -217,17 +217,14 @@ export default function Communication() {
 
   const handleAddChannel = () => {
     if (!newChannelName.trim()) return;
-    const projectName =
-      newChannelSection === "Projeler" && newChannelProject
-        ? projects.find((p) => p.id === newChannelProject)?.title
-        : undefined;
-    const channelName = projectName
-      ? `${projectName} — ${newChannelName.trim()}`
-      : newChannelName.trim();
     const newChannel: Channel = {
       id: `ch_${Date.now()}`,
-      name: channelName,
+      name: newChannelName.trim(),
       section: newChannelSection,
+      projectId:
+        newChannelSection === "Projeler" && newChannelProject
+          ? newChannelProject
+          : undefined,
       memberCount: 1,
       unread: 0,
     };
@@ -376,7 +373,7 @@ export default function Communication() {
                               [channel.id]: 0,
                             }));
                           }}
-                          className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-sm transition-all ${
+                          className={`w-full flex items-start justify-between px-3 py-2 rounded-lg text-sm transition-all ${
                             activeChannelId === channel.id
                               ? "gradient-bg text-white"
                               : archivedIds.has(channel.id)
@@ -384,9 +381,22 @@ export default function Communication() {
                                 : "text-muted-foreground hover:text-foreground hover:bg-white/5"
                           }`}
                         >
-                          <span className="flex items-center gap-2 flex-1 min-w-0">
-                            <Hash className="h-3.5 w-3.5 flex-shrink-0" />
-                            <span className="truncate">{channel.name}</span>
+                          <span className="flex flex-col flex-1 min-w-0">
+                            <span className="flex items-center gap-2">
+                              <Hash className="h-3.5 w-3.5 flex-shrink-0" />
+                              <span className="truncate">{channel.name}</span>
+                            </span>
+                            {channel.projectId &&
+                              (() => {
+                                const proj = projects.find(
+                                  (p) => p.id === channel.projectId,
+                                );
+                                return proj ? (
+                                  <span className="ml-5 mt-0.5 text-[10px] px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-400 border border-amber-500/30 truncate max-w-[130px]">
+                                    {proj.title}
+                                  </span>
+                                ) : null;
+                              })()}
                           </span>
                           {(unreadCounts[channel.id] || 0) > 0 && (
                             <span className="ml-auto min-w-[18px] h-4 rounded-full bg-primary text-white text-[10px] font-bold flex items-center justify-center px-1">

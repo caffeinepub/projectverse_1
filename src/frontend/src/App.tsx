@@ -11,6 +11,7 @@ import {
 } from "./contexts/AppContext";
 import AccountTypeSelect from "./pages/AccountTypeSelect";
 import ApprovalWorkflows from "./pages/ApprovalWorkflows";
+import BankAccounts from "./pages/BankAccounts";
 import BoQLibrary from "./pages/BoQLibrary";
 import CRM from "./pages/CRM";
 import ClientReport from "./pages/ClientReport";
@@ -23,6 +24,7 @@ import DLP from "./pages/DLP";
 import Dashboard from "./pages/Dashboard";
 import Documents from "./pages/Documents";
 import Drawings from "./pages/Drawings";
+import EnvironmentalManagement from "./pages/EnvironmentalManagement";
 import Equipment from "./pages/Equipment";
 import FieldOps from "./pages/FieldOps";
 import Finance from "./pages/Finance";
@@ -54,6 +56,8 @@ import RiskRegister from "./pages/RiskRegister";
 import RoleSelect from "./pages/RoleSelect";
 import RoleSettings from "./pages/RoleSettings";
 import SelfService from "./pages/SelfService";
+import Shipments from "./pages/Shipments";
+import SiteAccess from "./pages/SiteAccess";
 import SiteLog from "./pages/SiteLog";
 import SitePhotos from "./pages/SitePhotos";
 import SubcontractorManagement from "./pages/SubcontractorManagement";
@@ -110,7 +114,11 @@ type AppPage =
   | "kpiTargets"
   | "projectHub"
   | "holidayCalendar"
-  | "boqLibrary";
+  | "boqLibrary"
+  | "bankAccounts"
+  | "siteAccess"
+  | "shipments"
+  | "environmentalManagement";
 
 function Inner() {
   const {
@@ -273,6 +281,11 @@ function Inner() {
     else if (p === "projectHub") setPage("projectHub");
     else if (p === "holidayCalendar") setPage("holidayCalendar");
     else if (p === "boqLibrary") setPage("boqLibrary");
+    else if (p === "bankAccounts") setPage("bankAccounts");
+    else if (p === "siteAccess") setPage("siteAccess");
+    else if (p === "shipments") setPage("shipments");
+    else if (p === "environmentalManagement")
+      setPage("environmentalManagement");
     else setPage(p as AppPage);
   };
 
@@ -368,6 +381,10 @@ function Inner() {
       )}
       {page === "holidayCalendar" && <HolidayCalendar />}
       {page === "boqLibrary" && <BoQLibrary />}
+      {page === "bankAccounts" && <BankAccounts />}
+      {page === "siteAccess" && <SiteAccess />}
+      {page === "shipments" && <Shipments />}
+      {page === "environmentalManagement" && <EnvironmentalManagement />}
     </Layout>
   );
 }

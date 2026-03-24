@@ -65,6 +65,8 @@ import type {
   TrainingRecord,
 } from "../contexts/AppContext";
 import { useApp } from "../contexts/AppContext";
+import AttendanceDailyTab from "./tabs/AttendanceDailyTab";
+import CSVImportModal from "./tabs/CSVImportModal";
 import PerformanceReview from "./tabs/PerformanceReview";
 import RecruitmentTab from "./tabs/RecruitmentTab";
 
@@ -127,6 +129,7 @@ interface PersonnelDoc {
   type: string;
   date: string;
   size: string;
+  expiryDate?: string;
 }
 
 const DOCS_STORAGE_KEY = (companyId: string | null) =>
@@ -1419,6 +1422,7 @@ export default function HumanResources() {
   const [isUploadingDoc, setIsUploadingDoc] = useState(false);
   const [docUploadProgress, setDocUploadProgress] = useState(0);
   const docFileInputRef = useRef<HTMLInputElement>(null);
+  const [docExpiryFilter, setDocExpiryFilter] = useState(false);
 
   // Leave state
   const [addLeaveOpen, setAddLeaveOpen] = useState(false);
@@ -1497,6 +1501,8 @@ export default function HumanResources() {
       });
     }
   };
+
+  const [csvPersonnelOpen, setCsvPersonnelOpen] = useState(false);
 
   const handleAddPersonnel = () => {
     if (!newPersonnel.name.trim() || !newPersonnel.role.trim()) return;
@@ -1716,6 +1722,20 @@ export default function HumanResources() {
           >
             Kapasite Planı
           </TabsTrigger>
+          <TabsTrigger
+            data-ocid="hr.devam_takibi.tab"
+            value="devam_takibi"
+            className="text-xs md:text-sm"
+          >
+            Devam Takibi
+          </TabsTrigger>
+          <TabsTrigger
+            data-ocid="hr.training_matrix.tab"
+            value="training_matrix"
+            className="text-xs md:text-sm"
+          >
+            Eğitim Matrisi
+          </TabsTrigger>
         </TabsList>
 
         {/* ─── PERSONNEL TAB ─── */}
@@ -1750,152 +1770,203 @@ export default function HumanResources() {
               </Select>
             </div>
             {isManager && (
-              <Dialog
-                open={addPersonnelOpen}
-                onOpenChange={setAddPersonnelOpen}
-              >
-                <DialogTrigger asChild>
-                  <Button
-                    data-ocid="hr.add_personnel_button"
-                    className="gradient-bg text-white"
-                  >
-                    <UserPlus className="h-4 w-4 mr-2" />
-                    Personel Ekle
-                  </Button>
-                </DialogTrigger>
-                <DialogContent
-                  data-ocid="hr.add_personnel.dialog"
-                  className="bg-card border-border"
+              <div className="flex gap-2">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="border-amber-500/40 text-amber-400 hover:bg-amber-500/10 text-xs"
+                  data-ocid="hr.csv_import.button"
+                  onClick={() => setCsvPersonnelOpen(true)}
                 >
-                  <DialogHeader>
-                    <DialogTitle>Yeni Personel</DialogTitle>
-                  </DialogHeader>
-                  <div className="space-y-3">
-                    <div>
-                      <Label>Ad Soyad</Label>
-                      <Input
-                        data-ocid="hr.personnel_name.input"
-                        value={newPersonnel.name}
-                        onChange={(e) =>
-                          setNewPersonnel((p) => ({
-                            ...p,
-                            name: e.target.value,
-                          }))
-                        }
-                        className="mt-1 bg-background border-border"
-                        placeholder="Örn: Ahmet Yılmaz"
-                      />
+                  CSV İçeri Aktar
+                </Button>
+                <Dialog
+                  open={addPersonnelOpen}
+                  onOpenChange={setAddPersonnelOpen}
+                >
+                  <DialogTrigger asChild>
+                    <Button
+                      data-ocid="hr.add_personnel_button"
+                      className="gradient-bg text-white"
+                    >
+                      <UserPlus className="h-4 w-4 mr-2" />
+                      Personel Ekle
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent
+                    data-ocid="hr.add_personnel.dialog"
+                    className="bg-card border-border"
+                  >
+                    <DialogHeader>
+                      <DialogTitle>Yeni Personel</DialogTitle>
+                    </DialogHeader>
+                    <div className="space-y-3">
+                      <div>
+                        <Label>Ad Soyad</Label>
+                        <Input
+                          data-ocid="hr.personnel_name.input"
+                          value={newPersonnel.name}
+                          onChange={(e) =>
+                            setNewPersonnel((p) => ({
+                              ...p,
+                              name: e.target.value,
+                            }))
+                          }
+                          className="mt-1 bg-background border-border"
+                          placeholder="Örn: Ahmet Yılmaz"
+                        />
+                      </div>
+                      <div>
+                        <Label>Unvan / Rol</Label>
+                        <Input
+                          data-ocid="hr.personnel_role.input"
+                          value={newPersonnel.role}
+                          onChange={(e) =>
+                            setNewPersonnel((p) => ({
+                              ...p,
+                              role: e.target.value,
+                            }))
+                          }
+                          className="mt-1 bg-background border-border"
+                          placeholder="Örn: Saha Mühendisi"
+                        />
+                      </div>
+                      <div>
+                        <Label>Departman</Label>
+                        <Select
+                          value={newPersonnel.department}
+                          onValueChange={(v) =>
+                            setNewPersonnel((p) => ({ ...p, department: v }))
+                          }
+                        >
+                          <SelectTrigger
+                            data-ocid="hr.personnel_dept.select"
+                            className="mt-1 bg-background border-border"
+                          >
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent className="bg-card border-border">
+                            <SelectItem value="Teknik">Teknik</SelectItem>
+                            <SelectItem value="İdari">İdari</SelectItem>
+                            <SelectItem value="Saha">Saha</SelectItem>
+                            <SelectItem value="Muhasebe">Muhasebe</SelectItem>
+                            <SelectItem value="Proje">Proje</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <Label>Telefon</Label>
+                          <Input
+                            data-ocid="hr.personnel_phone.input"
+                            value={newPersonnel.phone}
+                            onChange={(e) =>
+                              setNewPersonnel((p) => ({
+                                ...p,
+                                phone: e.target.value,
+                              }))
+                            }
+                            className="mt-1 bg-background border-border"
+                            placeholder="0532 000 0000"
+                          />
+                        </div>
+                        <div>
+                          <Label>E-posta</Label>
+                          <Input
+                            data-ocid="hr.personnel_email.input"
+                            value={newPersonnel.email}
+                            onChange={(e) =>
+                              setNewPersonnel((p) => ({
+                                ...p,
+                                email: e.target.value,
+                              }))
+                            }
+                            className="mt-1 bg-background border-border"
+                            placeholder="ornek@sirket.com"
+                          />
+                        </div>
+                        <div>
+                          <Label>Yıllık İzin (Gün)</Label>
+                          <Input
+                            data-ocid="hr.personnel.leave_balance.input"
+                            type="number"
+                            value={newPersonnel.annualLeaveBalance}
+                            onChange={(e) =>
+                              setNewPersonnel((p) => ({
+                                ...p,
+                                annualLeaveBalance: e.target.value,
+                              }))
+                            }
+                            className="mt-1 bg-background border-border"
+                            placeholder="20"
+                          />
+                        </div>
+                      </div>
                     </div>
-                    <div>
-                      <Label>Unvan / Rol</Label>
-                      <Input
-                        data-ocid="hr.personnel_role.input"
-                        value={newPersonnel.role}
-                        onChange={(e) =>
-                          setNewPersonnel((p) => ({
-                            ...p,
-                            role: e.target.value,
-                          }))
-                        }
-                        className="mt-1 bg-background border-border"
-                        placeholder="Örn: Saha Mühendisi"
-                      />
-                    </div>
-                    <div>
-                      <Label>Departman</Label>
-                      <Select
-                        value={newPersonnel.department}
-                        onValueChange={(v) =>
-                          setNewPersonnel((p) => ({ ...p, department: v }))
+                    <DialogFooter>
+                      <Button
+                        variant="outline"
+                        data-ocid="hr.add_personnel.cancel_button"
+                        onClick={() => setAddPersonnelOpen(false)}
+                      >
+                        İptal
+                      </Button>
+                      <Button
+                        data-ocid="hr.add_personnel.confirm_button"
+                        className="gradient-bg text-white"
+                        onClick={handleAddPersonnel}
+                        disabled={
+                          !newPersonnel.name.trim() || !newPersonnel.role.trim()
                         }
                       >
-                        <SelectTrigger
-                          data-ocid="hr.personnel_dept.select"
-                          className="mt-1 bg-background border-border"
-                        >
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent className="bg-card border-border">
-                          <SelectItem value="Teknik">Teknik</SelectItem>
-                          <SelectItem value="İdari">İdari</SelectItem>
-                          <SelectItem value="Saha">Saha</SelectItem>
-                          <SelectItem value="Muhasebe">Muhasebe</SelectItem>
-                          <SelectItem value="Proje">Proje</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="grid grid-cols-2 gap-3">
-                      <div>
-                        <Label>Telefon</Label>
-                        <Input
-                          data-ocid="hr.personnel_phone.input"
-                          value={newPersonnel.phone}
-                          onChange={(e) =>
-                            setNewPersonnel((p) => ({
-                              ...p,
-                              phone: e.target.value,
-                            }))
-                          }
-                          className="mt-1 bg-background border-border"
-                          placeholder="0532 000 0000"
-                        />
-                      </div>
-                      <div>
-                        <Label>E-posta</Label>
-                        <Input
-                          data-ocid="hr.personnel_email.input"
-                          value={newPersonnel.email}
-                          onChange={(e) =>
-                            setNewPersonnel((p) => ({
-                              ...p,
-                              email: e.target.value,
-                            }))
-                          }
-                          className="mt-1 bg-background border-border"
-                          placeholder="ornek@sirket.com"
-                        />
-                      </div>
-                      <div>
-                        <Label>Yıllık İzin (Gün)</Label>
-                        <Input
-                          data-ocid="hr.personnel.leave_balance.input"
-                          type="number"
-                          value={newPersonnel.annualLeaveBalance}
-                          onChange={(e) =>
-                            setNewPersonnel((p) => ({
-                              ...p,
-                              annualLeaveBalance: e.target.value,
-                            }))
-                          }
-                          className="mt-1 bg-background border-border"
-                          placeholder="20"
-                        />
-                      </div>
-                    </div>
-                  </div>
-                  <DialogFooter>
-                    <Button
-                      variant="outline"
-                      data-ocid="hr.add_personnel.cancel_button"
-                      onClick={() => setAddPersonnelOpen(false)}
-                    >
-                      İptal
-                    </Button>
-                    <Button
-                      data-ocid="hr.add_personnel.confirm_button"
-                      className="gradient-bg text-white"
-                      onClick={handleAddPersonnel}
-                      disabled={
-                        !newPersonnel.name.trim() || !newPersonnel.role.trim()
-                      }
-                    >
-                      Ekle
-                    </Button>
-                  </DialogFooter>
-                </DialogContent>
-              </Dialog>
+                        Ekle
+                      </Button>
+                    </DialogFooter>
+                  </DialogContent>
+                </Dialog>
+              </div>
             )}
           </div>
+          <CSVImportModal
+            open={csvPersonnelOpen}
+            onClose={() => setCsvPersonnelOpen(false)}
+            type="personnel"
+            companyId={activeCompanyId || ""}
+            onImport={(rows) => {
+              const newPeople = rows.map((r, i) => {
+                const name =
+                  `${r.ad || ""} ${r.soyad || ""}`.trim() || "İsimsiz";
+                const initials = name
+                  .split(" ")
+                  .map((w) => w[0] || "")
+                  .join("")
+                  .toUpperCase()
+                  .slice(0, 2);
+                const colors = [
+                  "#7c3aed",
+                  "#0891b2",
+                  "#059669",
+                  "#d97706",
+                  "#dc2626",
+                  "#be185d",
+                ];
+                return {
+                  id: `csv-${Date.now()}-${i}`,
+                  name,
+                  role: r.pozisyon || "",
+                  department: r.departman || "Genel",
+                  phone: r.telefon || "",
+                  email: r.email || "",
+                  status: "Aktif" as const,
+                  initials,
+                  color: colors[i % colors.length],
+                  annualLeaveBalance: 20,
+                  companyId: activeCompanyId || "",
+                };
+              });
+              setPersonnel([...personnel, ...newPeople]);
+            }}
+          />
 
           {filteredPersonnel.length === 0 ? (
             <div
@@ -2981,6 +3052,12 @@ export default function HumanResources() {
         <TabsContent value="capacity" className="mt-4">
           <CapacityPlanTab companyId={activeCompanyId || ""} />
         </TabsContent>
+        <TabsContent value="devam_takibi" className="mt-4">
+          <AttendanceDailyTab companyId={activeCompanyId || ""} />
+        </TabsContent>
+        <TabsContent value="training_matrix" className="mt-4">
+          <TrainingMatrixTab companyId={activeCompanyId || ""} />
+        </TabsContent>
       </Tabs>
 
       {/* ─── Personnel Detail Sheet ─── */}
@@ -3096,20 +3173,82 @@ export default function HumanResources() {
                     </div>
                   )}
 
+                  {/* Expiry filter */}
+                  {(personnelDocs[selectedPersonnel.id] || []).some(
+                    (d) => d.expiryDate,
+                  ) && (
+                    <div className="mb-2 flex items-center gap-2">
+                      <input
+                        type="checkbox"
+                        id="expiry_filter"
+                        data-ocid="hr.doc_expiry_filter.checkbox"
+                        checked={docExpiryFilter}
+                        onChange={(e) => setDocExpiryFilter(e.target.checked)}
+                        className="accent-amber-500"
+                      />
+                      <label
+                        htmlFor="expiry_filter"
+                        className="text-xs text-muted-foreground cursor-pointer"
+                      >
+                        Yaklaşan Süreler
+                      </label>
+                    </div>
+                  )}
                   <ScrollArea className="h-[200px]">
                     <div className="space-y-2 pr-2">
-                      {(personnelDocs[selectedPersonnel.id] || []).length ===
-                      0 ? (
-                        <div
-                          data-ocid="hr.personnel_docs.empty_state"
-                          className="text-center py-6 text-muted-foreground"
-                        >
-                          <Paperclip className="h-6 w-6 mx-auto mb-2 opacity-20" />
-                          <p className="text-xs">Henüz belge eklenmemiş.</p>
-                        </div>
-                      ) : (
-                        (personnelDocs[selectedPersonnel.id] || []).map(
-                          (doc, dIdx) => (
+                      {(() => {
+                        const today = new Date().toISOString().split("T")[0];
+                        const in7 = new Date(Date.now() + 7 * 86400000)
+                          .toISOString()
+                          .split("T")[0];
+                        const in30 = new Date(Date.now() + 30 * 86400000)
+                          .toISOString()
+                          .split("T")[0];
+                        const allDocs =
+                          personnelDocs[selectedPersonnel.id] || [];
+                        const docs = docExpiryFilter
+                          ? allDocs.filter(
+                              (d) => d.expiryDate && d.expiryDate <= in30,
+                            )
+                          : allDocs;
+                        if (docs.length === 0)
+                          return (
+                            <div
+                              data-ocid="hr.personnel_docs.empty_state"
+                              className="text-center py-6 text-muted-foreground"
+                            >
+                              <Paperclip className="h-6 w-6 mx-auto mb-2 opacity-20" />
+                              <p className="text-xs">
+                                {docExpiryFilter
+                                  ? "Yaklaşan süreli belge yok."
+                                  : "Henüz belge eklenmemiş."}
+                              </p>
+                            </div>
+                          );
+                        return docs.map((doc, dIdx) => {
+                          let expiryBadge: React.ReactNode = null;
+                          if (doc.expiryDate) {
+                            if (doc.expiryDate < today) {
+                              expiryBadge = (
+                                <span className="text-[10px] px-1.5 py-0.5 rounded bg-red-500/20 text-red-400 border border-red-500/30 flex-shrink-0">
+                                  Süresi Doldu
+                                </span>
+                              );
+                            } else if (doc.expiryDate <= in7) {
+                              expiryBadge = (
+                                <span className="text-[10px] px-1.5 py-0.5 rounded bg-red-500/20 text-red-400 border border-red-500/30 flex-shrink-0">
+                                  Acil
+                                </span>
+                              );
+                            } else if (doc.expiryDate <= in30) {
+                              expiryBadge = (
+                                <span className="text-[10px] px-1.5 py-0.5 rounded bg-orange-500/20 text-orange-400 border border-orange-500/30 flex-shrink-0">
+                                  30 Gün
+                                </span>
+                              );
+                            }
+                          }
+                          return (
                             <div
                               key={doc.id}
                               data-ocid={`hr.personnel_doc.item.${dIdx + 1}`}
@@ -3122,8 +3261,11 @@ export default function HumanResources() {
                                 </p>
                                 <p className="text-xs text-muted-foreground">
                                   {doc.date} • {doc.size}
+                                  {doc.expiryDate &&
+                                    ` • Son: ${doc.expiryDate}`}
                                 </p>
                               </div>
+                              {expiryBadge}
                               <Button
                                 size="icon"
                                 variant="ghost"
@@ -3136,9 +3278,9 @@ export default function HumanResources() {
                                 <Trash2 className="h-3 w-3" />
                               </Button>
                             </div>
-                          ),
-                        )
-                      )}
+                          );
+                        });
+                      })()}
                     </div>
                   </ScrollArea>
                 </div>
@@ -3399,6 +3541,202 @@ function CapacityPlanTab({ companyId }: { companyId: string }) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+    </div>
+  );
+}
+
+function TrainingMatrixTab({ companyId }: { companyId: string }) {
+  const DEPARTMENTS = [
+    "Yönetim",
+    "Mühendislik",
+    "Saha",
+    "İK",
+    "Finans",
+    "Satın Alma",
+    "Kalite",
+  ];
+  interface MatrixRow {
+    id: string;
+    trainingName: string;
+    data: { dept: string; mandatory: boolean; completion: number }[];
+  }
+  const storageKey = `pv_${companyId}_trainingMatrix`;
+  const [rows, setRows] = useState<MatrixRow[]>(() => {
+    try {
+      return JSON.parse(localStorage.getItem(storageKey) || "[]");
+    } catch {
+      return [];
+    }
+  });
+  const [newTraining, setNewTraining] = useState("");
+
+  const save = (updated: MatrixRow[]) => {
+    setRows(updated);
+    localStorage.setItem(storageKey, JSON.stringify(updated));
+  };
+
+  const addRow = () => {
+    if (!newTraining.trim()) return;
+    const row: MatrixRow = {
+      id: Date.now().toString(),
+      trainingName: newTraining.trim(),
+      data: DEPARTMENTS.map((dept) => ({
+        dept,
+        mandatory: false,
+        completion: 0,
+      })),
+    };
+    save([...rows, row]);
+    setNewTraining("");
+  };
+
+  const updateCell = (
+    rowId: string,
+    dept: string,
+    field: "mandatory" | "completion",
+    value: boolean | number,
+  ) => {
+    const updated = rows.map((r) =>
+      r.id === rowId
+        ? {
+            ...r,
+            data: r.data.map((d) =>
+              d.dept === dept ? { ...d, [field]: value } : d,
+            ),
+          }
+        : r,
+    );
+    save(updated);
+  };
+
+  const deleteRow = (id: string) => save(rows.filter((r) => r.id !== id));
+
+  return (
+    <div className="space-y-4">
+      <div className="flex gap-2">
+        <input
+          data-ocid="hr.training_matrix.name.input"
+          value={newTraining}
+          onChange={(e) => setNewTraining(e.target.value)}
+          onKeyDown={(e) => e.key === "Enter" && addRow()}
+          placeholder="Eğitim adı girin..."
+          className="flex-1 px-3 py-2 rounded-md bg-card border border-border text-sm focus:outline-none focus:ring-2 focus:ring-amber-500/50"
+        />
+        <button
+          type="button"
+          data-ocid="hr.training_matrix.add_button"
+          onClick={addRow}
+          className="px-4 py-2 rounded-md text-sm font-medium bg-amber-500 text-white hover:bg-amber-600 transition-colors"
+        >
+          + Ekle
+        </button>
+      </div>
+
+      {rows.length === 0 ? (
+        <div
+          data-ocid="hr.training_matrix.empty_state"
+          className="flex flex-col items-center justify-center py-16 text-center"
+        >
+          <p className="text-muted-foreground">
+            Henüz eğitim tanımlanmamış. Yukarıdan eğitim adı girerek başlayın.
+          </p>
+        </div>
+      ) : (
+        <div className="overflow-x-auto rounded-xl border border-border">
+          <table className="w-full text-sm">
+            <thead>
+              <tr
+                className="border-b border-border"
+                style={{ background: "oklch(0.15 0.018 245)" }}
+              >
+                <th className="text-left px-4 py-3 font-medium text-muted-foreground min-w-[160px]">
+                  Eğitim
+                </th>
+                {DEPARTMENTS.map((dept) => (
+                  <th
+                    key={dept}
+                    className="text-center px-3 py-3 font-medium text-muted-foreground min-w-[110px]"
+                  >
+                    {dept}
+                  </th>
+                ))}
+                <th className="px-3 py-3" />
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((row) => (
+                <tr
+                  key={row.id}
+                  className="border-b border-border/50 hover:bg-muted/10 transition-colors"
+                >
+                  <td className="px-4 py-3 font-medium text-foreground">
+                    {row.trainingName}
+                  </td>
+                  {DEPARTMENTS.map((dept) => {
+                    const cell = row.data.find((d) => d.dept === dept) || {
+                      mandatory: false,
+                      completion: 0,
+                    };
+                    return (
+                      <td key={dept} className="px-3 py-2 text-center">
+                        <div className="flex flex-col items-center gap-1">
+                          <label className="flex items-center gap-1 text-xs text-muted-foreground cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={cell.mandatory}
+                              onChange={(e) =>
+                                updateCell(
+                                  row.id,
+                                  dept,
+                                  "mandatory",
+                                  e.target.checked,
+                                )
+                              }
+                              className="accent-amber-500"
+                            />
+                            Zorunlu
+                          </label>
+                          <input
+                            type="number"
+                            min={0}
+                            max={100}
+                            value={cell.completion}
+                            onChange={(e) =>
+                              updateCell(
+                                row.id,
+                                dept,
+                                "completion",
+                                Number(e.target.value),
+                              )
+                            }
+                            className="w-16 px-1 py-0.5 rounded bg-card border border-border text-center text-xs focus:outline-none focus:ring-1 focus:ring-amber-500/50"
+                          />
+                          <div className="w-full bg-gray-700 rounded-full h-1.5 mt-0.5">
+                            <div
+                              className="h-1.5 rounded-full bg-amber-500"
+                              style={{ width: `${cell.completion}%` }}
+                            />
+                          </div>
+                        </div>
+                      </td>
+                    );
+                  })}
+                  <td className="px-3 py-3">
+                    <button
+                      type="button"
+                      data-ocid={`hr.training_matrix.delete_button.${rows.indexOf(row) + 1}`}
+                      onClick={() => deleteRow(row.id)}
+                      className="text-rose-400 hover:text-rose-300 text-xs"
+                    >
+                      Sil
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
     </div>
   );
 }

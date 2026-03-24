@@ -113,6 +113,7 @@ interface FieldOpsProps {
 export default function FieldOps({ onNavigate }: FieldOpsProps = {}) {
   const {
     checkPermission,
+    activeCompanyId,
     t,
     projects,
     workOrders,
@@ -514,6 +515,13 @@ export default function FieldOps({ onNavigate }: FieldOpsProps = {}) {
           >
             Denetim Logu
           </TabsTrigger>
+          <TabsTrigger
+            value="shiftplan"
+            data-ocid="fieldops.shiftplan.tab"
+            className="data-[state=active]:bg-primary/20"
+          >
+            Vardiya Planı
+          </TabsTrigger>
         </TabsList>
 
         {/* Work Orders Tab */}
@@ -902,6 +910,9 @@ export default function FieldOps({ onNavigate }: FieldOpsProps = {}) {
               </tbody>
             </table>
           </div>
+        </TabsContent>
+        <TabsContent value="shiftplan" className="mt-4">
+          <ShiftPlanTab companyId={activeCompanyId || ""} />
         </TabsContent>
       </Tabs>
 
@@ -1821,5 +1832,177 @@ function FolderIcon({ className }: { className?: string }) {
     >
       <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
     </svg>
+  );
+}
+
+const DAYS_TR = [
+  "Pazartesi",
+  "Salı",
+  "Çarşamba",
+  "Perşembe",
+  "Cuma",
+  "Cumartesi",
+  "Pazar",
+];
+const SHIFT_OPTIONS = ["-", "Sabah", "Öğleden Sonra", "Gece", "İzin"];
+const SHIFT_COLORS: Record<string, string> = {
+  Sabah: "bg-amber-500/20 text-amber-400 border-amber-500/30",
+  "Öğleden Sonra": "bg-blue-500/20 text-blue-400 border-blue-500/30",
+  Gece: "bg-purple-500/20 text-purple-400 border-purple-500/30",
+  İzin: "bg-emerald-500/20 text-emerald-400 border-emerald-500/30",
+  "-": "bg-muted/20 text-muted-foreground",
+};
+
+function ShiftPlanTab({ companyId }: { companyId: string }) {
+  const employees: { id: string; name: string }[] = (() => {
+    try {
+      return JSON.parse(
+        localStorage.getItem(`pv_${companyId}_employees`) || "[]",
+      );
+    } catch {
+      return [];
+    }
+  })();
+
+  type ShiftMap = Record<string, Record<string, string>>;
+  const storageKey = `pv_${companyId}_shiftSchedule`;
+  const [shifts, setShifts] = useState<ShiftMap>(() => {
+    try {
+      return JSON.parse(localStorage.getItem(storageKey) || "{}");
+    } catch {
+      return {};
+    }
+  });
+
+  const [weekOffset, setWeekOffset] = useState(0);
+
+  const getWeekDates = (offset: number) => {
+    const now = new Date();
+    const day = now.getDay();
+    const mondayDiff = (day === 0 ? -6 : 1 - day) + offset * 7;
+    return Array.from({ length: 7 }, (_, i) => {
+      const d = new Date(now);
+      d.setDate(now.getDate() + mondayDiff + i);
+      return d.toISOString().slice(0, 10);
+    });
+  };
+
+  const weekDates = getWeekDates(weekOffset);
+
+  const updateShift = (empId: string, date: string, shift: string) => {
+    const updated = {
+      ...shifts,
+      [empId]: { ...(shifts[empId] || {}), [date]: shift },
+    };
+    setShifts(updated);
+    localStorage.setItem(storageKey, JSON.stringify(updated));
+  };
+
+  const getShift = (empId: string, date: string) =>
+    shifts[empId]?.[date] || "-";
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <h3 className="font-semibold text-foreground">
+          Haftalık Vardiya Planı
+        </h3>
+        <div className="flex gap-2">
+          <button
+            type="button"
+            data-ocid="fieldops.shiftplan.prev_button"
+            onClick={() => setWeekOffset((p) => p - 1)}
+            className="px-3 py-1.5 rounded-md border border-border bg-card text-sm hover:bg-accent transition-colors"
+          >
+            ← Önceki
+          </button>
+          <button
+            type="button"
+            data-ocid="fieldops.shiftplan.next_button"
+            onClick={() => setWeekOffset((p) => p + 1)}
+            className="px-3 py-1.5 rounded-md border border-border bg-card text-sm hover:bg-accent transition-colors"
+          >
+            Sonraki →
+          </button>
+        </div>
+      </div>
+
+      {employees.length === 0 ? (
+        <div
+          data-ocid="fieldops.shiftplan.empty_state"
+          className="flex flex-col items-center justify-center py-16 text-center"
+        >
+          <p className="text-muted-foreground">
+            Personel bulunamadı. Önce İK modülünden personel ekleyin.
+          </p>
+        </div>
+      ) : (
+        <div className="overflow-x-auto rounded-xl border border-border">
+          <table className="w-full text-sm">
+            <thead>
+              <tr
+                className="border-b border-border"
+                style={{ background: "oklch(0.15 0.018 245)" }}
+              >
+                <th className="text-left px-4 py-3 font-medium text-muted-foreground min-w-[140px]">
+                  Personel
+                </th>
+                {weekDates.map((date, i) => (
+                  <th
+                    key={date}
+                    className="text-center px-2 py-3 font-medium text-muted-foreground min-w-[110px]"
+                  >
+                    <div>{DAYS_TR[i]}</div>
+                    <div className="text-xs font-normal">{date.slice(5)}</div>
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {employees.map((emp) => (
+                <tr
+                  key={emp.id}
+                  className="border-b border-border/50 hover:bg-muted/10 transition-colors"
+                >
+                  <td className="px-4 py-2 font-medium text-foreground">
+                    {emp.name}
+                  </td>
+                  {weekDates.map((date) => {
+                    const current = getShift(emp.id, date);
+                    const nextIndex =
+                      (SHIFT_OPTIONS.indexOf(current) + 1) %
+                      SHIFT_OPTIONS.length;
+                    return (
+                      <td key={date} className="px-2 py-2 text-center">
+                        <button
+                          type="button"
+                          onClick={() =>
+                            updateShift(emp.id, date, SHIFT_OPTIONS[nextIndex])
+                          }
+                          className={`w-full px-1 py-1 rounded border text-xs font-medium transition-colors ${SHIFT_COLORS[current] || SHIFT_COLORS["-"]}`}
+                        >
+                          {current}
+                        </button>
+                      </td>
+                    );
+                  })}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      <div className="flex gap-3 flex-wrap">
+        {SHIFT_OPTIONS.filter((s) => s !== "-").map((s) => (
+          <span
+            key={s}
+            className={`px-2 py-0.5 rounded border text-xs font-medium ${SHIFT_COLORS[s]}`}
+          >
+            {s}
+          </span>
+        ))}
+      </div>
+    </div>
   );
 }

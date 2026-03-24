@@ -30,6 +30,7 @@ import {
 import { useMemo, useState } from "react";
 import AccessDenied from "../components/AccessDenied";
 import { type Project, useApp } from "../contexts/AppContext";
+import WeeklyReportModal from "./tabs/WeeklyReportModal";
 
 const STATUS_CONFIG: Record<string, { label: string; color: string }> = {
   planning: { label: "Planlama", color: "oklch(0.68 0.18 200)" },
@@ -46,6 +47,7 @@ export default function Projects({
   const [filter, setFilter] = useState("all");
   const [viewMode, setViewMode] = useState<"list" | "kanban">("list");
   const [open, setOpen] = useState(false);
+  const [weeklyProject, setWeeklyProject] = useState<Project | null>(null);
   const [form, setForm] = useState({
     title: "",
     description: "",
@@ -339,6 +341,17 @@ export default function Projects({
                     </Badge>
                   </div>
                 )}
+                <button
+                  type="button"
+                  data-ocid={`projects.weekly_report.button.${i + 1}`}
+                  className="mt-3 w-full text-xs text-amber-400 border border-amber-500/30 rounded-lg py-1.5 hover:bg-amber-500/10 transition-colors"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setWeeklyProject(project);
+                  }}
+                >
+                  📊 Haftalık Rapor
+                </button>
               </button>
             );
           })}
@@ -443,6 +456,12 @@ export default function Projects({
           )}
         </div>
       )}
+      <WeeklyReportModal
+        project={weeklyProject}
+        companyId={currentCompany?.id || "c1"}
+        open={!!weeklyProject}
+        onClose={() => setWeeklyProject(null)}
+      />
     </div>
   );
 }

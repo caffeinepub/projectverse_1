@@ -41,8 +41,10 @@ import {
 import { useEffect, useState } from "react";
 import AccessDenied from "../components/AccessDenied";
 import { useApp } from "../contexts/AppContext";
+import CSVImportModal from "./tabs/CSVImportModal";
 import InventoryCount from "./tabs/InventoryCount";
 import LocationsTab from "./tabs/LocationsTab";
+import WasteTab from "./tabs/WasteTab";
 
 import type { MovementType, StockStatus } from "../contexts/AppContext";
 
@@ -167,6 +169,7 @@ export default function Inventory() {
     date: new Date().toISOString().split("T")[0],
   });
 
+  const [csvInventoryOpen, setCsvInventoryOpen] = useState(false);
   if (!canView) return <AccessDenied />;
 
   const filteredStock = stockItems.filter((s) => {
@@ -358,6 +361,33 @@ export default function Inventory() {
                   </Badge>
                 ))}
               </div>
+              <button
+                type="button"
+                data-ocid="inventory.create_purchase_request.button"
+                onClick={() => {
+                  const compId = activeCompanyId || "default";
+                  const existing = JSON.parse(
+                    localStorage.getItem(`pv_purchase_requests_${compId}`) ||
+                      "[]",
+                  );
+                  const newReqs = criticalItems.map((item) => ({
+                    id: `pr-${Date.now()}-${item.id}`,
+                    title: `Kritik Stok: ${item.name}`,
+                    description: `Kritik seviyeye düşen stok için acil satın alma talebi. Mevcut: ${item.quantity} ${item.unit}`,
+                    status: "Beklemede",
+                    priority: "Yüksek",
+                    requestedBy: user?.name || "Sistem",
+                    createdAt: new Date().toISOString().slice(0, 10),
+                  }));
+                  localStorage.setItem(
+                    `pv_purchase_requests_${compId}`,
+                    JSON.stringify([...newReqs, ...existing]),
+                  );
+                }}
+                className="mt-3 px-3 py-1.5 text-xs rounded-md bg-amber-500/20 text-amber-300 border border-amber-500/30 hover:bg-amber-500/30 transition-colors"
+              >
+                Satın Alma Talebi Oluştur ({criticalCount} kalem)
+              </button>
             </div>
           </div>
         </div>
@@ -495,6 +525,20 @@ export default function Inventory() {
           >
             Depo Lokasyonları
           </TabsTrigger>
+          <TabsTrigger
+            data-ocid="inventory.critical.tab"
+            value="critical"
+            className="data-[state=active]:gradient-bg data-[state=active]:text-white"
+          >
+            ⚠ Kritik Uyarılar {criticalCount > 0 && `(${criticalCount})`}
+          </TabsTrigger>
+          <TabsTrigger
+            data-ocid="inventory.waste.tab"
+            value="waste"
+            className="data-[state=active]:gradient-bg data-[state=active]:text-white"
+          >
+            Fire & İsraf
+          </TabsTrigger>
         </TabsList>
 
         {/* ── STOCK CARDS TAB ───────────────────────────────────────────── */}
@@ -530,15 +574,45 @@ export default function Inventory() {
                 </SelectContent>
               </Select>
               {canEdit && (
-                <Button
-                  data-ocid="inventory.new_item.primary_button"
-                  className="gradient-bg text-white hover:opacity-90"
-                  onClick={() => setNewItemOpen(true)}
-                >
-                  <Plus className="w-4 h-4 mr-2" />
-                  Yeni Stok
-                </Button>
+                <div className="flex gap-2">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="border-amber-500/40 text-amber-400 hover:bg-amber-500/10 text-xs"
+                    data-ocid="inventory.csv_import.button"
+                    onClick={() => setCsvInventoryOpen(true)}
+                  >
+                    CSV İçeri Aktar
+                  </Button>
+                  <Button
+                    data-ocid="inventory.new_item.primary_button"
+                    className="gradient-bg text-white hover:opacity-90"
+                    onClick={() => setNewItemOpen(true)}
+                  >
+                    <Plus className="w-4 h-4 mr-2" />
+                    Yeni Stok
+                  </Button>
+                </div>
               )}
+              <CSVImportModal
+                open={csvInventoryOpen}
+                onClose={() => setCsvInventoryOpen(false)}
+                type="inventory"
+                companyId={invCompanyId}
+                onImport={(rows) => {
+                  const newItems = rows.map((r, i) => ({
+                    id: `csv-${Date.now()}-${i}`,
+                    name: r.ad || "İsimsiz",
+                    unit: r.birim || "adet",
+                    quantity: Number(r.miktar) || 0,
+                    threshold: 0,
+                    status: "Normal" as const,
+                    project: "",
+                    value: Number(r.birimFiyat) || 0,
+                  }));
+                  setStockItems([...stockItems, ...newItems]);
+                }}
+              />
             </div>
           </div>
 
@@ -849,6 +923,135 @@ export default function Inventory() {
             companyId={activeCompanyId || ""}
             stockItems={stockItems}
           />
+        </TabsContent>
+        <TabsContent value="critical" className="mt-6">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-semibold text-foreground">
+              Kritik Stok Uyarıları
+            </h2>
+            {criticalCount > 0 && (
+              <button
+                type="button"
+                data-ocid="inventory.critical.create_purchase_request.button"
+                onClick={() => {
+                  const compId = activeCompanyId || "default";
+                  const existing = JSON.parse(
+                    localStorage.getItem(`pv_purchase_requests_${compId}`) ||
+                      "[]",
+                  );
+                  const newReqs = criticalItems.map((item) => ({
+                    id: `pr-${Date.now()}-${item.id}`,
+                    title: `Kritik Stok: ${item.name}`,
+                    description: `Kritik seviyeye düşen stok. Mevcut: ${item.quantity} ${item.unit}, Eşik: ${item.threshold} ${item.unit}`,
+                    status: "Beklemede",
+                    priority: "Yüksek",
+                    requestedBy: user?.name || "Sistem",
+                    createdAt: new Date().toISOString().slice(0, 10),
+                  }));
+                  localStorage.setItem(
+                    `pv_purchase_requests_${compId}`,
+                    JSON.stringify([...newReqs, ...existing]),
+                  );
+                }}
+                className="px-3 py-1.5 text-sm rounded-md bg-amber-500 text-white hover:bg-amber-600 transition-colors"
+              >
+                Tümü İçin Satın Alma Talebi Oluştur
+              </button>
+            )}
+          </div>
+          {criticalCount === 0 ? (
+            <div
+              data-ocid="inventory.critical.empty_state"
+              className="flex flex-col items-center justify-center py-16 text-center"
+            >
+              <div className="w-16 h-16 rounded-full bg-emerald-500/10 flex items-center justify-center mb-4">
+                <Package className="w-8 h-8 text-emerald-400/50" />
+              </div>
+              <h3 className="text-lg font-semibold text-foreground mb-2">
+                Kritik Stok Yok
+              </h3>
+              <p className="text-muted-foreground text-sm">
+                Tüm stok kalemleri minimum eşiğin üzerinde
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {criticalItems.map((item, idx) => (
+                <div
+                  key={item.id}
+                  data-ocid={`inventory.critical.item.${idx + 1}`}
+                  className={`flex items-center justify-between p-4 rounded-lg border ${item.status === "Tükendi" ? "border-rose-500/40 bg-rose-500/5" : "border-amber-500/40 bg-amber-500/5"}`}
+                >
+                  <div>
+                    <p className="font-medium text-foreground">{item.name}</p>
+                    <p className="text-sm text-muted-foreground mt-0.5">
+                      Mevcut:{" "}
+                      <span
+                        className={
+                          item.status === "Tükendi"
+                            ? "text-rose-400 font-semibold"
+                            : "text-amber-400 font-semibold"
+                        }
+                      >
+                        {item.quantity} {item.unit}
+                      </span>
+                      {item.threshold > 0 && (
+                        <span>
+                          {" "}
+                          / Eşik: {item.threshold} {item.unit}
+                        </span>
+                      )}
+                      {item.project && <span> · {item.project}</span>}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <Badge
+                      variant="outline"
+                      className={
+                        item.status === "Tükendi"
+                          ? "bg-rose-500/20 text-rose-400 border-rose-500/30"
+                          : "bg-amber-500/20 text-amber-400 border-amber-500/30"
+                      }
+                    >
+                      {item.status}
+                    </Badge>
+                    <button
+                      type="button"
+                      data-ocid={`inventory.critical.purchase.button.${idx + 1}`}
+                      onClick={() => {
+                        const compId = activeCompanyId || "default";
+                        const existing = JSON.parse(
+                          localStorage.getItem(
+                            `pv_purchase_requests_${compId}`,
+                          ) || "[]",
+                        );
+                        const newReq = {
+                          id: `pr-${Date.now()}-${item.id}`,
+                          title: `Kritik Stok: ${item.name}`,
+                          description: `Kritik seviyeye düşen stok. Mevcut: ${item.quantity} ${item.unit}, Eşik: ${item.threshold} ${item.unit}`,
+                          status: "Beklemede",
+                          priority: "Yüksek",
+                          requestedBy: user?.name || "Sistem",
+                          createdAt: new Date().toISOString().slice(0, 10),
+                        };
+                        localStorage.setItem(
+                          `pv_purchase_requests_${compId}`,
+                          JSON.stringify([newReq, ...existing]),
+                        );
+                      }}
+                      className="px-2 py-1 text-xs rounded bg-amber-500/20 text-amber-300 border border-amber-500/30 hover:bg-amber-500/30 transition-colors whitespace-nowrap"
+                    >
+                      Satın Alma Talebi Oluştur
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </TabsContent>
+        {/* ── WASTE TAB ─────────────────────────────────────────────────── */}
+        <TabsContent value="waste" className="mt-6">
+          <WasteTab companyId={activeCompanyId || ""} />
         </TabsContent>
       </Tabs>
 

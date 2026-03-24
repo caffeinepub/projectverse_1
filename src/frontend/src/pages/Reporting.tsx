@@ -876,6 +876,10 @@ export default function Reporting() {
           { id: "sikayet", label: "Şikayet & Talepler" },
           { id: "depo", label: "Depo & Lokasyon" },
           { id: "taseronIs", label: "Taşeron İş Emirleri" },
+          { id: "banka", label: "Banka & Kasa" },
+          { id: "sevkiyat", label: "Sevkiyat" },
+          { id: "sahaGuvenlik", label: "Saha Güvenlik" },
+          { id: "maliyetDetay", label: "Maliyet Analizi" },
         ].map((tab) => (
           <button
             type="button"
@@ -3616,6 +3620,396 @@ export default function Reporting() {
           hrPersonnel={hrPersonnel}
         />
       )}
+
+      {activeTab === "banka" && (
+        <BankaKasaTab companyId={activeCompanyId || ""} />
+      )}
+
+      {activeTab === "sevkiyat" && (
+        <SevkiyatTab companyId={activeCompanyId || ""} />
+      )}
+
+      {activeTab === "sahaGuvenlik" && (
+        <SahaGuvenlikTab companyId={activeCompanyId || ""} />
+      )}
+      {activeTab === "maliyetDetay" && (
+        <MaliyetAnaliziTab companyId={activeCompanyId || ""} />
+      )}
+    </div>
+  );
+}
+
+function BankaKasaTab({ companyId }: { companyId: string }) {
+  const accounts: any[] = (() => {
+    try {
+      return JSON.parse(
+        localStorage.getItem(`bankAccounts_${companyId}`) || "[]",
+      );
+    } catch {
+      return [];
+    }
+  })();
+
+  const thisMonth = new Date().toISOString().slice(0, 7);
+  const totalBalance = accounts.reduce(
+    (s: number, a: any) => s + (Number(a.balance) || 0),
+    0,
+  );
+  const totalIn = accounts.reduce((s: number, a: any) => {
+    const txs: any[] = a.transactions || [];
+    return (
+      s +
+      txs
+        .filter(
+          (t: any) => t.type === "in" && (t.date || "").startsWith(thisMonth),
+        )
+        .reduce((ss: number, t: any) => ss + (Number(t.amount) || 0), 0)
+    );
+  }, 0);
+  const totalOut = accounts.reduce((s: number, a: any) => {
+    const txs: any[] = a.transactions || [];
+    return (
+      s +
+      txs
+        .filter(
+          (t: any) => t.type === "out" && (t.date || "").startsWith(thisMonth),
+        )
+        .reduce((ss: number, t: any) => ss + (Number(t.amount) || 0), 0)
+    );
+  }, 0);
+
+  const typeGroups: Record<string, number> = {};
+  for (const a of accounts) {
+    typeGroups[a.type || "Diğer"] = (typeGroups[a.type || "Diğer"] || 0) + 1;
+  }
+  const barData = Object.entries(typeGroups).map(([name, count]) => ({
+    name,
+    count,
+  }));
+
+  const kpis = [
+    {
+      label: "Toplam Bakiye",
+      value: `${totalBalance.toLocaleString("tr-TR")} ₺`,
+      color: "text-amber-400",
+    },
+    { label: "Hesap Sayısı", value: accounts.length, color: "text-blue-400" },
+    {
+      label: "Bu Ay Giriş",
+      value: `${totalIn.toLocaleString("tr-TR")} ₺`,
+      color: "text-emerald-400",
+    },
+    {
+      label: "Bu Ay Çıkış",
+      value: `${totalOut.toLocaleString("tr-TR")} ₺`,
+      color: "text-rose-400",
+    },
+  ];
+
+  return (
+    <div className="space-y-6">
+      <h2 className="text-lg font-semibold text-foreground">
+        Banka & Kasa Raporu
+      </h2>
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        {kpis.map((k) => (
+          <Card key={k.label} className="bg-card border-border">
+            <CardContent className="p-4">
+              <p className="text-xs text-muted-foreground mb-1">{k.label}</p>
+              <p className={`text-xl font-bold ${k.color}`}>{k.value}</p>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+      {barData.length > 0 ? (
+        <Card className="bg-card border-border">
+          <CardHeader>
+            <CardTitle className="text-sm">
+              Hesap Türlerine Göre Dağılım
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <ResponsiveContainer width="100%" height={200}>
+              <BarChart data={barData}>
+                <CartesianGrid
+                  strokeDasharray="3 3"
+                  stroke="oklch(0.3 0 0 / 0.3)"
+                />
+                <XAxis
+                  dataKey="name"
+                  tick={{ fill: "oklch(0.6 0 0)", fontSize: 12 }}
+                />
+                <YAxis tick={{ fill: "oklch(0.6 0 0)", fontSize: 12 }} />
+                <Tooltip
+                  contentStyle={{
+                    background: "oklch(0.18 0 0)",
+                    border: "1px solid oklch(0.3 0 0)",
+                    borderRadius: 8,
+                  }}
+                />
+                <Bar
+                  dataKey="count"
+                  fill="oklch(0.7 0.18 60)"
+                  radius={[4, 4, 0, 0]}
+                />
+              </BarChart>
+            </ResponsiveContainer>
+          </CardContent>
+        </Card>
+      ) : (
+        <div
+          data-ocid="reporting.banka.empty_state"
+          className="flex flex-col items-center justify-center py-16 text-muted-foreground"
+        >
+          <DollarSign className="w-12 h-12 mb-3 opacity-20" />
+          <p className="text-sm">Henüz banka/kasa kaydı bulunmuyor.</p>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function SevkiyatTab({ companyId }: { companyId: string }) {
+  const shipments: any[] = (() => {
+    try {
+      return JSON.parse(localStorage.getItem(`shipments_${companyId}`) || "[]");
+    } catch {
+      return [];
+    }
+  })();
+
+  const today = new Date().toISOString().split("T")[0];
+  const delivered = shipments.filter(
+    (s: any) => s.status === "Teslim Edildi",
+  ).length;
+  const pending = shipments.filter(
+    (s: any) => s.status === "Bekliyor" || s.status === "Yolda",
+  ).length;
+  const overdue = shipments.filter(
+    (s: any) =>
+      s.expectedDate && s.expectedDate < today && s.status !== "Teslim Edildi",
+  ).length;
+
+  const statusGroups: Record<string, number> = {};
+  for (const s of shipments) {
+    statusGroups[s.status || "Bilinmiyor"] =
+      (statusGroups[s.status || "Bilinmiyor"] || 0) + 1;
+  }
+  const pieData = Object.entries(statusGroups).map(([name, value]) => ({
+    name,
+    value,
+  }));
+
+  const overdueList = shipments.filter(
+    (s: any) =>
+      s.expectedDate && s.expectedDate < today && s.status !== "Teslim Edildi",
+  );
+
+  const kpis = [
+    {
+      label: "Toplam Sevkiyat",
+      value: shipments.length,
+      color: "text-amber-400",
+    },
+    { label: "Teslim Edilen", value: delivered, color: "text-emerald-400" },
+    { label: "Bekleyen", value: pending, color: "text-blue-400" },
+    { label: "Geciken", value: overdue, color: "text-rose-400" },
+  ];
+
+  return (
+    <div className="space-y-6">
+      <h2 className="text-lg font-semibold text-foreground">Sevkiyat Raporu</h2>
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        {kpis.map((k) => (
+          <Card key={k.label} className="bg-card border-border">
+            <CardContent className="p-4">
+              <p className="text-xs text-muted-foreground mb-1">{k.label}</p>
+              <p className={`text-xl font-bold ${k.color}`}>{k.value}</p>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+      {pieData.length > 0 ? (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <Card className="bg-card border-border">
+            <CardHeader>
+              <CardTitle className="text-sm">Durum Dağılımı</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <ResponsiveContainer width="100%" height={200}>
+                <PieChart>
+                  <Pie
+                    data={pieData}
+                    dataKey="value"
+                    nameKey="name"
+                    cx="50%"
+                    cy="50%"
+                    outerRadius={70}
+                  >
+                    {pieData.map((entry: any, i: number) => (
+                      <Cell
+                        key={entry.name ?? i}
+                        fill={PIE_COLORS[i % PIE_COLORS.length]}
+                      />
+                    ))}
+                  </Pie>
+                  <Tooltip
+                    contentStyle={{
+                      background: "oklch(0.18 0 0)",
+                      border: "1px solid oklch(0.3 0 0)",
+                      borderRadius: 8,
+                    }}
+                  />
+                  <Legend />
+                </PieChart>
+              </ResponsiveContainer>
+            </CardContent>
+          </Card>
+          {overdueList.length > 0 && (
+            <Card className="bg-card border-border">
+              <CardHeader>
+                <CardTitle className="text-sm text-rose-400">
+                  Geciken Sevkiyatlar
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-2 max-h-[180px] overflow-y-auto">
+                  {overdueList.map((s: any, i: number) => (
+                    <div
+                      key={s.id ?? i}
+                      data-ocid={`reporting.sevkiyat.overdue.item.${i + 1}`}
+                      className="flex items-center justify-between text-xs bg-rose-500/10 border border-rose-500/20 rounded-lg px-3 py-2"
+                    >
+                      <span className="text-foreground font-medium truncate flex-1">
+                        {s.supplierName || "Tedarikçi"}
+                      </span>
+                      <span className="text-rose-400 ml-2 flex-shrink-0">
+                        Beklenen: {s.expectedDate}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+        </div>
+      ) : (
+        <div
+          data-ocid="reporting.sevkiyat.empty_state"
+          className="flex flex-col items-center justify-center py-16 text-muted-foreground"
+        >
+          <Layers className="w-12 h-12 mb-3 opacity-20" />
+          <p className="text-sm">Henüz sevkiyat kaydı bulunmuyor.</p>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function SahaGuvenlikTab({ companyId }: { companyId: string }) {
+  const siteAccess: any[] = (() => {
+    try {
+      return JSON.parse(
+        localStorage.getItem(`siteAccess_${companyId}`) || "[]",
+      );
+    } catch {
+      return [];
+    }
+  })();
+
+  const today = new Date().toISOString().split("T")[0];
+  const todayEntries = siteAccess.filter((s: any) =>
+    (s.entryTime || "").startsWith(today),
+  ).length;
+  const activeVisitors = siteAccess.filter(
+    (s: any) => (s.entryTime || "").startsWith(today) && !s.exitTime,
+  ).length;
+  const thisMonth = new Date().toISOString().slice(0, 7);
+  const monthTotal = siteAccess.filter((s: any) =>
+    (s.entryTime || "").startsWith(thisMonth),
+  ).length;
+  const vehicleEntries = siteAccess.filter(
+    (s: any) => s.type === "Araç",
+  ).length;
+
+  const typeGroups: Record<string, number> = {};
+  for (const s of siteAccess) {
+    typeGroups[s.type || "Ziyaretçi"] =
+      (typeGroups[s.type || "Ziyaretçi"] || 0) + 1;
+  }
+  const barData = Object.entries(typeGroups).map(([name, count]) => ({
+    name,
+    count,
+  }));
+
+  const kpis = [
+    { label: "Bugün Giriş", value: todayEntries, color: "text-amber-400" },
+    {
+      label: "Aktif Ziyaretçi",
+      value: activeVisitors,
+      color: "text-emerald-400",
+    },
+    { label: "Bu Ay Toplam", value: monthTotal, color: "text-blue-400" },
+    { label: "Araç Girişi", value: vehicleEntries, color: "text-violet-400" },
+  ];
+
+  return (
+    <div className="space-y-6">
+      <h2 className="text-lg font-semibold text-foreground">
+        Saha Güvenlik Raporu
+      </h2>
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        {kpis.map((k) => (
+          <Card key={k.label} className="bg-card border-border">
+            <CardContent className="p-4">
+              <p className="text-xs text-muted-foreground mb-1">{k.label}</p>
+              <p className={`text-xl font-bold ${k.color}`}>{k.value}</p>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+      {barData.length > 0 ? (
+        <Card className="bg-card border-border">
+          <CardHeader>
+            <CardTitle className="text-sm">Ziyaretçi Türleri</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <ResponsiveContainer width="100%" height={200}>
+              <BarChart data={barData}>
+                <CartesianGrid
+                  strokeDasharray="3 3"
+                  stroke="oklch(0.3 0 0 / 0.3)"
+                />
+                <XAxis
+                  dataKey="name"
+                  tick={{ fill: "oklch(0.6 0 0)", fontSize: 12 }}
+                />
+                <YAxis tick={{ fill: "oklch(0.6 0 0)", fontSize: 12 }} />
+                <Tooltip
+                  contentStyle={{
+                    background: "oklch(0.18 0 0)",
+                    border: "1px solid oklch(0.3 0 0)",
+                    borderRadius: 8,
+                  }}
+                />
+                <Bar
+                  dataKey="count"
+                  fill="oklch(0.65 0.18 200)"
+                  radius={[4, 4, 0, 0]}
+                />
+              </BarChart>
+            </ResponsiveContainer>
+          </CardContent>
+        </Card>
+      ) : (
+        <div
+          data-ocid="reporting.sahaGuvenlik.empty_state"
+          className="flex flex-col items-center justify-center py-16 text-muted-foreground"
+        >
+          <Users className="w-12 h-12 mb-3 opacity-20" />
+          <p className="text-sm">Henüz şantiye giriş/çıkış kaydı bulunmuyor.</p>
+        </div>
+      )}
     </div>
   );
 }
@@ -4425,6 +4819,230 @@ function BenchmarkTab({
                     }}
                   />
                 </RadarChart>
+              </ResponsiveContainer>
+            </CardContent>
+          </Card>
+        </>
+      )}
+    </div>
+  );
+}
+
+function MaliyetAnaliziTab({ companyId }: { companyId: string }) {
+  const projects: { id: string; title: string }[] = (() => {
+    try {
+      return JSON.parse(
+        localStorage.getItem(`pv_${companyId}_projects`) || "[]",
+      );
+    } catch {
+      return [];
+    }
+  })();
+  const [selectedProject, setSelectedProject] = React.useState<string>("");
+
+  const expenses: {
+    id: string;
+    projectId: string;
+    amount: number;
+    category: string;
+    costCode: string;
+    description: string;
+    status: string;
+  }[] = (() => {
+    try {
+      return JSON.parse(
+        localStorage.getItem(`pv_${companyId}_expenses`) || "[]",
+      );
+    } catch {
+      return [];
+    }
+  })();
+
+  const budgets: {
+    id: string;
+    projectId: string;
+    amount: number;
+    category: string;
+    costCode: string;
+    description: string;
+  }[] = (() => {
+    try {
+      return JSON.parse(
+        localStorage.getItem(`pv_${companyId}_budgets`) || "[]",
+      );
+    } catch {
+      return [];
+    }
+  })();
+
+  const filteredExpenses = selectedProject
+    ? expenses.filter((e) => e.projectId === selectedProject)
+    : expenses;
+  const filteredBudgets = selectedProject
+    ? budgets.filter((b) => b.projectId === selectedProject)
+    : budgets;
+
+  // Group by category
+  const categories = Array.from(
+    new Set([
+      ...filteredBudgets.map((b) => b.category || "Genel"),
+      ...filteredExpenses.map((e) => e.category || "Genel"),
+    ]),
+  );
+  const tableData = categories.map((cat) => {
+    const budget = filteredBudgets
+      .filter((b) => (b.category || "Genel") === cat)
+      .reduce((s, b) => s + (b.amount || 0), 0);
+    const actual = filteredExpenses
+      .filter((e) => (e.category || "Genel") === cat)
+      .reduce((s, e) => s + (e.amount || 0), 0);
+    const diff = budget - actual;
+    const pct = budget > 0 ? ((actual / budget) * 100).toFixed(1) : "-";
+    return { cat, budget, actual, diff, pct };
+  });
+
+  const chartData = tableData.map((d) => ({
+    name: d.cat,
+    Bütçe: d.budget,
+    Gerçekleşen: d.actual,
+  }));
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center gap-4">
+        <h3 className="font-semibold text-foreground">Maliyet Analizi</h3>
+        <select
+          data-ocid="reporting.maliyet.project.select"
+          value={selectedProject}
+          onChange={(e) => setSelectedProject(e.target.value)}
+          className="px-3 py-1.5 rounded-md bg-card border border-border text-sm focus:outline-none focus:ring-2 focus:ring-amber-500/50"
+        >
+          <option value="">Tüm Projeler</option>
+          {projects.map((p) => (
+            <option key={p.id} value={p.id}>
+              {p.title}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      {tableData.length === 0 ? (
+        <div
+          data-ocid="reporting.maliyet.empty_state"
+          className="flex flex-col items-center justify-center py-16 text-center"
+        >
+          <p className="text-muted-foreground">
+            Seçilen proje için maliyet verisi bulunamadı
+          </p>
+        </div>
+      ) : (
+        <>
+          <Card
+            className="bg-slate-800/50 border-slate-700"
+            data-ocid="reporting.maliyet.table.card"
+          >
+            <CardHeader>
+              <CardTitle className="text-base">
+                WBS / Maliyet Kodu Bazlı Gider Tablosu
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="p-0">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr
+                    className="border-b border-border"
+                    style={{ background: "oklch(0.15 0.018 245)" }}
+                  >
+                    <th className="text-left px-4 py-3 font-medium text-muted-foreground">
+                      Kategori
+                    </th>
+                    <th className="text-right px-4 py-3 font-medium text-muted-foreground">
+                      Bütçe
+                    </th>
+                    <th className="text-right px-4 py-3 font-medium text-muted-foreground">
+                      Gerçekleşen
+                    </th>
+                    <th className="text-right px-4 py-3 font-medium text-muted-foreground">
+                      Fark
+                    </th>
+                    <th className="text-right px-4 py-3 font-medium text-muted-foreground">
+                      Sapma %
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {tableData.map((row, idx) => (
+                    <tr
+                      key={row.cat}
+                      data-ocid={`reporting.maliyet.row.${idx + 1}`}
+                      className="border-b border-border/50 hover:bg-muted/10 transition-colors"
+                    >
+                      <td className="px-4 py-3 font-medium">{row.cat}</td>
+                      <td className="px-4 py-3 text-right">
+                        ₺{row.budget.toLocaleString("tr-TR")}
+                      </td>
+                      <td className="px-4 py-3 text-right text-amber-400">
+                        ₺{row.actual.toLocaleString("tr-TR")}
+                      </td>
+                      <td
+                        className={`px-4 py-3 text-right font-semibold ${row.diff >= 0 ? "text-emerald-400" : "text-rose-400"}`}
+                      >
+                        {row.diff >= 0 ? "+" : ""}₺
+                        {row.diff.toLocaleString("tr-TR")}
+                      </td>
+                      <td
+                        className={`px-4 py-3 text-right text-sm ${Number(row.pct) > 100 ? "text-rose-400" : "text-emerald-400"}`}
+                      >
+                        {row.pct !== "-" ? `${row.pct}%` : "-"}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </CardContent>
+          </Card>
+
+          <Card
+            className="bg-slate-800/50 border-slate-700"
+            data-ocid="reporting.maliyet.chart.card"
+          >
+            <CardHeader>
+              <CardTitle className="text-base">
+                Kategori Bazlı Bütçe vs Gerçekleşen
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <ResponsiveContainer width="100%" height={300}>
+                <BarChart
+                  data={chartData}
+                  margin={{ top: 10, right: 20, bottom: 30, left: 10 }}
+                >
+                  <CartesianGrid
+                    strokeDasharray="3 3"
+                    stroke="oklch(0.3 0 0)"
+                  />
+                  <XAxis
+                    dataKey="name"
+                    tick={{ fontSize: 11, fill: "oklch(0.5 0 0)" }}
+                    angle={-20}
+                    textAnchor="end"
+                  />
+                  <YAxis tick={{ fontSize: 11, fill: "oklch(0.5 0 0)" }} />
+                  <Tooltip
+                    contentStyle={{
+                      backgroundColor: "oklch(0.2 0 0)",
+                      border: "1px solid oklch(0.3 0 0)",
+                      borderRadius: "8px",
+                    }}
+                  />
+                  <Legend />
+                  <Bar dataKey="Bütçe" fill="#f59e0b" radius={[4, 4, 0, 0]} />
+                  <Bar
+                    dataKey="Gerçekleşen"
+                    fill="#6366f1"
+                    radius={[4, 4, 0, 0]}
+                  />
+                </BarChart>
               </ResponsiveContainer>
             </CardContent>
           </Card>

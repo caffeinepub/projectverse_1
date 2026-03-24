@@ -47,6 +47,7 @@ import {
   Send,
   Trash2,
 } from "lucide-react";
+import React from "react";
 import { useState } from "react";
 import type { Milestone, Project } from "../contexts/AppContext";
 import {
@@ -565,6 +566,12 @@ export default function ProjectDetail({
   const [newTaskOpen, setNewTaskOpen] = useState(false);
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [commentText, setCommentText] = useState("");
+  const [expandedCommentTaskId, setExpandedCommentTaskId] = useState<
+    string | null
+  >(null);
+  const [inlineCommentText, setInlineCommentText] = useState<
+    Record<string, string>
+  >({});
   const [form, setForm] = useState({
     title: "",
     description: "",
@@ -739,67 +746,173 @@ export default function ProjectDetail({
                       (c) => c.taskId === task.id && !c.isStatusLog,
                     ).length;
                     return (
-                      <TableRow
-                        key={task.id}
-                        data-ocid={`task.item.${i + 1}`}
-                        className="border-border cursor-pointer hover:bg-white/5"
-                        onClick={() => setSelectedTask(task)}
-                      >
-                        <TableCell className="font-medium text-foreground">
-                          {task.title}
-                        </TableCell>
-                        <TableCell>
-                          <PriorityBadge priority={task.priority} />
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex items-center gap-2">
-                            <Avatar className="w-6 h-6">
-                              <AvatarFallback className="text-xs gradient-bg text-white">
-                                {task.assignee?.[0] || "?"}
-                              </AvatarFallback>
-                            </Avatar>
-                            <span className="text-sm text-muted-foreground">
-                              {task.assignee || "-"}
-                            </span>
-                          </div>
-                        </TableCell>
-                        <TableCell className="text-muted-foreground text-sm">
-                          {task.dueDate || "-"}
-                        </TableCell>
-                        <TableCell onClick={(e) => e.stopPropagation()}>
-                          <Select
-                            value={task.status}
-                            onValueChange={(v) =>
-                              updateTaskStatus(task.id, v as TaskStatus)
-                            }
+                      <React.Fragment key={task.id}>
+                        <TableRow
+                          key={`row-${task.id}`}
+                          data-ocid={`task.item.${i + 1}`}
+                          className="border-border cursor-pointer hover:bg-white/5"
+                          onClick={() => setSelectedTask(task)}
+                        >
+                          <TableCell className="font-medium text-foreground">
+                            {task.title}
+                          </TableCell>
+                          <TableCell>
+                            <PriorityBadge priority={task.priority} />
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex items-center gap-2">
+                              <Avatar className="w-6 h-6">
+                                <AvatarFallback className="text-xs gradient-bg text-white">
+                                  {task.assignee?.[0] || "?"}
+                                </AvatarFallback>
+                              </Avatar>
+                              <span className="text-sm text-muted-foreground">
+                                {task.assignee || "-"}
+                              </span>
+                            </div>
+                          </TableCell>
+                          <TableCell className="text-muted-foreground text-sm">
+                            {task.dueDate || "-"}
+                          </TableCell>
+                          <TableCell onClick={(e) => e.stopPropagation()}>
+                            <Select
+                              value={task.status}
+                              onValueChange={(v) =>
+                                updateTaskStatus(task.id, v as TaskStatus)
+                              }
+                            >
+                              <SelectTrigger className="w-32 h-7 text-xs border-border">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent className="bg-card">
+                                <SelectItem value="todo">Yapılacak</SelectItem>
+                                <SelectItem value="in_progress">
+                                  Devam Ediyor
+                                </SelectItem>
+                                <SelectItem value="done">Tamamlandı</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </TableCell>
+                          <TableCell>
+                            <button
+                              type="button"
+                              data-ocid={`task.secondary_button.${i + 1}`}
+                              className="flex items-center gap-1 text-xs text-muted-foreground hover:text-primary transition-colors"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setExpandedCommentTaskId(
+                                  expandedCommentTaskId === task.id
+                                    ? null
+                                    : task.id,
+                                );
+                              }}
+                            >
+                              <MessageSquare className="w-3.5 h-3.5" />
+                              {commentCount > 0 && <span>{commentCount}</span>}
+                            </button>
+                          </TableCell>
+                        </TableRow>
+                        {expandedCommentTaskId === task.id && (
+                          <TableRow
+                            key={`comment-${task.id}`}
+                            className="border-border bg-white/[0.02]"
                           >
-                            <SelectTrigger className="w-32 h-7 text-xs border-border">
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent className="bg-card">
-                              <SelectItem value="todo">Yapılacak</SelectItem>
-                              <SelectItem value="in_progress">
-                                Devam Ediyor
-                              </SelectItem>
-                              <SelectItem value="done">Tamamlandı</SelectItem>
-                            </SelectContent>
-                          </Select>
-                        </TableCell>
-                        <TableCell>
-                          <button
-                            type="button"
-                            data-ocid={`task.secondary_button.${i + 1}`}
-                            className="flex items-center gap-1 text-xs text-muted-foreground hover:text-primary transition-colors"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setSelectedTask(task);
-                            }}
-                          >
-                            <MessageSquare className="w-3.5 h-3.5" />
-                            {commentCount > 0 && <span>{commentCount}</span>}
-                          </button>
-                        </TableCell>
-                      </TableRow>
+                            <TableCell colSpan={6} className="py-3 px-4">
+                              <div className="space-y-2">
+                                <p className="text-xs font-semibold text-amber-400 uppercase tracking-wide">
+                                  Yorumlar / Notlar
+                                </p>
+                                {taskComments.filter(
+                                  (c) => c.taskId === task.id && !c.isStatusLog,
+                                ).length > 0 && (
+                                  <div className="space-y-1.5 mb-2">
+                                    {taskComments
+                                      .filter(
+                                        (c) =>
+                                          c.taskId === task.id &&
+                                          !c.isStatusLog,
+                                      )
+                                      .map((c) => (
+                                        <div
+                                          key={c.id}
+                                          data-ocid="task.comment.item.1"
+                                          className="flex items-start gap-2 bg-amber-500/5 border border-amber-500/10 rounded-lg px-3 py-2"
+                                        >
+                                          <div className="w-6 h-6 rounded-full gradient-bg flex items-center justify-center flex-shrink-0">
+                                            <span className="text-[10px] text-white font-bold">
+                                              {c.author?.[0] || "?"}
+                                            </span>
+                                          </div>
+                                          <div className="flex-1 min-w-0">
+                                            <div className="flex items-baseline gap-1.5">
+                                              <span className="text-xs font-semibold text-foreground">
+                                                {c.author}
+                                              </span>
+                                              <span className="text-[10px] text-muted-foreground">
+                                                {new Date(
+                                                  c.timestamp,
+                                                ).toLocaleDateString("tr-TR")}
+                                              </span>
+                                            </div>
+                                            <p className="text-xs text-foreground/80 mt-0.5">
+                                              {c.text}
+                                            </p>
+                                          </div>
+                                        </div>
+                                      ))}
+                                  </div>
+                                )}
+                                <div
+                                  className="flex gap-2"
+                                  onClick={(e) => e.stopPropagation()}
+                                  onKeyDown={(e) => e.stopPropagation()}
+                                  role="presentation"
+                                >
+                                  <textarea
+                                    data-ocid="task.inline_comment.textarea"
+                                    value={inlineCommentText[task.id] || ""}
+                                    onChange={(e) =>
+                                      setInlineCommentText((prev) => ({
+                                        ...prev,
+                                        [task.id]: e.target.value,
+                                      }))
+                                    }
+                                    placeholder="Yorum yaz..."
+                                    className="flex-1 text-xs bg-background border border-border rounded-lg px-3 py-2 text-foreground resize-none focus:outline-none focus:border-amber-500/50 min-h-[56px]"
+                                    rows={2}
+                                  />
+                                  <button
+                                    type="button"
+                                    data-ocid="task.inline_comment.submit_button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      const txt = (
+                                        inlineCommentText[task.id] || ""
+                                      ).trim();
+                                      if (!txt) return;
+                                      addTaskComment(
+                                        task.id,
+                                        txt,
+                                        user?.name || "Ben",
+                                      );
+                                      setInlineCommentText((prev) => ({
+                                        ...prev,
+                                        [task.id]: "",
+                                      }));
+                                    }}
+                                    disabled={
+                                      !(inlineCommentText[task.id] || "").trim()
+                                    }
+                                    className="px-3 py-2 rounded-lg gradient-bg text-white text-xs font-medium disabled:opacity-40 flex-shrink-0"
+                                  >
+                                    Ekle
+                                  </button>
+                                </div>
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        )}
+                      </React.Fragment>
                     );
                   })}
                 </TableBody>

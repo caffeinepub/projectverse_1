@@ -1,35 +1,29 @@
-# ProjectVerse – v53
+# ProjectVerse v57
 
 ## Current State
-ProjectVerse is a comprehensive multi-tenant construction ERP SaaS (v52) with all major modules implemented: HR, Finance, Purchasing, Inventory, Field, Documents, CRM, Quality & Safety, Subcontractor Management, Equipment, OHS, Reporting, and many specialized modules. All data is backend-synced and multi-device. UI uses amber/gold theme with Turkish default language.
+Sürüm 56 yayında. Tüm temel ERP modülleri mevcut. Sidebar'da 3 sayfa (bankAccounts, shipments, siteAccess) herhangi bir nav grubuna dahil edilmemiş -- tanımlı ama görünmüyor.
 
 ## Requested Changes (Diff)
 
 ### Add
-
-1. **Proje Hub (Proje Özet Sayfası)** – Per-project overview page accessible from project list. Shows consolidated KPIs from all modules: budget status, schedule deviation, open risks count, punch list summary, last meeting date, latest hakediş status, open NCRs, active personnel count. Acts as the daily morning check page for project managers.
-
-2. **Tatil Takvimi (Company Holiday Calendar)** – Under Company Settings or HR module. Admin can define official company holidays (national holidays + company-specific). Leave requests automatically exclude defined holiday days from leave balance deduction. Calendar view showing holidays and leave overlaps.
-
-3. **Metraj / BoQ Kütüphanesi (Bill of Quantities)** – Company-level work item library. Items have code, description, unit, unit price. Projects can import items from library to create project-specific BoQ. BoQ items link to cost codes and hakediş line items.
-
-4. **Şirket Özel Alanları (Custom Fields)** – Under Company Settings. Admin can define custom fields (text, number, date, dropdown) for: Projects, Personnel, Equipment. Custom fields appear in respective forms and lists.
-
-5. **Eskalasyon Kuralları (Escalation Rules)** – Under Onay Akışları or Bildirim Merkezi. Rules: define trigger (approval pending X days), action (notify specific role/user). Applied to finance approvals, purchasing approvals, leave requests. Shows active escalations in notification center.
-
-6. **Proje Karşılaştırmalı Analiz / Benchmark** – New tab in Raporlama module. Side-by-side comparison of multiple projects: budget variance %, schedule variance %, quality score, open risk count, NCR count, personnel count. Bar/radar charts for visual comparison.
+- **Banka Mutabakatı** -- BankAccounts sayfasına yeni sekme: banka ekstre girişi, sistem kayıtlarıyla eşleştirme, fark raporu
+- **Ekipman Kiralama Takibi** -- Equipment sayfasına yeni sekme: kiralık ekipman kayıtları, kira süresi/bedeli, kiralama firması, ödeme takvimi
+- **Personel Eğitim Matrisi** -- HumanResources sayfasına yeni sekme: bölüm/pozisyon bazlı eğitim ihtiyaç matrisi, tamamlanma yüzdesi
+- **Çevre & Atık Yönetimi** -- Yeni sayfa: atık türü, bertaraf yöntemi, çevresel izin takibi, aylık atık miktarı raporu
+- **Vardiya Planlama (Shift Scheduling)** -- FieldOps sayfasına yeni sekme: haftalık vardiya planı oluşturma, personel atama, vardiya çakışması uyarısı
+- **Proje Maliyet Analizi (Detaylı)** -- Reporting'e yeni sekme: WBS/maliyet kodu bazlı detaylı maliyet dağılımı, bütçe vs. gerçekleşen tablo
 
 ### Modify
-- Project list/detail: add "Hub" button or make project card clickable to open Proje Hub
-- HR leave request form: integrate holiday calendar to auto-exclude holidays from day count
-- Onay Akışları page: add escalation rules section
-- Raporlama: add Benchmark tab
+- **Layout.tsx sidebar**: bankAccounts, shipments ve siteAccess sayfalarını ilgili nav gruplarına ekle (OPERASYONLAR veya PROJE KONTROLÜ altına)
 
 ### Remove
-- Nothing removed
+- Hiçbir şey kaldırılmıyor
 
 ## Implementation Plan
-1. **Batch 1:** Proje Hub page component, Tatil Takvimi (HR or Settings), BoQ Kütüphanesi page
-2. **Batch 2:** Custom Fields settings UI, Eskalasyon Kuralları section, Benchmark tab in Raporlama
-3. Wire all new data to AppContext with company-scoped localStorage persistence
-4. Add sidebar navigation entries for new top-level pages
+1. Layout.tsx'te bankAccounts → OPERASYONLAR grubuna, shipments → PROJE KONTROLÜ grubuna, siteAccess → PROJE KONTROLÜ grubuna ekle
+2. BankAccounts.tsx'e Mutabakat sekmesi ekle
+3. Equipment.tsx'e Kiralama sekmesi ekle
+4. HumanResources.tsx'e Eğitim Matrisi sekmesi ekle
+5. Yeni EnvironmentalManagement.tsx sayfası oluştur, App.tsx'e route ekle, Layout.tsx'te PROJE KONTROLÜ altına ekle
+6. FieldOps.tsx'e Vardiya Planlama sekmesi ekle
+7. Reporting.tsx'e maliyetDetay sekmesi ekle

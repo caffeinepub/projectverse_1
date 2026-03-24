@@ -33,6 +33,7 @@ import {
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { type CrmContact, type CrmLead, useApp } from "../contexts/AppContext";
+import CSVImportModal from "./tabs/CSVImportModal";
 import ComplaintsTab from "./tabs/ComplaintsTab";
 
 type ContactType = CrmContact["type"];
@@ -175,6 +176,8 @@ export default function CRM() {
     type: "aday",
     notes: "",
   });
+
+  const [csvContactOpen, setCsvContactOpen] = useState(false);
 
   const handleAddContact = () => {
     if (!newContact.name) return;
@@ -646,141 +649,171 @@ export default function CRM() {
           <div className="flex items-center justify-between">
             <h2 className="font-semibold">Müşteri Rehberi</h2>
             {canEdit && (
-              <Dialog open={newContactOpen} onOpenChange={setNewContactOpen}>
-                <DialogTrigger asChild>
-                  <Button
-                    data-ocid="crm.add_contact_button"
-                    size="sm"
-                    className="gradient-bg"
-                  >
-                    <Plus className="w-4 h-4 mr-1.5" /> Yeni Kişi
-                  </Button>
-                </DialogTrigger>
-                <DialogContent className="bg-card border-border">
-                  <DialogHeader>
-                    <DialogTitle>Yeni Kişi / Müşteri Ekle</DialogTitle>
-                  </DialogHeader>
-                  <div className="space-y-4">
-                    <div className="grid grid-cols-2 gap-3">
-                      <div>
-                        <Label>Ad Soyad</Label>
-                        <Input
-                          data-ocid="crm.contact_name_input"
-                          value={newContact.name}
-                          onChange={(e) =>
-                            setNewContact((p) => ({
-                              ...p,
-                              name: e.target.value,
-                            }))
-                          }
-                          className="mt-1 bg-background border-border"
-                        />
-                      </div>
-                      <div>
-                        <Label>Şirket</Label>
-                        <Input
-                          data-ocid="crm.contact_company_input"
-                          value={newContact.company}
-                          onChange={(e) =>
-                            setNewContact((p) => ({
-                              ...p,
-                              company: e.target.value,
-                            }))
-                          }
-                          className="mt-1 bg-background border-border"
-                        />
-                      </div>
-                    </div>
-                    <div className="grid grid-cols-2 gap-3">
-                      <div>
-                        <Label>E-posta</Label>
-                        <Input
-                          data-ocid="crm.contact_email_input"
-                          type="email"
-                          value={newContact.email}
-                          onChange={(e) =>
-                            setNewContact((p) => ({
-                              ...p,
-                              email: e.target.value,
-                            }))
-                          }
-                          className="mt-1 bg-background border-border"
-                        />
-                      </div>
-                      <div>
-                        <Label>Telefon</Label>
-                        <Input
-                          data-ocid="crm.contact_phone_input"
-                          value={newContact.phone}
-                          onChange={(e) =>
-                            setNewContact((p) => ({
-                              ...p,
-                              phone: e.target.value,
-                            }))
-                          }
-                          className="mt-1 bg-background border-border"
-                        />
-                      </div>
-                    </div>
-                    <div>
-                      <Label>Tür</Label>
-                      <Select
-                        value={newContact.type}
-                        onValueChange={(v) =>
-                          setNewContact((p) => ({
-                            ...p,
-                            type: v as ContactType,
-                          }))
-                        }
-                      >
-                        <SelectTrigger
-                          data-ocid="crm.contact_type_select"
-                          className="mt-1 bg-background border-border"
-                        >
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent className="bg-card border-border">
-                          <SelectItem value="musteri">Müşteri</SelectItem>
-                          <SelectItem value="aday">Aday</SelectItem>
-                          <SelectItem value="is-ortagi">İş Ortağı</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div>
-                      <Label>Notlar</Label>
-                      <Textarea
-                        data-ocid="crm.contact_notes_input"
-                        value={newContact.notes}
-                        onChange={(e) =>
-                          setNewContact((p) => ({
-                            ...p,
-                            notes: e.target.value,
-                          }))
-                        }
-                        className="mt-1 bg-background border-border"
-                      />
-                    </div>
-                  </div>
-                  <DialogFooter>
+              <div className="flex gap-2">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="border-amber-500/40 text-amber-400 hover:bg-amber-500/10 text-xs"
+                  data-ocid="crm.csv_import.button"
+                  onClick={() => setCsvContactOpen(true)}
+                >
+                  CSV İçeri Aktar
+                </Button>
+                <Dialog open={newContactOpen} onOpenChange={setNewContactOpen}>
+                  <DialogTrigger asChild>
                     <Button
-                      data-ocid="crm.contact_cancel_button"
-                      variant="outline"
-                      onClick={() => setNewContactOpen(false)}
-                    >
-                      İptal
-                    </Button>
-                    <Button
-                      data-ocid="crm.contact_submit_button"
+                      data-ocid="crm.add_contact_button"
+                      size="sm"
                       className="gradient-bg"
-                      onClick={handleAddContact}
                     >
-                      Ekle
+                      <Plus className="w-4 h-4 mr-1.5" /> Yeni Kişi
                     </Button>
-                  </DialogFooter>
-                </DialogContent>
-              </Dialog>
+                  </DialogTrigger>
+                  <DialogContent className="bg-card border-border">
+                    <DialogHeader>
+                      <DialogTitle>Yeni Kişi / Müşteri Ekle</DialogTitle>
+                    </DialogHeader>
+                    <div className="space-y-4">
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <Label>Ad Soyad</Label>
+                          <Input
+                            data-ocid="crm.contact_name_input"
+                            value={newContact.name}
+                            onChange={(e) =>
+                              setNewContact((p) => ({
+                                ...p,
+                                name: e.target.value,
+                              }))
+                            }
+                            className="mt-1 bg-background border-border"
+                          />
+                        </div>
+                        <div>
+                          <Label>Şirket</Label>
+                          <Input
+                            data-ocid="crm.contact_company_input"
+                            value={newContact.company}
+                            onChange={(e) =>
+                              setNewContact((p) => ({
+                                ...p,
+                                company: e.target.value,
+                              }))
+                            }
+                            className="mt-1 bg-background border-border"
+                          />
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <Label>E-posta</Label>
+                          <Input
+                            data-ocid="crm.contact_email_input"
+                            type="email"
+                            value={newContact.email}
+                            onChange={(e) =>
+                              setNewContact((p) => ({
+                                ...p,
+                                email: e.target.value,
+                              }))
+                            }
+                            className="mt-1 bg-background border-border"
+                          />
+                        </div>
+                        <div>
+                          <Label>Telefon</Label>
+                          <Input
+                            data-ocid="crm.contact_phone_input"
+                            value={newContact.phone}
+                            onChange={(e) =>
+                              setNewContact((p) => ({
+                                ...p,
+                                phone: e.target.value,
+                              }))
+                            }
+                            className="mt-1 bg-background border-border"
+                          />
+                        </div>
+                      </div>
+                      <div>
+                        <Label>Tür</Label>
+                        <Select
+                          value={newContact.type}
+                          onValueChange={(v) =>
+                            setNewContact((p) => ({
+                              ...p,
+                              type: v as ContactType,
+                            }))
+                          }
+                        >
+                          <SelectTrigger
+                            data-ocid="crm.contact_type_select"
+                            className="mt-1 bg-background border-border"
+                          >
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent className="bg-card border-border">
+                            <SelectItem value="musteri">Müşteri</SelectItem>
+                            <SelectItem value="aday">Aday</SelectItem>
+                            <SelectItem value="is-ortagi">İş Ortağı</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div>
+                        <Label>Notlar</Label>
+                        <Textarea
+                          data-ocid="crm.contact_notes_input"
+                          value={newContact.notes}
+                          onChange={(e) =>
+                            setNewContact((p) => ({
+                              ...p,
+                              notes: e.target.value,
+                            }))
+                          }
+                          className="mt-1 bg-background border-border"
+                        />
+                      </div>
+                    </div>
+                    <DialogFooter>
+                      <Button
+                        data-ocid="crm.contact_cancel_button"
+                        variant="outline"
+                        onClick={() => setNewContactOpen(false)}
+                      >
+                        İptal
+                      </Button>
+                      <Button
+                        data-ocid="crm.contact_submit_button"
+                        className="gradient-bg"
+                        onClick={handleAddContact}
+                      >
+                        Ekle
+                      </Button>
+                    </DialogFooter>
+                  </DialogContent>
+                </Dialog>
+              </div>
             )}
           </div>
+          <CSVImportModal
+            open={csvContactOpen}
+            onClose={() => setCsvContactOpen(false)}
+            type="crm"
+            companyId={crmCompanyId}
+            onImport={(rows) => {
+              const newContacts = rows.map((r) => ({
+                id: `c-${Date.now()}-${Math.random()}`,
+                name: r.ilgiliKişi || r.firmaAdı || "İsimsiz",
+                company: r.firmaAdı || "",
+                email: r.email || "",
+                phone: r.telefon || "",
+                type: "musteri" as const,
+                notes: r.sektör || "",
+                createdAt: new Date().toISOString().split("T")[0],
+              }));
+              setContacts([...newContacts, ...contacts]);
+            }}
+          />
 
           <div className="grid gap-3">
             {contacts.length === 0 && (

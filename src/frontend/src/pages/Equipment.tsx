@@ -18,6 +18,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import {
@@ -37,6 +45,7 @@ import type {
 } from "../contexts/AppContext";
 import { useApp } from "../contexts/AppContext";
 import EquipmentFuelCost from "./tabs/EquipmentFuelCost";
+import EquipmentQRTab from "./tabs/EquipmentQRTab";
 
 const STATUS_LABELS: Record<EquipmentStatus, { label: string; cls: string }> = {
   active: {
@@ -256,8 +265,18 @@ export default function Equipment() {
           <TabsTrigger data-ocid="equipment.audit.tab" value="audit">
             Denetim Logu
           </TabsTrigger>
+          <TabsTrigger
+            data-ocid="equipment.qr.tab"
+            value="qr"
+            className="data-[state=active]:gradient-bg data-[state=active]:text-white"
+          >
+            QR & Seri No
+          </TabsTrigger>
           <TabsTrigger data-ocid="equipment.fuelcost.tab" value="fuelcost">
             Yakıt & Maliyet
+          </TabsTrigger>
+          <TabsTrigger data-ocid="equipment.rental.tab" value="rental">
+            Kiralama
           </TabsTrigger>
         </TabsList>
 
@@ -966,10 +985,293 @@ export default function Equipment() {
             equipment={equipment}
           />
         </TabsContent>
+        {/* ─── QR & SERİ NO TAB ─── */}
+        <TabsContent value="qr" className="mt-4">
+          <EquipmentQRTab
+            companyId={activeCompanyId || ""}
+            equipment={equipment}
+          />
+        </TabsContent>
+        {/* ─── KİRALAMA TAB ─── */}
+        <TabsContent value="rental" className="mt-4">
+          <EquipmentRentalTab companyId={activeCompanyId || ""} />
+        </TabsContent>
       </Tabs>
 
       {/* Hidden dialog trigger to allow re-opening equip dialog after edit */}
       <AlertCircle className="hidden" />
+    </div>
+  );
+}
+
+function EquipmentRentalTab({ companyId }: { companyId: string }) {
+  interface EquipmentRental {
+    id: string;
+    name: string;
+    rentalCompany: string;
+    startDate: string;
+    endDate: string;
+    monthlyRate: number;
+    currency: string;
+    status: "Aktif" | "Tamamlandı";
+  }
+  const storageKey = `pv_${companyId}_equipmentRentals`;
+  const [rentals, setRentals] = useState<EquipmentRental[]>(() => {
+    try {
+      return JSON.parse(localStorage.getItem(storageKey) || "[]");
+    } catch {
+      return [];
+    }
+  });
+  const emptyForm = {
+    name: "",
+    rentalCompany: "",
+    startDate: "",
+    endDate: "",
+    monthlyRate: "",
+    currency: "TRY",
+    status: "Aktif" as "Aktif" | "Tamamlandı",
+  };
+  const [form, setForm] = useState(emptyForm);
+  const [open, setOpen] = useState(false);
+
+  const save = () => {
+    if (!form.name || !form.rentalCompany || !form.startDate) return;
+    const entry: EquipmentRental = {
+      ...form,
+      id: Date.now().toString(),
+      monthlyRate: Number(form.monthlyRate) || 0,
+    };
+    const updated = [entry, ...rentals];
+    setRentals(updated);
+    localStorage.setItem(storageKey, JSON.stringify(updated));
+    setForm(emptyForm);
+    setOpen(false);
+  };
+
+  const active = rentals.filter((r) => r.status === "Aktif");
+  const totalMonthly = active.reduce((s, r) => s + r.monthlyRate, 0);
+
+  return (
+    <div className="space-y-4">
+      <div className="grid grid-cols-2 gap-4">
+        <Card className="bg-slate-800/50 border-slate-700">
+          <CardContent className="pt-4 pb-3 px-4">
+            <p className="text-xs text-muted-foreground">Aktif Kiralama</p>
+            <p className="text-2xl font-bold text-amber-400">{active.length}</p>
+          </CardContent>
+        </Card>
+        <Card className="bg-slate-800/50 border-slate-700">
+          <CardContent className="pt-4 pb-3 px-4">
+            <p className="text-xs text-muted-foreground">
+              Toplam Aylık Kira Gideri
+            </p>
+            <p className="text-2xl font-bold text-rose-400">
+              ₺{totalMonthly.toLocaleString("tr-TR")}
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+
+      <div className="flex justify-end">
+        <Button
+          data-ocid="equipment.rental.add_button"
+          onClick={() => setOpen(true)}
+          className="gradient-bg text-white gap-2"
+        >
+          <Plus className="w-4 h-4" /> Kiralama Ekle
+        </Button>
+      </div>
+
+      {rentals.length === 0 ? (
+        <div
+          data-ocid="equipment.rental.empty_state"
+          className="flex flex-col items-center justify-center py-16 text-center"
+        >
+          <p className="text-muted-foreground">Henüz kiralama kaydı yok</p>
+        </div>
+      ) : (
+        <Card className="bg-slate-800/50 border-slate-700">
+          <CardContent className="p-0">
+            <Table>
+              <TableHeader>
+                <TableRow className="border-slate-700">
+                  <TableHead>Ekipman</TableHead>
+                  <TableHead>Kiralama Firması</TableHead>
+                  <TableHead>Başlangıç</TableHead>
+                  <TableHead>Bitiş</TableHead>
+                  <TableHead>Aylık Kira</TableHead>
+                  <TableHead>Para Birimi</TableHead>
+                  <TableHead>Durum</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {rentals.map((r, idx) => (
+                  <TableRow
+                    key={r.id}
+                    data-ocid={`equipment.rental.row.${idx + 1}`}
+                    className="border-slate-700 hover:bg-muted/20"
+                  >
+                    <TableCell className="font-medium">{r.name}</TableCell>
+                    <TableCell>{r.rentalCompany}</TableCell>
+                    <TableCell className="text-sm">{r.startDate}</TableCell>
+                    <TableCell className="text-sm">
+                      {r.endDate || "-"}
+                    </TableCell>
+                    <TableCell className="font-semibold text-amber-400">
+                      {r.monthlyRate.toLocaleString("tr-TR")}
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant="outline">{r.currency}</Badge>
+                    </TableCell>
+                    <TableCell>
+                      <Badge
+                        variant="outline"
+                        className={
+                          r.status === "Aktif"
+                            ? "text-emerald-400 border-emerald-500/30 bg-emerald-500/10"
+                            : "text-muted-foreground"
+                        }
+                      >
+                        {r.status}
+                      </Badge>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
+      )}
+
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent
+          data-ocid="equipment.rental.dialog"
+          className="bg-card border-border"
+        >
+          <DialogHeader>
+            <DialogTitle>Kiralama Ekle</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div>
+              <Label>Ekipman Adı *</Label>
+              <Input
+                data-ocid="equipment.rental.name.input"
+                value={form.name}
+                onChange={(e) =>
+                  setForm((p) => ({ ...p, name: e.target.value }))
+                }
+                className="mt-1 bg-card border-border"
+                placeholder="Örn: Ekskavatör"
+              />
+            </div>
+            <div>
+              <Label>Kiralama Firması *</Label>
+              <Input
+                data-ocid="equipment.rental.company.input"
+                value={form.rentalCompany}
+                onChange={(e) =>
+                  setForm((p) => ({ ...p, rentalCompany: e.target.value }))
+                }
+                className="mt-1 bg-card border-border"
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label>Başlangıç Tarihi *</Label>
+                <Input
+                  type="date"
+                  data-ocid="equipment.rental.start.input"
+                  value={form.startDate}
+                  onChange={(e) =>
+                    setForm((p) => ({ ...p, startDate: e.target.value }))
+                  }
+                  className="mt-1 bg-card border-border"
+                />
+              </div>
+              <div>
+                <Label>Bitiş Tarihi</Label>
+                <Input
+                  type="date"
+                  data-ocid="equipment.rental.end.input"
+                  value={form.endDate}
+                  onChange={(e) =>
+                    setForm((p) => ({ ...p, endDate: e.target.value }))
+                  }
+                  className="mt-1 bg-card border-border"
+                />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label>Aylık Kira Bedeli</Label>
+                <Input
+                  type="number"
+                  data-ocid="equipment.rental.rate.input"
+                  value={form.monthlyRate}
+                  onChange={(e) =>
+                    setForm((p) => ({ ...p, monthlyRate: e.target.value }))
+                  }
+                  className="mt-1 bg-card border-border"
+                />
+              </div>
+              <div>
+                <Label>Para Birimi</Label>
+                <Select
+                  value={form.currency}
+                  onValueChange={(v) => setForm((p) => ({ ...p, currency: v }))}
+                >
+                  <SelectTrigger
+                    data-ocid="equipment.rental.currency.select"
+                    className="mt-1 bg-card border-border"
+                  >
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent className="bg-card border-border">
+                    {["TRY", "USD", "EUR"].map((c) => (
+                      <SelectItem key={c} value={c}>
+                        {c}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div>
+              <Label>Durum</Label>
+              <Select
+                value={form.status}
+                onValueChange={(v: "Aktif" | "Tamamlandı") =>
+                  setForm((p) => ({ ...p, status: v }))
+                }
+              >
+                <SelectTrigger
+                  data-ocid="equipment.rental.status.select"
+                  className="mt-1 bg-card border-border"
+                >
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent className="bg-card border-border">
+                  <SelectItem value="Aktif">Aktif</SelectItem>
+                  <SelectItem value="Tamamlandı">Tamamlandı</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setOpen(false)}>
+              İptal
+            </Button>
+            <Button
+              data-ocid="equipment.rental.save_button"
+              onClick={save}
+              className="gradient-bg text-white"
+            >
+              Kaydet
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

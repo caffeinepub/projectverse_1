@@ -52,6 +52,7 @@ import { useEffect, useMemo, useState } from "react";
 import AccessDenied from "../components/AccessDenied";
 import { useApp } from "../contexts/AppContext";
 import AdvancesTab from "./tabs/AdvancesTab";
+import CommitmentsTab from "./tabs/CommitmentsTab";
 
 import type {
   AuditLog,
@@ -2721,6 +2722,9 @@ export default function Finance() {
         {/* ── PARA BİRİMLERİ TAB ── */}
         <TabsContent value="currencies" className="space-y-5">
           <CurrenciesTab companyId={activeCompanyId || ""} />
+        </TabsContent>
+        <TabsContent value="commitments" className="space-y-5">
+          <CommitmentsTab companyId={activeCompanyId || ""} />
         </TabsContent>
       </Tabs>
     </div>
