@@ -456,14 +456,19 @@ function GanttTab({
                   style={{ height: rowHeight }}
                 >
                   <div
-                    className="flex-shrink-0 border-r border-border/40 flex items-center px-3 text-xs text-foreground truncate"
+                    className="flex-shrink-0 border-r border-border/40 flex items-center px-3 gap-1.5 text-xs text-foreground"
                     style={{ width: labelWidth }}
                   >
                     <div
-                      className="w-2 h-2 rounded-full mr-2 flex-shrink-0"
+                      className="w-2 h-2 rounded-full flex-shrink-0"
                       style={{ backgroundColor: color }}
                     />
-                    {label}
+                    <span className="truncate flex-1">{label}</span>
+                    {(task.dependencies || []).length > 0 && (
+                      <span className="flex-shrink-0 text-[9px] px-1 py-0.5 rounded bg-amber-500/20 text-amber-400 border border-amber-500/30">
+                        ⛓{(task.dependencies || []).length}
+                      </span>
+                    )}
                   </div>
                   <div
                     className="relative flex-1"
@@ -487,6 +492,22 @@ function GanttTab({
                       }
                       onMouseLeave={() => setTooltip(null)}
                     />
+                    {(task.dependencies || []).length > 0 && barX > 16 && (
+                      <div
+                        className="absolute top-1/2 -translate-y-1/2 flex items-center"
+                        style={{
+                          left: Math.max(0, barX - 16),
+                          width: 16,
+                          height: 20,
+                        }}
+                      >
+                        <div className="w-full border-t-2 border-dashed border-amber-500/60" />
+                        <div
+                          className="absolute right-0 border-l-4 border-y-4 border-y-transparent border-l-amber-500/80"
+                          style={{ width: 0, height: 0 }}
+                        />
+                      </div>
+                    )}
                   </div>
                 </div>
               );
@@ -579,6 +600,7 @@ export default function ProjectDetail({
     assignee: "",
     dueDate: "",
     status: "todo" as TaskStatus,
+    dependencies: [] as string[],
   });
 
   const project = projects.find((p) => p.id === projectId);
@@ -611,6 +633,7 @@ export default function ProjectDetail({
       assignee: "",
       dueDate: "",
       status: "todo",
+      dependencies: [],
     });
   };
 
@@ -738,6 +761,9 @@ export default function ProjectDetail({
                     <TableHead className="text-muted-foreground">
                       Yorumlar
                     </TableHead>
+                    <TableHead className="text-muted-foreground">
+                      Bağımlılık
+                    </TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -811,13 +837,24 @@ export default function ProjectDetail({
                               {commentCount > 0 && <span>{commentCount}</span>}
                             </button>
                           </TableCell>
+                          <TableCell onClick={(e) => e.stopPropagation()}>
+                            {(task.dependencies || []).length > 0 ? (
+                              <span className="text-xs px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-400 border border-amber-500/30">
+                                ⛓ {(task.dependencies || []).length} önce
+                              </span>
+                            ) : (
+                              <span className="text-xs text-muted-foreground">
+                                —
+                              </span>
+                            )}
+                          </TableCell>
                         </TableRow>
                         {expandedCommentTaskId === task.id && (
                           <TableRow
                             key={`comment-${task.id}`}
                             className="border-border bg-white/[0.02]"
                           >
-                            <TableCell colSpan={6} className="py-3 px-4">
+                            <TableCell colSpan={7} className="py-3 px-4">
                               <div className="space-y-2">
                                 <p className="text-xs font-semibold text-amber-400 uppercase tracking-wide">
                                   Yorumlar / Notlar
@@ -1255,6 +1292,44 @@ export default function ProjectDetail({
                 onChange={(e) => setForm({ ...form, dueDate: e.target.value })}
                 className="mt-1"
               />
+            </div>
+            <div>
+              <Label>Bağımlılıklar (Önce tamamlanması gereken görevler)</Label>
+              <div className="mt-1 max-h-32 overflow-y-auto space-y-1 rounded-lg border border-border p-2 bg-background">
+                {projectTasks.filter((t2) => t2.id !== selectedTask?.id)
+                  .length === 0 ? (
+                  <p className="text-xs text-muted-foreground py-1 px-1">
+                    Başka görev yok
+                  </p>
+                ) : (
+                  projectTasks
+                    .filter((t2) => t2.id !== selectedTask?.id)
+                    .map((t2) => (
+                      <label
+                        key={t2.id}
+                        className="flex items-center gap-2 cursor-pointer hover:bg-muted/20 rounded px-1 py-0.5"
+                      >
+                        <input
+                          type="checkbox"
+                          className="accent-amber-500"
+                          checked={(form.dependencies || []).includes(t2.id)}
+                          onChange={(e) => {
+                            const deps = form.dependencies || [];
+                            setForm({
+                              ...form,
+                              dependencies: e.target.checked
+                                ? [...deps, t2.id]
+                                : deps.filter((d) => d !== t2.id),
+                            });
+                          }}
+                        />
+                        <span className="text-xs text-foreground">
+                          {t2.title}
+                        </span>
+                      </label>
+                    ))
+                )}
+              </div>
             </div>
             <Button
               data-ocid="new_task.submit_button"

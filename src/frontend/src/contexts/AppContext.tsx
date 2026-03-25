@@ -195,6 +195,7 @@ export interface Task {
   assignee: string;
   dueDate: string;
   projectId: string;
+  dependencies?: string[];
 }
 
 export interface TaskComment {

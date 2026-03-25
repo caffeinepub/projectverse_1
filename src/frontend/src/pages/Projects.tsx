@@ -1,3 +1,13 @@
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -24,7 +34,9 @@ import {
   Calendar,
   CheckSquare,
   DollarSign,
+  Download,
   Plus,
+  Trash2,
   Users,
 } from "lucide-react";
 import { useMemo, useState } from "react";
@@ -42,12 +54,21 @@ const STATUS_CONFIG: Record<string, { label: string; color: string }> = {
 export default function Projects({
   onOpenProject,
 }: { onOpenProject: (id: string) => void }) {
-  const { checkPermission, t, projects, tasks, addProject, currentCompany } =
-    useApp();
+  const {
+    checkPermission,
+    t,
+    projects,
+    setProjects,
+    tasks,
+    addProject,
+    currentCompany,
+  } = useApp();
   const [filter, setFilter] = useState("all");
   const [viewMode, setViewMode] = useState<"list" | "kanban">("list");
   const [open, setOpen] = useState(false);
   const [weeklyProject, setWeeklyProject] = useState<Project | null>(null);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [confirmBulkDelete, setConfirmBulkDelete] = useState(false);
   const [form, setForm] = useState({
     title: "",
     description: "",
@@ -280,79 +301,100 @@ export default function Projects({
                 new Date(t2.dueDate) < today,
             );
             return (
-              <button
-                type="button"
-                key={project.id}
-                data-ocid={`projects.item.${i + 1}`}
-                className="glass-card rounded-xl p-5 hover:border-primary/40 transition-all cursor-pointer group text-left"
-                onClick={() => onOpenProject(project.id)}
-              >
-                <div className="flex items-start justify-between mb-3">
-                  <h3 className="font-semibold text-foreground group-hover:text-primary transition-colors line-clamp-2">
-                    {project.title}
-                  </h3>
-                  <StatusPill status={project.status} />
-                </div>
-                <p className="text-sm text-muted-foreground mb-4 line-clamp-2">
-                  {project.description}
-                </p>
-                <Progress value={project.progress} className="h-1.5 mb-3" />
-                <div className="flex items-center justify-between flex-wrap gap-y-2">
-                  <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                    <Users className="w-3 h-3" />
-                    <span>{project.members.length || 1} üye</span>
-                  </div>
-                  {totalCount > 0 && (
-                    <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                      <CheckSquare className="w-3 h-3" />
-                      <span>
-                        {completedCount}/{totalCount} görev
-                      </span>
-                    </div>
-                  )}
-                  {project.budget && project.budget > 0 && (
-                    <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                      <DollarSign className="w-3 h-3" />
-                      <span>{project.budget.toLocaleString("tr-TR")} TL</span>
-                    </div>
-                  )}
-                  {project.endDate && (
-                    <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                      <Calendar className="w-3 h-3" />
-                      <span>{project.endDate}</span>
-                    </div>
-                  )}
-                  <div
-                    className="flex items-center gap-1 text-xs font-semibold"
-                    style={{ color: "oklch(0.72 0.2 280)" }}
-                  >
-                    <span>{project.progress}%</span>
-                    <ArrowRight className="w-3 h-3" />
-                  </div>
-                </div>
-                {hasOverdue && (
-                  <div className="flex items-center gap-1 mt-2">
-                    <Badge
-                      variant="outline"
-                      className="text-xs border-orange-500/50 text-orange-400 bg-orange-500/10"
-                    >
-                      <AlertTriangle className="w-3 h-3 mr-1" />
-                      Gecikmiş görev
-                    </Badge>
-                  </div>
-                )}
+              <div key={project.id} className="relative group/card">
+                <input
+                  type="checkbox"
+                  data-ocid={`projects.checkbox.${i + 1}`}
+                  className="absolute top-3 left-3 z-10 w-4 h-4 accent-amber-500 opacity-0 group-hover/card:opacity-100 transition-opacity"
+                  checked={selectedIds.has(project.id)}
+                  onChange={(e) => {
+                    e.stopPropagation();
+                    setSelectedIds((prev) => {
+                      const next = new Set(prev);
+                      e.target.checked
+                        ? next.add(project.id)
+                        : next.delete(project.id);
+                      return next;
+                    });
+                  }}
+                  onClick={(e) => e.stopPropagation()}
+                  style={{
+                    opacity: selectedIds.has(project.id) ? 1 : undefined,
+                  }}
+                />
                 <button
                   type="button"
-                  data-ocid={`projects.weekly_report.button.${i + 1}`}
-                  className="mt-3 w-full text-xs text-amber-400 border border-amber-500/30 rounded-lg py-1.5 hover:bg-amber-500/10 transition-colors"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setWeeklyProject(project);
-                  }}
+                  data-ocid={`projects.item.${i + 1}`}
+                  className={`w-full glass-card rounded-xl p-5 hover:border-primary/40 transition-all cursor-pointer group text-left ${selectedIds.has(project.id) ? "border-amber-500/50 bg-amber-500/5" : ""}`}
+                  onClick={() => onOpenProject(project.id)}
                 >
-                  📊 Haftalık Rapor
+                  <div className="flex items-start justify-between mb-3">
+                    <h3 className="font-semibold text-foreground group-hover:text-primary transition-colors line-clamp-2 pl-5">
+                      {project.title}
+                    </h3>
+                    <StatusPill status={project.status} />
+                  </div>
+                  <p className="text-sm text-muted-foreground mb-4 line-clamp-2">
+                    {project.description}
+                  </p>
+                  <Progress value={project.progress} className="h-1.5 mb-3" />
+                  <div className="flex items-center justify-between flex-wrap gap-y-2">
+                    <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                      <Users className="w-3 h-3" />
+                      <span>{project.members.length || 1} üye</span>
+                    </div>
+                    {totalCount > 0 && (
+                      <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                        <CheckSquare className="w-3 h-3" />
+                        <span>
+                          {completedCount}/{totalCount} görev
+                        </span>
+                      </div>
+                    )}
+                    {project.budget && project.budget > 0 && (
+                      <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                        <DollarSign className="w-3 h-3" />
+                        <span>{project.budget.toLocaleString("tr-TR")} TL</span>
+                      </div>
+                    )}
+                    {project.endDate && (
+                      <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                        <Calendar className="w-3 h-3" />
+                        <span>{project.endDate}</span>
+                      </div>
+                    )}
+                    <div
+                      className="flex items-center gap-1 text-xs font-semibold"
+                      style={{ color: "oklch(0.72 0.2 280)" }}
+                    >
+                      <span>{project.progress}%</span>
+                      <ArrowRight className="w-3 h-3" />
+                    </div>
+                  </div>
+                  {hasOverdue && (
+                    <div className="flex items-center gap-1 mt-2">
+                      <Badge
+                        variant="outline"
+                        className="text-xs border-orange-500/50 text-orange-400 bg-orange-500/10"
+                      >
+                        <AlertTriangle className="w-3 h-3 mr-1" />
+                        Gecikmiş görev
+                      </Badge>
+                    </div>
+                  )}
+                  <button
+                    type="button"
+                    data-ocid={`projects.weekly_report.button.${i + 1}`}
+                    className="mt-3 w-full text-xs text-amber-400 border border-amber-500/30 rounded-lg py-1.5 hover:bg-amber-500/10 transition-colors"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setWeeklyProject(project);
+                    }}
+                  >
+                    📊 Haftalık Rapor
+                  </button>
                 </button>
-              </button>
+              </div>
             );
           })}
         </div>
@@ -462,6 +504,105 @@ export default function Projects({
         open={!!weeklyProject}
         onClose={() => setWeeklyProject(null)}
       />
+
+      {/* Floating Bulk Action Bar */}
+      {selectedIds.size > 0 && (
+        <div
+          data-ocid="projects.bulk_action.panel"
+          className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 px-4 py-3 rounded-2xl shadow-2xl border border-amber-500/40 bg-card/95 backdrop-blur-md"
+        >
+          <span className="text-sm font-medium text-amber-400 mr-1">
+            {selectedIds.size} kayıt seçildi
+          </span>
+          <Button
+            data-ocid="projects.bulk_export.button"
+            size="sm"
+            variant="outline"
+            className="border-border text-muted-foreground hover:text-foreground gap-1.5"
+            onClick={() => {
+              const selected = filtered.filter((p) => selectedIds.has(p.id));
+              const rows = [
+                [
+                  "Proje",
+                  "Durum",
+                  "Başlangıç",
+                  "Bitiş",
+                  "Bütçe",
+                  "İlerleme",
+                ].join(","),
+              ];
+              for (const p of selected) {
+                rows.push(
+                  [
+                    p.title,
+                    p.status,
+                    p.startDate,
+                    p.endDate,
+                    p.budget || "",
+                    `${p.progress}%`,
+                  ].join(","),
+                );
+              }
+              const a = document.createElement("a");
+              a.href = `data:text/csv;charset=utf-8,${encodeURIComponent(rows.join("\n"))}`;
+              a.download = "projeler.csv";
+              a.click();
+            }}
+          >
+            <Download className="w-3.5 h-3.5" />
+            CSV Dışa Aktar
+          </Button>
+          <Button
+            data-ocid="projects.bulk_delete.delete_button"
+            size="sm"
+            variant="destructive"
+            className="gap-1.5"
+            onClick={() => setConfirmBulkDelete(true)}
+          >
+            <Trash2 className="w-3.5 h-3.5" />
+            Seçilenleri Sil
+          </Button>
+          <button
+            type="button"
+            data-ocid="projects.bulk_action.close_button"
+            onClick={() => setSelectedIds(new Set())}
+            className="ml-1 text-muted-foreground hover:text-foreground"
+          >
+            ✕
+          </button>
+        </div>
+      )}
+
+      <AlertDialog open={confirmBulkDelete} onOpenChange={setConfirmBulkDelete}>
+        <AlertDialogContent
+          data-ocid="projects.bulk_delete.dialog"
+          className="bg-card"
+        >
+          <AlertDialogHeader>
+            <AlertDialogTitle>Projeleri Sil</AlertDialogTitle>
+            <AlertDialogDescription>
+              {selectedIds.size} proje kalıcı olarak silinecek. Bu işlem geri
+              alınamaz.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel data-ocid="projects.bulk_delete.cancel_button">
+              İptal
+            </AlertDialogCancel>
+            <AlertDialogAction
+              data-ocid="projects.bulk_delete.confirm_button"
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => {
+                setProjects(projects.filter((p) => !selectedIds.has(p.id)));
+                setSelectedIds(new Set());
+                setConfirmBulkDelete(false);
+              }}
+            >
+              Sil
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

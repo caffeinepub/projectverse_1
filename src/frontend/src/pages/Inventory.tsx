@@ -1,3 +1,13 @@
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -32,10 +42,12 @@ import {
   AlertTriangle,
   ArrowDown,
   ArrowUp,
+  Download,
   Layers,
   Package,
   Plus,
   Search,
+  Trash2,
   TrendingUp,
 } from "lucide-react";
 import { useEffect, useState } from "react";
@@ -170,6 +182,10 @@ export default function Inventory() {
   });
 
   const [csvInventoryOpen, setCsvInventoryOpen] = useState(false);
+  const [selectedStockIds, setSelectedStockIds] = useState<Set<string>>(
+    new Set(),
+  );
+  const [confirmBulkDeleteStock, setConfirmBulkDeleteStock] = useState(false);
   if (!canView) return <AccessDenied />;
 
   const filteredStock = stockItems.filter((s) => {
@@ -641,78 +657,99 @@ export default function Inventory() {
                       )
                     : 0;
                 return (
-                  <Card
-                    key={item.id}
-                    data-ocid={`inventory.stock.card.${globalIdx}`}
-                    className={`bg-card border-border transition-colors ${
-                      item.status === "Kritik"
-                        ? "border-amber-500/40"
-                        : item.status === "Tükendi"
-                          ? "border-rose-500/50"
-                          : ""
-                    }`}
-                  >
-                    <CardHeader className="pb-2">
-                      <div className="flex items-start justify-between">
-                        <div className="flex-1 min-w-0">
-                          <CardTitle className="text-base truncate">
-                            {item.name}
-                          </CardTitle>
-                          <p className="text-xs text-muted-foreground mt-0.5">
-                            {item.project}
+                  <div key={item.id} className="relative group/scard">
+                    <input
+                      type="checkbox"
+                      data-ocid={`inventory.stock.checkbox.${globalIdx}`}
+                      className="absolute top-3 left-3 z-10 w-4 h-4 accent-amber-500 opacity-0 group-hover/scard:opacity-100 transition-opacity"
+                      checked={selectedStockIds.has(item.id)}
+                      onChange={(e) => {
+                        setSelectedStockIds((prev) => {
+                          const next = new Set(prev);
+                          e.target.checked
+                            ? next.add(item.id)
+                            : next.delete(item.id);
+                          return next;
+                        });
+                      }}
+                      style={{
+                        opacity: selectedStockIds.has(item.id) ? 1 : undefined,
+                      }}
+                    />
+                    <Card
+                      data-ocid={`inventory.stock.card.${globalIdx}`}
+                      className={`bg-card border-border transition-colors ${
+                        selectedStockIds.has(item.id)
+                          ? "border-amber-500/50 bg-amber-500/5"
+                          : item.status === "Kritik"
+                            ? "border-amber-500/40"
+                            : item.status === "Tükendi"
+                              ? "border-rose-500/50"
+                              : ""
+                      }`}
+                    >
+                      <CardHeader className="pb-2">
+                        <div className="flex items-start justify-between">
+                          <div className="flex-1 min-w-0">
+                            <CardTitle className="text-base truncate">
+                              {item.name}
+                            </CardTitle>
+                            <p className="text-xs text-muted-foreground mt-0.5">
+                              {item.project}
+                            </p>
+                          </div>
+                          <Badge
+                            variant="outline"
+                            className={`text-xs flex-shrink-0 ml-2 ${statusColors[item.status]}`}
+                          >
+                            {item.status}
+                          </Badge>
+                        </div>
+                      </CardHeader>
+                      <CardContent className="space-y-3">
+                        <div className="flex items-end justify-between">
+                          <div>
+                            <span className="text-2xl font-bold">
+                              {item.quantity}
+                            </span>
+                            <span className="text-sm text-muted-foreground ml-1">
+                              {item.unit}
+                            </span>
+                          </div>
+                          <p className="text-xs text-muted-foreground">
+                            Eşik: {item.threshold} {item.unit}
                           </p>
                         </div>
-                        <Badge
-                          variant="outline"
-                          className={`text-xs flex-shrink-0 ml-2 ${statusColors[item.status]}`}
-                        >
-                          {item.status}
-                        </Badge>
-                      </div>
-                    </CardHeader>
-                    <CardContent className="space-y-3">
-                      <div className="flex items-end justify-between">
-                        <div>
-                          <span className="text-2xl font-bold">
-                            {item.quantity}
-                          </span>
-                          <span className="text-sm text-muted-foreground ml-1">
-                            {item.unit}
-                          </span>
+                        <Progress
+                          value={fillPct}
+                          className={`h-2 ${
+                            item.status === "Tükendi"
+                              ? "[&>div]:bg-rose-500"
+                              : item.status === "Kritik"
+                                ? "[&>div]:bg-amber-500"
+                                : "[&>div]:bg-emerald-500"
+                          }`}
+                        />
+                        <div className="flex items-center justify-between">
+                          <p className="text-xs text-muted-foreground">
+                            Birim Değer: ₺{item.value.toLocaleString("tr-TR")}
+                          </p>
+                          {canEdit && (
+                            <Button
+                              data-ocid={`inventory.movement.secondary_button.${globalIdx}`}
+                              size="sm"
+                              variant="outline"
+                              className="h-7 text-xs border-border hover:bg-muted/30"
+                              onClick={() => openMovementDialog(item.id)}
+                            >
+                              <Plus className="w-3 h-3 mr-1" />
+                              Hareket Ekle
+                            </Button>
+                          )}
                         </div>
-                        <p className="text-xs text-muted-foreground">
-                          Eşik: {item.threshold} {item.unit}
-                        </p>
-                      </div>
-                      <Progress
-                        value={fillPct}
-                        className={`h-2 ${
-                          item.status === "Tükendi"
-                            ? "[&>div]:bg-rose-500"
-                            : item.status === "Kritik"
-                              ? "[&>div]:bg-amber-500"
-                              : "[&>div]:bg-emerald-500"
-                        }`}
-                      />
-                      <div className="flex items-center justify-between">
-                        <p className="text-xs text-muted-foreground">
-                          Birim Değer: ₺{item.value.toLocaleString("tr-TR")}
-                        </p>
-                        {canEdit && (
-                          <Button
-                            data-ocid={`inventory.movement.secondary_button.${globalIdx}`}
-                            size="sm"
-                            variant="outline"
-                            className="h-7 text-xs border-border hover:bg-muted/30"
-                            onClick={() => openMovementDialog(item.id)}
-                          >
-                            <Plus className="w-3 h-3 mr-1" />
-                            Hareket Ekle
-                          </Button>
-                        )}
-                      </div>
-                    </CardContent>
-                  </Card>
+                      </CardContent>
+                    </Card>
+                  </div>
                 );
               })}
             </div>
@@ -1338,6 +1375,105 @@ export default function Inventory() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Floating Bulk Action Bar */}
+      {selectedStockIds.size > 0 && (
+        <div
+          data-ocid="inventory.bulk_action.panel"
+          className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 px-4 py-3 rounded-2xl shadow-2xl border border-amber-500/40 bg-card/95 backdrop-blur-md"
+        >
+          <span className="text-sm font-medium text-amber-400 mr-1">
+            {selectedStockIds.size} kayıt seçildi
+          </span>
+          <Button
+            data-ocid="inventory.bulk_export.button"
+            size="sm"
+            variant="outline"
+            className="border-border text-muted-foreground hover:text-foreground gap-1.5"
+            onClick={() => {
+              const selected = stockItems.filter((s) =>
+                selectedStockIds.has(s.id),
+              );
+              const rows = [
+                ["Malzeme", "Proje", "Miktar", "Birim", "Değer", "Durum"].join(
+                  ",",
+                ),
+              ];
+              for (const s of selected)
+                rows.push(
+                  [
+                    s.name,
+                    s.project,
+                    s.quantity,
+                    s.unit,
+                    s.value,
+                    s.status,
+                  ].join(","),
+                );
+              const a = document.createElement("a");
+              a.href = `data:text/csv;charset=utf-8,${encodeURIComponent(rows.join("\n"))}`;
+              a.download = "envanter.csv";
+              a.click();
+            }}
+          >
+            <Download className="w-3.5 h-3.5" />
+            CSV Dışa Aktar
+          </Button>
+          <Button
+            data-ocid="inventory.bulk_delete.delete_button"
+            size="sm"
+            variant="destructive"
+            className="gap-1.5"
+            onClick={() => setConfirmBulkDeleteStock(true)}
+          >
+            <Trash2 className="w-3.5 h-3.5" />
+            Seçilenleri Sil
+          </Button>
+          <button
+            type="button"
+            data-ocid="inventory.bulk_action.close_button"
+            onClick={() => setSelectedStockIds(new Set())}
+            className="ml-1 text-muted-foreground hover:text-foreground"
+          >
+            ✕
+          </button>
+        </div>
+      )}
+
+      <AlertDialog
+        open={confirmBulkDeleteStock}
+        onOpenChange={setConfirmBulkDeleteStock}
+      >
+        <AlertDialogContent
+          data-ocid="inventory.bulk_delete.dialog"
+          className="bg-card"
+        >
+          <AlertDialogHeader>
+            <AlertDialogTitle>Stok Kalemlerini Sil</AlertDialogTitle>
+            <AlertDialogDescription>
+              {selectedStockIds.size} stok kalemi kalıcı olarak silinecek.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel data-ocid="inventory.bulk_delete.cancel_button">
+              İptal
+            </AlertDialogCancel>
+            <AlertDialogAction
+              data-ocid="inventory.bulk_delete.confirm_button"
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => {
+                setStockItems(
+                  stockItems.filter((s) => !selectedStockIds.has(s.id)),
+                );
+                setSelectedStockIds(new Set());
+                setConfirmBulkDeleteStock(false);
+              }}
+            >
+              Sil
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

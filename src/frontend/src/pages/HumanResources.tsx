@@ -1,3 +1,13 @@
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -37,6 +47,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Clock,
+  Download,
   FileText,
   Paperclip,
   Pencil,
@@ -1410,6 +1421,11 @@ export default function HumanResources() {
   const [selectedPersonnel, setSelectedPersonnel] = useState<Personnel | null>(
     null,
   );
+  const [selectedPersonnelIds, setSelectedPersonnelIds] = useState<Set<string>>(
+    new Set(),
+  );
+  const [confirmBulkDeletePersonnel, setConfirmBulkDeletePersonnel] =
+    useState(false);
 
   // Personnel docs
   const [personnelDocs, setPersonnelDocs] = useState<
@@ -1987,105 +2003,128 @@ export default function HumanResources() {
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
               {filteredPersonnel.map((person, idx) => (
-                <Card
-                  key={person.id}
-                  data-ocid={`hr.personnel.item.${idx + 1}`}
-                  className="bg-card border-border hover:border-primary/30 transition-colors cursor-pointer"
-                  onClick={() => setSelectedPersonnel(person)}
-                >
-                  <CardHeader className="pb-3">
-                    <div className="flex items-start gap-3">
-                      <Avatar className="h-10 w-10">
-                        <AvatarFallback
-                          style={{
-                            backgroundColor: `${person.color}22`,
-                            color: person.color,
-                          }}
-                          className="text-sm font-bold"
-                        >
-                          {person.initials}
-                        </AvatarFallback>
-                      </Avatar>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center justify-between gap-2">
-                          <CardTitle className="text-sm font-semibold">
-                            {person.name}
-                          </CardTitle>
-                          <Badge
-                            variant="outline"
-                            className={`text-xs ${
-                              person.status === "Aktif"
-                                ? "bg-emerald-500/15 text-emerald-400 border-emerald-500/30"
-                                : "bg-muted/20 text-muted-foreground border-border"
-                            }`}
+                <div key={person.id} className="relative group/pcard">
+                  <input
+                    type="checkbox"
+                    data-ocid={`hr.personnel.checkbox.${idx + 1}`}
+                    className="absolute top-3 left-3 z-10 w-4 h-4 accent-amber-500 opacity-0 group-hover/pcard:opacity-100 transition-opacity"
+                    checked={selectedPersonnelIds.has(person.id)}
+                    onChange={(e) => {
+                      e.stopPropagation();
+                      setSelectedPersonnelIds((prev) => {
+                        const next = new Set(prev);
+                        e.target.checked
+                          ? next.add(person.id)
+                          : next.delete(person.id);
+                        return next;
+                      });
+                    }}
+                    onClick={(e) => e.stopPropagation()}
+                    style={{
+                      opacity: selectedPersonnelIds.has(person.id)
+                        ? 1
+                        : undefined,
+                    }}
+                  />
+                  <Card
+                    data-ocid={`hr.personnel.item.${idx + 1}`}
+                    className={`bg-card border-border hover:border-primary/30 transition-colors cursor-pointer ${selectedPersonnelIds.has(person.id) ? "border-amber-500/50 bg-amber-500/5" : ""}`}
+                    onClick={() => setSelectedPersonnel(person)}
+                  >
+                    <CardHeader className="pb-3">
+                      <div className="flex items-start gap-3">
+                        <Avatar className="h-10 w-10">
+                          <AvatarFallback
+                            style={{
+                              backgroundColor: `${person.color}22`,
+                              color: person.color,
+                            }}
+                            className="text-sm font-bold"
                           >
-                            {person.status}
-                          </Badge>
+                            {person.initials}
+                          </AvatarFallback>
+                        </Avatar>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center justify-between gap-2">
+                            <CardTitle className="text-sm font-semibold">
+                              {person.name}
+                            </CardTitle>
+                            <Badge
+                              variant="outline"
+                              className={`text-xs ${
+                                person.status === "Aktif"
+                                  ? "bg-emerald-500/15 text-emerald-400 border-emerald-500/30"
+                                  : "bg-muted/20 text-muted-foreground border-border"
+                              }`}
+                            >
+                              {person.status}
+                            </Badge>
+                          </div>
+                          <p className="text-xs text-muted-foreground mt-0.5">
+                            {person.role}
+                          </p>
                         </div>
-                        <p className="text-xs text-muted-foreground mt-0.5">
-                          {person.role}
-                        </p>
                       </div>
-                    </div>
-                  </CardHeader>
-                  <CardContent className="space-y-2">
-                    <Badge
-                      variant="outline"
-                      className={`text-xs ${getDeptColor(person.department)}`}
-                    >
-                      {person.department}
-                    </Badge>
-                    {person.phone && (
-                      <p className="text-xs text-muted-foreground">
-                        {person.phone}
-                      </p>
-                    )}
-                    {person.email && (
-                      <p className="text-xs text-muted-foreground truncate">
-                        {person.email}
-                      </p>
-                    )}
-                    <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                      <Paperclip className="h-3 w-3" />
-                      <span>
-                        {(personnelDocs[person.id] || []).length} belge
-                      </span>
-                    </div>
-                    {(() => {
-                      const usedLeaveDays = leaves
-                        .filter(
-                          (l) =>
-                            (l.personnelId
-                              ? l.personnelId === person.id
-                              : l.name === person.name) &&
-                            l.status === "Onaylandı",
-                        )
-                        .reduce((sum, l) => {
-                          if (!l.startDate || !l.endDate) return sum + 1;
-                          const s = new Date(l.startDate);
-                          const e = new Date(l.endDate);
-                          return (
-                            sum +
-                            Math.max(
-                              1,
-                              Math.ceil(
-                                (e.getTime() - s.getTime()) / 86400000,
-                              ) + 1,
-                            )
-                          );
-                        }, 0);
-                      const remainingLeave = Math.max(
-                        0,
-                        (person.annualLeaveBalance ?? 20) - usedLeaveDays,
-                      );
-                      return (
-                        <span className="text-xs text-muted-foreground">
-                          İzin: {remainingLeave} gün kaldı
+                    </CardHeader>
+                    <CardContent className="space-y-2">
+                      <Badge
+                        variant="outline"
+                        className={`text-xs ${getDeptColor(person.department)}`}
+                      >
+                        {person.department}
+                      </Badge>
+                      {person.phone && (
+                        <p className="text-xs text-muted-foreground">
+                          {person.phone}
+                        </p>
+                      )}
+                      {person.email && (
+                        <p className="text-xs text-muted-foreground truncate">
+                          {person.email}
+                        </p>
+                      )}
+                      <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                        <Paperclip className="h-3 w-3" />
+                        <span>
+                          {(personnelDocs[person.id] || []).length} belge
                         </span>
-                      );
-                    })()}
-                  </CardContent>
-                </Card>
+                      </div>
+                      {(() => {
+                        const usedLeaveDays = leaves
+                          .filter(
+                            (l) =>
+                              (l.personnelId
+                                ? l.personnelId === person.id
+                                : l.name === person.name) &&
+                              l.status === "Onaylandı",
+                          )
+                          .reduce((sum, l) => {
+                            if (!l.startDate || !l.endDate) return sum + 1;
+                            const s = new Date(l.startDate);
+                            const e = new Date(l.endDate);
+                            return (
+                              sum +
+                              Math.max(
+                                1,
+                                Math.ceil(
+                                  (e.getTime() - s.getTime()) / 86400000,
+                                ) + 1,
+                              )
+                            );
+                          }, 0);
+                        const remainingLeave = Math.max(
+                          0,
+                          (person.annualLeaveBalance ?? 20) - usedLeaveDays,
+                        );
+                        return (
+                          <span className="text-xs text-muted-foreground">
+                            İzin: {remainingLeave} gün kaldı
+                          </span>
+                        );
+                      })()}
+                    </CardContent>
+                  </Card>
+                </div>
               ))}
             </div>
           )}
@@ -3359,6 +3398,99 @@ export default function HumanResources() {
           )}
         </SheetContent>
       </Sheet>
+
+      {/* Floating Bulk Action Bar */}
+      {selectedPersonnelIds.size > 0 && (
+        <div
+          data-ocid="hr.bulk_action.panel"
+          className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 px-4 py-3 rounded-2xl shadow-2xl border border-amber-500/40 bg-card/95 backdrop-blur-md"
+        >
+          <span className="text-sm font-medium text-amber-400 mr-1">
+            {selectedPersonnelIds.size} kayıt seçildi
+          </span>
+          <Button
+            data-ocid="hr.bulk_export.button"
+            size="sm"
+            variant="outline"
+            className="border-border text-muted-foreground hover:text-foreground gap-1.5"
+            onClick={() => {
+              const selected = personnel.filter((p) =>
+                selectedPersonnelIds.has(p.id),
+              );
+              const rows = [
+                ["Ad Soyad", "Görev", "Departman", "Telefon", "Durum"].join(
+                  ",",
+                ),
+              ];
+              for (const p of selected)
+                rows.push(
+                  [p.name, p.role, p.department, p.phone, p.status].join(","),
+                );
+              const a = document.createElement("a");
+              a.href = `data:text/csv;charset=utf-8,${encodeURIComponent(rows.join("\n"))}`;
+              a.download = "personel.csv";
+              a.click();
+            }}
+          >
+            <Download className="w-3.5 h-3.5" />
+            CSV Dışa Aktar
+          </Button>
+          <Button
+            data-ocid="hr.bulk_delete.delete_button"
+            size="sm"
+            variant="destructive"
+            className="gap-1.5"
+            onClick={() => setConfirmBulkDeletePersonnel(true)}
+          >
+            <Trash2 className="w-3.5 h-3.5" />
+            Seçilenleri Sil
+          </Button>
+          <button
+            type="button"
+            data-ocid="hr.bulk_action.close_button"
+            onClick={() => setSelectedPersonnelIds(new Set())}
+            className="ml-1 text-muted-foreground hover:text-foreground"
+          >
+            ✕
+          </button>
+        </div>
+      )}
+
+      <AlertDialog
+        open={confirmBulkDeletePersonnel}
+        onOpenChange={setConfirmBulkDeletePersonnel}
+      >
+        <AlertDialogContent
+          data-ocid="hr.bulk_delete.dialog"
+          className="bg-card"
+        >
+          <AlertDialogHeader>
+            <AlertDialogTitle>Personeli Sil</AlertDialogTitle>
+            <AlertDialogDescription>
+              {selectedPersonnelIds.size} personel kaydı kalıcı olarak
+              silinecek.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel data-ocid="hr.bulk_delete.cancel_button">
+              İptal
+            </AlertDialogCancel>
+            <AlertDialogAction
+              data-ocid="hr.bulk_delete.confirm_button"
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => {
+                setPersonnel(
+                  personnel.filter((p) => !selectedPersonnelIds.has(p.id)),
+                );
+                setSelectedPersonnelIds(new Set());
+                setConfirmBulkDeletePersonnel(false);
+              }}
+            >
+              Sil
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
