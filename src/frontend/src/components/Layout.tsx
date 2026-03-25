@@ -53,6 +53,7 @@ import {
   Package,
   PenTool,
   Scale,
+  Scan,
   Search,
   Settings,
   Shield,
@@ -60,6 +61,7 @@ import {
   ShieldCheck,
   ShoppingCart,
   Siren,
+  Star,
   Target,
   TrendingUp,
   Truck,
@@ -72,6 +74,7 @@ import {
 import { type ReactNode, useEffect, useMemo, useState } from "react";
 import { ROLE_HIERARCHY, useApp } from "../contexts/AppContext";
 import { useIsMobile } from "../hooks/use-mobile";
+import { useFavorites } from "../hooks/useFavorites";
 import { LANGUAGES, type Lang } from "../i18n/translations";
 
 // Maps nav module key to the module id used in permissions
@@ -165,6 +168,7 @@ const NAV_GROUPS: { label: string; keys: string[] }[] = [
       "projectFinancing",
       "vehicleFleet",
       "workflowAutomation",
+      "ocrScanning",
     ],
   },
   {
@@ -224,12 +228,16 @@ function NavList({
   onNavigate,
   sidebarOpen,
   t,
+  isFavorite,
+  onToggleFavorite,
 }: {
   items: NavItem[];
   currentPage: string;
   onNavigate: (page: string) => void;
   sidebarOpen: boolean;
   t: Record<string, string>;
+  isFavorite: (id: string) => boolean;
+  onToggleFavorite: (id: string, name: string, icon: string) => void;
 }) {
   const itemMap = Object.fromEntries(items.map((item) => [item.key, item]));
   return (
@@ -245,30 +253,59 @@ function NavList({
               </p>
             )}
             {groupItems.map((item) => (
-              <button
-                key={item.key}
-                type="button"
-                data-ocid={`sidebar.${item.href}_link`}
-                onClick={() => item.available && onNavigate(item.href)}
-                className={`sidebar-item w-full ${
-                  currentPage === item.href ? "active" : ""
-                } ${!item.available ? "opacity-50 cursor-default" : "cursor-pointer"}`}
-              >
-                <span className="flex-shrink-0">{item.icon}</span>
-                {sidebarOpen && (
-                  <>
-                    <span className="flex-1 text-left">{item.label}</span>
-                    {!item.available && (
-                      <Badge
-                        variant="outline"
-                        className="text-[10px] px-1.5 py-0 border-muted-foreground/30 text-muted-foreground"
-                      >
-                        {t.comingSoon}
-                      </Badge>
-                    )}
-                  </>
+              <div key={item.key} className="group relative flex items-center">
+                <button
+                  type="button"
+                  data-ocid={`sidebar.${item.href}_link`}
+                  onClick={() => item.available && onNavigate(item.href)}
+                  className={`sidebar-item flex-1 ${
+                    currentPage === item.href ? "active" : ""
+                  } ${!item.available ? "opacity-50 cursor-default" : "cursor-pointer"}`}
+                >
+                  <span className="flex-shrink-0">{item.icon}</span>
+                  {sidebarOpen && (
+                    <>
+                      <span className="flex-1 text-left">{item.label}</span>
+                      {!item.available && (
+                        <Badge
+                          variant="outline"
+                          className="text-[10px] px-1.5 py-0 border-muted-foreground/30 text-muted-foreground"
+                        >
+                          {t.comingSoon}
+                        </Badge>
+                      )}
+                    </>
+                  )}
+                </button>
+                {sidebarOpen && item.available && (
+                  <button
+                    type="button"
+                    data-ocid={`sidebar.${item.href}_favorite_toggle`}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onToggleFavorite(item.key, item.label, item.key);
+                    }}
+                    className={[
+                      "absolute right-2 p-0.5 rounded transition-all",
+                      isFavorite(item.key)
+                        ? "opacity-100 text-amber-400"
+                        : "opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-amber-400",
+                    ].join(" ")}
+                    title={
+                      isFavorite(item.key)
+                        ? "Favorilerden çıkar"
+                        : "Favorilere ekle"
+                    }
+                  >
+                    <Star
+                      className={[
+                        "w-3 h-3",
+                        isFavorite(item.key) ? "fill-amber-400" : "",
+                      ].join(" ")}
+                    />
+                  </button>
                 )}
-              </button>
+              </div>
             ))}
           </div>
         );
@@ -1007,10 +1044,23 @@ export default function Layout({
       href: "workflowAutomation",
       available: true,
     },
+    {
+      key: "ocrScanning",
+      icon: <Scan className="w-4 h-4" />,
+      label: "Belge Tarama (OCR)",
+      href: "ocrScanning",
+      available: true,
+    },
   ];
 
   // Filter nav items by permission for non-owners
   const visibleNavItems = navItems.filter((item) => canViewModule(item.key));
+
+  // Favorites
+  const { isFavorite, toggleFavorite } = useFavorites(
+    currentCompany?.id,
+    user?.id,
+  );
 
   const initials =
     user?.name
@@ -1110,6 +1160,8 @@ export default function Layout({
           }}
           sidebarOpen={true}
           t={t as unknown as Record<string, string>}
+          isFavorite={isFavorite}
+          onToggleFavorite={toggleFavorite}
         />
       </nav>
 
@@ -1221,6 +1273,8 @@ export default function Layout({
               onNavigate={onNavigate}
               sidebarOpen={sidebarOpen}
               t={t as unknown as Record<string, string>}
+              isFavorite={isFavorite}
+              onToggleFavorite={toggleFavorite}
             />
           </nav>
 

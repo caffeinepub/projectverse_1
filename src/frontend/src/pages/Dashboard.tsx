@@ -24,6 +24,7 @@ import {
   HardHat,
   Plus,
   Settings2,
+  Star,
   TrendingDown,
   TrendingUp,
   UserPlus,
@@ -45,6 +46,7 @@ import {
 import AccessDenied from "../components/AccessDenied";
 import EmptyState from "../components/EmptyState";
 import { useApp } from "../contexts/AppContext";
+import { useFavorites } from "../hooks/useFavorites";
 
 const WIDGET_LABELS: Record<string, string> = {
   kpi_projects: "Proje Özeti",
@@ -94,6 +96,8 @@ export default function Dashboard() {
   } = useApp();
 
   const navigate = useNavigate();
+
+  const { favorites } = useFavorites(currentCompany?.id, user?.id);
 
   const widgetStorageKey = `dashboardWidgets_${currentCompany?.id || "default"}_${user?.id || "default"}`;
   const roleDefault =
@@ -437,6 +441,40 @@ export default function Dashboard() {
           >
             <UserPlus className="w-4 h-4" /> Personel Davet
           </Button>
+        </div>
+      )}
+
+      {/* Hizli Erisim - Favori Moduller */}
+      {favorites.length > 0 && (
+        <div>
+          <div className="flex items-center gap-2 mb-3">
+            <Star className="w-4 h-4 text-amber-400 fill-amber-400" />
+            <h2 className="text-sm font-semibold text-foreground">
+              Hizli Erisim
+            </h2>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {favorites.map((fav) => (
+              <button
+                key={fav.id}
+                type="button"
+                data-ocid={`dashboard.favorite_${fav.id}_button`}
+                onClick={() => navigate({ to: `/${fav.id}` })}
+                className="flex items-center gap-2 px-3 py-2 rounded-lg border border-amber-500/30 bg-amber-500/5 hover:bg-amber-500/10 hover:border-amber-500/50 transition-all text-sm text-foreground"
+              >
+                <Star className="w-3 h-3 text-amber-400 fill-amber-400" />
+                <span>{fav.name}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+      {favorites.length === 0 && (
+        <div className="flex items-center gap-2 px-3 py-2 rounded-lg border border-dashed border-border text-muted-foreground text-xs">
+          <Star className="w-3.5 h-3.5" />
+          <span>
+            Sik kullandiginiz modulleri yildizlayarak buraya ekleyebilirsiniz
+          </span>
         </div>
       )}
 

@@ -46,6 +46,7 @@ import LocationMap from "./pages/LocationMap";
 import Login from "./pages/Login";
 import MaterialRequests from "./pages/MaterialRequests";
 import Meetings from "./pages/Meetings";
+import OcrScanning from "./pages/OcrScanning";
 import PendingApproval from "./pages/PendingApproval";
 import Permits from "./pages/Permits";
 import PortfolioManagement from "./pages/PortfolioManagement";
@@ -146,7 +147,8 @@ type AppPage =
   | "legalCorrespondence"
   | "locationMap"
   | "workflowAutomation"
-  | "customerPortal";
+  | "customerPortal"
+  | "ocrScanning";
 
 function Inner() {
   const {
@@ -328,6 +330,7 @@ function Inner() {
     else if (p === "locationMap") setPage("locationMap");
     else if (p === "workflowAutomation") setPage("workflowAutomation");
     else if (p === "customerPortal") setPage("customerPortal");
+    else if (p === "ocrScanning") setPage("ocrScanning");
     else setPage(p as AppPage);
   };
 
@@ -441,6 +444,7 @@ function Inner() {
       {page === "locationMap" && <LocationMap />}
       {page === "workflowAutomation" && <WorkflowAutomation />}
       {page === "customerPortal" && <CustomerPortal />}
+      {page === "ocrScanning" && <OcrScanning />}
     </Layout>
   );
 }
