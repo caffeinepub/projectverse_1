@@ -880,6 +880,8 @@ export default function Reporting() {
           { id: "sevkiyat", label: "Sevkiyat" },
           { id: "sahaGuvenlik", label: "Saha Güvenlik" },
           { id: "maliyetDetay", label: "Maliyet Analizi" },
+          { id: "finansman", label: "Finansman & Teminat" },
+          { id: "aracFilosu", label: "Araç Filosu" },
         ].map((tab) => (
           <button
             type="button"
@@ -3635,6 +3637,325 @@ export default function Reporting() {
       {activeTab === "maliyetDetay" && (
         <MaliyetAnaliziTab companyId={activeCompanyId || ""} />
       )}
+
+      {activeTab === "finansman" &&
+        (() => {
+          const daysUntilFin = (d: string) => {
+            if (!d) return 999;
+            const diff = new Date(d).getTime() - Date.now();
+            return Math.ceil(diff / 86400000);
+          };
+          const finRecords: Array<{
+            id: string;
+            tur: string;
+            tutar: string;
+            verenBanka: string;
+            baslangicTarihi: string;
+            bitisTarihi: string;
+            proje: string;
+            durum: string;
+            aciklama: string;
+          }> = (() => {
+            try {
+              return JSON.parse(
+                localStorage.getItem(
+                  `pv_project_financing_${activeCompanyId}`,
+                ) || "[]",
+              );
+            } catch {
+              return [];
+            }
+          })();
+          const finTotalAmount = finRecords.reduce(
+            (s, r) => s + (Number.parseFloat(r.tutar) || 0),
+            0,
+          );
+          const finActiveCount = finRecords.filter(
+            (r) => r.durum === "Aktif",
+          ).length;
+          const finExpiringCount = finRecords.filter(
+            (r) =>
+              daysUntilFin(r.bitisTarihi) <= 30 &&
+              daysUntilFin(r.bitisTarihi) >= 0,
+          ).length;
+          return (
+            <>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+                {[
+                  {
+                    label: "Toplam Kayıt",
+                    value: finRecords.length,
+                    color: "text-amber-400",
+                  },
+                  {
+                    label: "Toplam Tutar",
+                    value: `${finTotalAmount.toLocaleString("tr-TR", { minimumFractionDigits: 0 })} ₺`,
+                    color: "text-green-400",
+                  },
+                  {
+                    label: "Aktif",
+                    value: finActiveCount,
+                    color: "text-blue-400",
+                  },
+                  {
+                    label: "30 Gün İçinde Biten",
+                    value: finExpiringCount,
+                    color: "text-red-400",
+                  },
+                ].map((kpi) => (
+                  <Card key={kpi.label} className="bg-card/50 border-border/50">
+                    <CardContent className="p-4">
+                      <p className="text-xs text-muted-foreground">
+                        {kpi.label}
+                      </p>
+                      <p className={`text-2xl font-bold mt-1 ${kpi.color}`}>
+                        {kpi.value}
+                      </p>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+              <Card className="bg-card/50 border-border/50">
+                <CardHeader>
+                  <CardTitle className="text-base text-foreground">
+                    Finansman & Teminat Kayıtları
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {finRecords.length === 0 ? (
+                    <div
+                      data-ocid="finansman.empty_state"
+                      className="text-center py-12 text-muted-foreground"
+                    >
+                      Henüz kayıt yok
+                    </div>
+                  ) : (
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-sm">
+                        <thead>
+                          <tr className="border-b border-border/50 text-muted-foreground">
+                            <th className="text-left py-2 px-3">Tür</th>
+                            <th className="text-left py-2 px-3">Proje</th>
+                            <th className="text-left py-2 px-3">Banka</th>
+                            <th className="text-right py-2 px-3">Tutar (₺)</th>
+                            <th className="text-left py-2 px-3">
+                              Bitiş Tarihi
+                            </th>
+                            <th className="text-left py-2 px-3">Durum</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {finRecords.map((r, i) => {
+                            const expiring =
+                              daysUntilFin(r.bitisTarihi) <= 30 &&
+                              daysUntilFin(r.bitisTarihi) >= 0;
+                            return (
+                              <tr
+                                key={r.id}
+                                data-ocid={`finansman.item.${i + 1}`}
+                                className={`border-b border-border/30 hover:bg-accent/30 ${expiring ? "bg-amber-500/10" : ""}`}
+                              >
+                                <td className="py-2 px-3 text-foreground">
+                                  {r.tur}
+                                </td>
+                                <td className="py-2 px-3 text-muted-foreground">
+                                  {r.proje || "-"}
+                                </td>
+                                <td className="py-2 px-3 text-muted-foreground">
+                                  {r.verenBanka || "-"}
+                                </td>
+                                <td className="py-2 px-3 text-right text-foreground">
+                                  {Number.parseFloat(
+                                    r.tutar || "0",
+                                  ).toLocaleString("tr-TR")}
+                                </td>
+                                <td
+                                  className={`py-2 px-3 ${expiring ? "text-amber-400 font-medium" : "text-muted-foreground"}`}
+                                >
+                                  {r.bitisTarihi || "-"}
+                                </td>
+                                <td className="py-2 px-3">
+                                  <span
+                                    className={`px-2 py-0.5 rounded-full text-xs font-medium ${r.durum === "Aktif" ? "bg-green-500/20 text-green-400" : r.durum === "Tamamlandı" ? "bg-blue-500/20 text-blue-400" : "bg-gray-500/20 text-gray-400"}`}
+                                  >
+                                    {r.durum}
+                                  </span>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </>
+          );
+        })()}
+
+      {activeTab === "aracFilosu" &&
+        (() => {
+          const daysUntilVeh = (d: string) => {
+            if (!d) return 999;
+            const diff = new Date(d).getTime() - Date.now();
+            return Math.ceil(diff / 86400000);
+          };
+          const vehicles: Array<{
+            id: string;
+            plaka: string;
+            marka: string;
+            model: string;
+            yil: string;
+            aracTipi: string;
+            surucu: string;
+            muayeneBitis: string;
+            kaskoBitis: string;
+            trafikSigortaBitis: string;
+            yakitTipi: string;
+            durum: string;
+            notlar: string;
+          }> = (() => {
+            try {
+              return JSON.parse(
+                localStorage.getItem(`pv_vehicle_fleet_${activeCompanyId}`) ||
+                  "[]",
+              );
+            } catch {
+              return [];
+            }
+          })();
+          const vehActiveCount = vehicles.filter(
+            (v) => v.durum === "Aktif",
+          ).length;
+          const vehMaintenanceCount = vehicles.filter(
+            (v) => v.durum === "Bakımda",
+          ).length;
+          const vehMuayeneExpiring = vehicles.filter(
+            (v) =>
+              daysUntilVeh(v.muayeneBitis) <= 30 &&
+              daysUntilVeh(v.muayeneBitis) >= 0,
+          ).length;
+          return (
+            <>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+                {[
+                  {
+                    label: "Toplam Araç",
+                    value: vehicles.length,
+                    color: "text-amber-400",
+                  },
+                  {
+                    label: "Aktif",
+                    value: vehActiveCount,
+                    color: "text-green-400",
+                  },
+                  {
+                    label: "Muayene Yaklaşan (30g)",
+                    value: vehMuayeneExpiring,
+                    color: "text-orange-400",
+                  },
+                  {
+                    label: "Bakımda",
+                    value: vehMaintenanceCount,
+                    color: "text-blue-400",
+                  },
+                ].map((kpi) => (
+                  <Card key={kpi.label} className="bg-card/50 border-border/50">
+                    <CardContent className="p-4">
+                      <p className="text-xs text-muted-foreground">
+                        {kpi.label}
+                      </p>
+                      <p className={`text-2xl font-bold mt-1 ${kpi.color}`}>
+                        {kpi.value}
+                      </p>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+              <Card className="bg-card/50 border-border/50">
+                <CardHeader>
+                  <CardTitle className="text-base text-foreground">
+                    Araç Filosu
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {vehicles.length === 0 ? (
+                    <div
+                      data-ocid="aracFilosu.empty_state"
+                      className="text-center py-12 text-muted-foreground"
+                    >
+                      Henüz araç kaydı yok
+                    </div>
+                  ) : (
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-sm">
+                        <thead>
+                          <tr className="border-b border-border/50 text-muted-foreground">
+                            <th className="text-left py-2 px-3">Plaka</th>
+                            <th className="text-left py-2 px-3">
+                              Marka / Model
+                            </th>
+                            <th className="text-left py-2 px-3">Tür</th>
+                            <th className="text-left py-2 px-3">Sürücü</th>
+                            <th className="text-left py-2 px-3">
+                              Muayene Bitiş
+                            </th>
+                            <th className="text-left py-2 px-3">Kasko Bitiş</th>
+                            <th className="text-left py-2 px-3">Durum</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {vehicles.map((v, i) => {
+                            const muayeneWarn =
+                              daysUntilVeh(v.muayeneBitis) <= 30 &&
+                              daysUntilVeh(v.muayeneBitis) >= 0;
+                            return (
+                              <tr
+                                key={v.id}
+                                data-ocid={`aracFilosu.item.${i + 1}`}
+                                className="border-b border-border/30 hover:bg-accent/30"
+                              >
+                                <td className="py-2 px-3 font-medium text-amber-400">
+                                  {v.plaka}
+                                </td>
+                                <td className="py-2 px-3 text-foreground">
+                                  {v.marka} {v.model}{" "}
+                                  {v.yil ? `(${v.yil})` : ""}
+                                </td>
+                                <td className="py-2 px-3 text-muted-foreground">
+                                  {v.aracTipi || "-"}
+                                </td>
+                                <td className="py-2 px-3 text-muted-foreground">
+                                  {v.surucu || "-"}
+                                </td>
+                                <td
+                                  className={`py-2 px-3 ${muayeneWarn ? "text-amber-400 font-medium" : "text-muted-foreground"}`}
+                                >
+                                  {v.muayeneBitis || "-"}
+                                </td>
+                                <td className="py-2 px-3 text-muted-foreground">
+                                  {v.kaskoBitis || "-"}
+                                </td>
+                                <td className="py-2 px-3">
+                                  <span
+                                    className={`px-2 py-0.5 rounded-full text-xs font-medium ${v.durum === "Aktif" ? "bg-green-500/20 text-green-400" : v.durum === "Bakımda" ? "bg-blue-500/20 text-blue-400" : v.durum === "Pasif" ? "bg-gray-500/20 text-gray-400" : "bg-red-500/20 text-red-400"}`}
+                                  >
+                                    {v.durum}
+                                  </span>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </>
+          );
+        })()}
     </div>
   );
 }

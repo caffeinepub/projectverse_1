@@ -11,6 +11,7 @@ import {
 } from "./contexts/AppContext";
 import AccountTypeSelect from "./pages/AccountTypeSelect";
 import ApprovalWorkflows from "./pages/ApprovalWorkflows";
+import BIAnalytics from "./pages/BIAnalytics";
 import BankAccounts from "./pages/BankAccounts";
 import BoQLibrary from "./pages/BoQLibrary";
 import CRM from "./pages/CRM";
@@ -20,10 +21,13 @@ import CompanySelect from "./pages/CompanySelect";
 import CompanySettings from "./pages/CompanySettings";
 import Contracts from "./pages/Contracts";
 import Correspondence from "./pages/Correspondence";
+import CostControl from "./pages/CostControl";
 import DLP from "./pages/DLP";
 import Dashboard from "./pages/Dashboard";
 import Documents from "./pages/Documents";
 import Drawings from "./pages/Drawings";
+import EmergencyPlan from "./pages/EmergencyPlan";
+import EmployeeSurveys from "./pages/EmployeeSurveys";
 import EnvironmentalManagement from "./pages/EnvironmentalManagement";
 import Equipment from "./pages/Equipment";
 import FieldOps from "./pages/FieldOps";
@@ -36,18 +40,22 @@ import Inventory from "./pages/Inventory";
 import InviteJoin from "./pages/InviteJoin";
 import KPITargets from "./pages/KPITargets";
 import LanguageSelect from "./pages/LanguageSelect";
+import LegalCorrespondence from "./pages/LegalCorrespondence";
 import Login from "./pages/Login";
 import MaterialRequests from "./pages/MaterialRequests";
 import Meetings from "./pages/Meetings";
 import PendingApproval from "./pages/PendingApproval";
 import Permits from "./pages/Permits";
+import PortfolioManagement from "./pages/PortfolioManagement";
 import Profile from "./pages/Profile";
 import ProjectDetail from "./pages/ProjectDetail";
+import ProjectFinancing from "./pages/ProjectFinancing";
 import ProjectHub from "./pages/ProjectHub";
 import ProjectTemplates from "./pages/ProjectTemplates";
 import Projects from "./pages/Projects";
 import PunchList from "./pages/PunchList";
 import Purchasing from "./pages/Purchasing";
+import QualityManual from "./pages/QualityManual";
 import QualitySafety from "./pages/QualitySafety";
 import Quotes from "./pages/Quotes";
 import Reporting from "./pages/Reporting";
@@ -58,10 +66,13 @@ import RoleSettings from "./pages/RoleSettings";
 import SelfService from "./pages/SelfService";
 import Shipments from "./pages/Shipments";
 import SiteAccess from "./pages/SiteAccess";
+import SiteAlarms from "./pages/SiteAlarms";
 import SiteLog from "./pages/SiteLog";
 import SitePhotos from "./pages/SitePhotos";
 import SubcontractorManagement from "./pages/SubcontractorManagement";
+import SupplyChainAnalysis from "./pages/SupplyChainAnalysis";
 import Timesheet from "./pages/Timesheet";
+import VehicleFleet from "./pages/VehicleFleet";
 
 type Screen =
   | "lang"
@@ -118,7 +129,18 @@ type AppPage =
   | "bankAccounts"
   | "siteAccess"
   | "shipments"
-  | "environmentalManagement";
+  | "environmentalManagement"
+  | "portfolioManagement"
+  | "qualityManual"
+  | "emergencyPlan"
+  | "employeeSurveys"
+  | "supplyChainAnalysis"
+  | "costControl"
+  | "projectFinancing"
+  | "vehicleFleet"
+  | "biAnalytics"
+  | "siteAlarms"
+  | "legalCorrespondence";
 
 function Inner() {
   const {
@@ -286,6 +308,17 @@ function Inner() {
     else if (p === "shipments") setPage("shipments");
     else if (p === "environmentalManagement")
       setPage("environmentalManagement");
+    else if (p === "portfolioManagement") setPage("portfolioManagement");
+    else if (p === "qualityManual") setPage("qualityManual");
+    else if (p === "emergencyPlan") setPage("emergencyPlan");
+    else if (p === "employeeSurveys") setPage("employeeSurveys");
+    else if (p === "supplyChainAnalysis") setPage("supplyChainAnalysis");
+    else if (p === "costControl") setPage("costControl");
+    else if (p === "projectFinancing") setPage("projectFinancing");
+    else if (p === "vehicleFleet") setPage("vehicleFleet");
+    else if (p === "biAnalytics") setPage("biAnalytics");
+    else if (p === "siteAlarms") setPage("siteAlarms");
+    else if (p === "legalCorrespondence") setPage("legalCorrespondence");
     else setPage(p as AppPage);
   };
 
@@ -385,6 +418,17 @@ function Inner() {
       {page === "siteAccess" && <SiteAccess />}
       {page === "shipments" && <Shipments />}
       {page === "environmentalManagement" && <EnvironmentalManagement />}
+      {page === "portfolioManagement" && <PortfolioManagement />}
+      {page === "qualityManual" && <QualityManual />}
+      {page === "emergencyPlan" && <EmergencyPlan />}
+      {page === "employeeSurveys" && <EmployeeSurveys />}
+      {page === "supplyChainAnalysis" && <SupplyChainAnalysis />}
+      {page === "costControl" && <CostControl />}
+      {page === "projectFinancing" && <ProjectFinancing />}
+      {page === "vehicleFleet" && <VehicleFleet />}
+      {page === "biAnalytics" && <BIAnalytics />}
+      {page === "siteAlarms" && <SiteAlarms />}
+      {page === "legalCorrespondence" && <LegalCorrespondence />}
     </Layout>
   );
 }

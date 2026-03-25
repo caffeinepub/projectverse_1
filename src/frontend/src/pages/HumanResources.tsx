@@ -67,6 +67,7 @@ import type {
 import { useApp } from "../contexts/AppContext";
 import AttendanceDailyTab from "./tabs/AttendanceDailyTab";
 import CSVImportModal from "./tabs/CSVImportModal";
+import CareerPlanTab from "./tabs/CareerPlanTab";
 import PerformanceReview from "./tabs/PerformanceReview";
 import RecruitmentTab from "./tabs/RecruitmentTab";
 
@@ -1736,6 +1737,13 @@ export default function HumanResources() {
           >
             Eğitim Matrisi
           </TabsTrigger>
+          <TabsTrigger
+            data-ocid="hr.career_plan.tab"
+            value="career_plan"
+            className="text-xs md:text-sm"
+          >
+            Kariyer Planu0131
+          </TabsTrigger>
         </TabsList>
 
         {/* ─── PERSONNEL TAB ─── */}
@@ -3057,6 +3065,9 @@ export default function HumanResources() {
         </TabsContent>
         <TabsContent value="training_matrix" className="mt-4">
           <TrainingMatrixTab companyId={activeCompanyId || ""} />
+        </TabsContent>
+        <TabsContent value="career_plan" className="mt-4">
+          <CareerPlanTab />
         </TabsContent>
       </Tabs>
 
