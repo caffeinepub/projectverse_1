@@ -22,6 +22,7 @@ import CompanySettings from "./pages/CompanySettings";
 import Contracts from "./pages/Contracts";
 import Correspondence from "./pages/Correspondence";
 import CostControl from "./pages/CostControl";
+import CustomerPortal from "./pages/CustomerPortal";
 import DLP from "./pages/DLP";
 import Dashboard from "./pages/Dashboard";
 import Documents from "./pages/Documents";
@@ -41,6 +42,7 @@ import InviteJoin from "./pages/InviteJoin";
 import KPITargets from "./pages/KPITargets";
 import LanguageSelect from "./pages/LanguageSelect";
 import LegalCorrespondence from "./pages/LegalCorrespondence";
+import LocationMap from "./pages/LocationMap";
 import Login from "./pages/Login";
 import MaterialRequests from "./pages/MaterialRequests";
 import Meetings from "./pages/Meetings";
@@ -73,6 +75,7 @@ import SubcontractorManagement from "./pages/SubcontractorManagement";
 import SupplyChainAnalysis from "./pages/SupplyChainAnalysis";
 import Timesheet from "./pages/Timesheet";
 import VehicleFleet from "./pages/VehicleFleet";
+import WorkflowAutomation from "./pages/WorkflowAutomation";
 
 type Screen =
   | "lang"
@@ -140,7 +143,10 @@ type AppPage =
   | "vehicleFleet"
   | "biAnalytics"
   | "siteAlarms"
-  | "legalCorrespondence";
+  | "legalCorrespondence"
+  | "locationMap"
+  | "workflowAutomation"
+  | "customerPortal";
 
 function Inner() {
   const {
@@ -319,6 +325,9 @@ function Inner() {
     else if (p === "biAnalytics") setPage("biAnalytics");
     else if (p === "siteAlarms") setPage("siteAlarms");
     else if (p === "legalCorrespondence") setPage("legalCorrespondence");
+    else if (p === "locationMap") setPage("locationMap");
+    else if (p === "workflowAutomation") setPage("workflowAutomation");
+    else if (p === "customerPortal") setPage("customerPortal");
     else setPage(p as AppPage);
   };
 
@@ -429,6 +438,9 @@ function Inner() {
       {page === "biAnalytics" && <BIAnalytics />}
       {page === "siteAlarms" && <SiteAlarms />}
       {page === "legalCorrespondence" && <LegalCorrespondence />}
+      {page === "locationMap" && <LocationMap />}
+      {page === "workflowAutomation" && <WorkflowAutomation />}
+      {page === "customerPortal" && <CustomerPortal />}
     </Layout>
   );
 }

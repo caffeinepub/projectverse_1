@@ -1,29 +1,23 @@
-# ProjectVerse v57
+# ProjectVerse
 
 ## Current State
-Sürüm 56 yayında. Tüm temel ERP modülleri mevcut. Sidebar'da 3 sayfa (bankAccounts, shipments, siteAccess) herhangi bir nav grubuna dahil edilmemiş -- tanımlı ama görünmüyor.
+v63 canlı. Harita, İş Akışı Otomasyonu ve Müşteri Portalı en son eklendi. Uygulama 68+ sayfa ile tam kapsamlı bir inşaat ERP'si. Tüm veriler backend'de kalıcı.
 
 ## Requested Changes (Diff)
 
 ### Add
-- **Banka Mutabakatı** -- BankAccounts sayfasına yeni sekme: banka ekstre girişi, sistem kayıtlarıyla eşleştirme, fark raporu
-- **Ekipman Kiralama Takibi** -- Equipment sayfasına yeni sekme: kiralık ekipman kayıtları, kira süresi/bedeli, kiralama firması, ödeme takvimi
-- **Personel Eğitim Matrisi** -- HumanResources sayfasına yeni sekme: bölüm/pozisyon bazlı eğitim ihtiyaç matrisi, tamamlanma yüzdesi
-- **Çevre & Atık Yönetimi** -- Yeni sayfa: atık türü, bertaraf yöntemi, çevresel izin takibi, aylık atık miktarı raporu
-- **Vardiya Planlama (Shift Scheduling)** -- FieldOps sayfasına yeni sekme: haftalık vardiya planı oluşturma, personel atama, vardiya çakışması uyarısı
-- **Proje Maliyet Analizi (Detaylı)** -- Reporting'e yeni sekme: WBS/maliyet kodu bazlı detaylı maliyet dağılımı, bütçe vs. gerçekleşen tablo
+- PWA desteği: manifest.json, uygulama yüklenebilir olsun (Add to Home Screen), uygulama ikonu, tema rengi
+- Bildirdiğimiz hatırlatıcılar için temel Service Worker (offline sayfası cache)
+- Gelişmiş Global Arama: tüm modüllerde arama sonuçlarını kategorize eden, tıklanınca ilgili sayfaya yönlendiren gelişmiş arama paneli
 
 ### Modify
-- **Layout.tsx sidebar**: bankAccounts, shipments ve siteAccess sayfalarını ilgili nav gruplarına ekle (OPERASYONLAR veya PROJE KONTROLÜ altına)
+- Mevcut arama kutusunu (varsa) daha kapsamlı hale getir
 
 ### Remove
 - Hiçbir şey kaldırılmıyor
 
 ## Implementation Plan
-1. Layout.tsx'te bankAccounts → OPERASYONLAR grubuna, shipments → PROJE KONTROLÜ grubuna, siteAccess → PROJE KONTROLÜ grubuna ekle
-2. BankAccounts.tsx'e Mutabakat sekmesi ekle
-3. Equipment.tsx'e Kiralama sekmesi ekle
-4. HumanResources.tsx'e Eğitim Matrisi sekmesi ekle
-5. Yeni EnvironmentalManagement.tsx sayfası oluştur, App.tsx'e route ekle, Layout.tsx'te PROJE KONTROLÜ altına ekle
-6. FieldOps.tsx'e Vardiya Planlama sekmesi ekle
-7. Reporting.tsx'e maliyetDetay sekmesi ekle
+1. manifest.json ekle (PWA metadata, icons, theme_color: amber)
+2. index.html'e manifest ve meta tag'leri ekle
+3. Basit service worker (sw.js) -- offline fallback
+4. Mevcut GlobalSearch bileşenini geliştir: proje, personel, fatura, iş emri, tedarikçi, ekipman kategorilerinde sonuç göster, tıklanınca ilgili sayfaya git

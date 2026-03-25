@@ -31,6 +31,7 @@ import {
   ClipboardList,
   Clock,
   DollarSign,
+  Download,
   FileCheck,
   FileSignature,
   FileText,
@@ -66,8 +67,9 @@ import {
   Users,
   Wrench,
   X,
+  Zap,
 } from "lucide-react";
-import { type ReactNode, useMemo, useState } from "react";
+import { type ReactNode, useEffect, useMemo, useState } from "react";
 import { ROLE_HIERARCHY, useApp } from "../contexts/AppContext";
 import { useIsMobile } from "../hooks/use-mobile";
 import { LANGUAGES, type Lang } from "../i18n/translations";
@@ -162,6 +164,7 @@ const NAV_GROUPS: { label: string; keys: string[] }[] = [
       "employeeSurveys",
       "projectFinancing",
       "vehicleFleet",
+      "workflowAutomation",
     ],
   },
   {
@@ -182,6 +185,7 @@ const NAV_GROUPS: { label: string; keys: string[] }[] = [
       "supplyChainAnalysis",
       "siteAlarms",
       "legalCorrespondence",
+      "locationMap",
     ],
   },
   {
@@ -192,6 +196,7 @@ const NAV_GROUPS: { label: string; keys: string[] }[] = [
       "crm",
       "riskRegister",
       "clientReport",
+      "customerPortal",
       "kpiTargets",
       "portfolioManagement",
       "qualityManual",
@@ -456,6 +461,22 @@ export default function Layout({
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [mobileSheetOpen, setMobileSheetOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
+  const [installPrompt, setInstallPrompt] = useState<any>(null);
+
+  useEffect(() => {
+    const handler = (e: any) => {
+      e.preventDefault();
+      setInstallPrompt(e);
+    };
+    window.addEventListener("beforeinstallprompt", handler);
+    return () => window.removeEventListener("beforeinstallprompt", handler);
+  }, []);
+
+  const handleInstall = async () => {
+    if (!installPrompt) return;
+    await installPrompt.prompt();
+    setInstallPrompt(null);
+  };
   const [searchQuery, setSearchQuery] = useState("");
 
   type SearchResult = {
@@ -791,6 +812,13 @@ export default function Layout({
       available: true,
     },
     {
+      key: "customerPortal",
+      icon: <Globe className="w-4 h-4" />,
+      label: "Müşteri Portalı",
+      href: "customerPortal",
+      available: true,
+    },
+    {
       key: "sitePhotos",
       icon: <Camera className="w-4 h-4" />,
       label: "Şantiye Fotoğrafları",
@@ -963,6 +991,20 @@ export default function Layout({
       icon: <Scale className="w-4 h-4" />,
       label: "Hukuki Yazışma",
       href: "legalCorrespondence",
+      available: true,
+    },
+    {
+      key: "locationMap",
+      icon: <MapPin className="w-4 h-4" />,
+      label: "Harita & Konumlar",
+      href: "locationMap",
+      available: true,
+    },
+    {
+      key: "workflowAutomation",
+      icon: <Zap className="w-4 h-4" />,
+      label: "İş Akışı Otomasyonu",
+      href: "workflowAutomation",
       available: true,
     },
   ];
@@ -1262,6 +1304,18 @@ export default function Layout({
           </div>
 
           <div className="flex items-center gap-2 md:gap-3">
+            {installPrompt && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleInstall}
+                className="text-amber-400 hover:text-amber-300 hover:bg-amber-500/10"
+                title="Uygulamayı Yükle"
+              >
+                <Download className="w-4 h-4" />
+                <span className="hidden sm:inline ml-1 text-xs">Yükle</span>
+              </Button>
+            )}
             <Button
               variant="ghost"
               size="icon"
