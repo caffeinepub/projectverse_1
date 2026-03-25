@@ -1,23 +1,31 @@
-# ProjectVerse
+# ProjectVerse v68 - Malzeme Onay Talebi (Material Submittal)
 
 ## Current State
-v63 canlı. Harita, İş Akışı Otomasyonu ve Müşteri Portalı en son eklendi. Uygulama 68+ sayfa ile tam kapsamlı bir inşaat ERP'si. Tüm veriler backend'de kalıcı.
+ProjectVerse has MaterialRequests page for internal purchase requests and RFI tracking. There is no formal Material Submittal (Malzeme Onay Talebi) flow where materials must be approved by engineer/employer before use on site.
 
 ## Requested Changes (Diff)
 
 ### Add
-- PWA desteği: manifest.json, uygulama yüklenebilir olsun (Add to Home Screen), uygulama ikonu, tema rengi
-- Bildirdiğimiz hatırlatıcılar için temel Service Worker (offline sayfası cache)
-- Gelişmiş Global Arama: tüm modüllerde arama sonuçlarını kategorize eden, tıklanınca ilgili sayfaya yönlendiren gelişmiş arama paneli
+- New page: `MaterialSubmittals.tsx` -- Material Submittal management
+  - List view: submittal no, malzeme adı, tedarikçi, gönderim tarihi, durum (Beklemede/İncelemede/Onaylandı/Reddedildi/Revizyon Gerekli)
+  - New submittal form: malzeme adı, spesifikasyon, tedarikçi, miktar, birim, proje, bölüm/imalat kalemi, açıklama, belge ekleme (PDF/foto)
+  - Onay akışı: her submittal için inceleyici atama, onay/ret/revizyon talebi yapabilme
+  - Revizyon geçmişi: her revizyonda yeni versiyon oluşturulur, önceki versiyonlar görüntülenebilir
+  - Durum badge'leri: renk kodlu (sarı=beklemede, mavi=incelemede, yeşil=onaylı, kırmızı=reddedildi, turuncu=revizyon)
+  - Filtreler: proje, durum, tarih aralığı
+- Route `materialSubmittals` added to App.tsx
+- Nav item added to Layout.tsx under PROJE KONTROLÜ section (after materialRequests)
 
 ### Modify
-- Mevcut arama kutusunu (varsa) daha kapsamlı hale getir
+- `App.tsx`: import and route MaterialSubmittals
+- `Layout.tsx`: add materialSubmittals nav item to PROJE KONTROLÜ section
 
 ### Remove
-- Hiçbir şey kaldırılmıyor
+- Nothing
 
 ## Implementation Plan
-1. manifest.json ekle (PWA metadata, icons, theme_color: amber)
-2. index.html'e manifest ve meta tag'leri ekle
-3. Basit service worker (sw.js) -- offline fallback
-4. Mevcut GlobalSearch bileşenini geliştir: proje, personel, fatura, iş emri, tedarikçi, ekipman kategorilerinde sonuç göster, tıklanınca ilgili sayfaya git
+1. Create `src/frontend/src/pages/MaterialSubmittals.tsx` with full CRUD, status workflow, and revision history
+2. Add route in App.tsx
+3. Add nav item in Layout.tsx under PROJE KONTROLÜ
+4. Use localStorage with company-scoped key for data persistence
+5. Use amber/gold theme consistent with rest of app

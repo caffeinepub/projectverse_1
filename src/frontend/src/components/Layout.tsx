@@ -179,6 +179,7 @@ const NAV_GROUPS: { label: string; keys: string[] }[] = [
       "meetings",
       "punchList",
       "materialRequests",
+      "materialSubmittals",
       "shipments",
       "siteAccess",
       "environmentalManagement",
@@ -839,6 +840,13 @@ export default function Layout({
       icon: <ClipboardList className="w-4 h-4" />,
       label: "Malzeme Talep & RFI",
       href: "materialRequests",
+      available: true,
+    },
+    {
+      key: "materialSubmittals",
+      icon: <CheckSquare className="w-4 h-4" />,
+      label: "Malzeme Onay Talepleri",
+      href: "materialSubmittals",
       available: true,
     },
     {
