@@ -207,6 +207,7 @@ const NAV_GROUPS: { label: string; keys: string[] }[] = [
       "qualityManual",
       "costControl",
       "biAnalytics",
+      "projectPL",
     ],
   },
   {
@@ -1022,6 +1023,13 @@ export default function Layout({
       icon: <TrendingUp className="w-4 h-4" />,
       label: "BI & Trend Analizi",
       href: "biAnalytics",
+      available: true,
+    },
+    {
+      key: "projectPL",
+      icon: <TrendingUp className="w-4 h-4" />,
+      label: "Proje P&L (Kar/Zarar)",
+      href: "projectPL",
       available: true,
     },
     {

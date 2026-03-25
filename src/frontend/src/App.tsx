@@ -55,6 +55,7 @@ import Profile from "./pages/Profile";
 import ProjectDetail from "./pages/ProjectDetail";
 import ProjectFinancing from "./pages/ProjectFinancing";
 import ProjectHub from "./pages/ProjectHub";
+import ProjectPL from "./pages/ProjectPL";
 import ProjectTemplates from "./pages/ProjectTemplates";
 import Projects from "./pages/Projects";
 import PunchList from "./pages/PunchList";
@@ -150,7 +151,8 @@ type AppPage =
   | "workflowAutomation"
   | "customerPortal"
   | "ocrScanning"
-  | "materialSubmittals";
+  | "materialSubmittals"
+  | "projectPL";
 
 function Inner() {
   const {
@@ -449,6 +451,7 @@ function Inner() {
       {page === "customerPortal" && <CustomerPortal />}
       {page === "ocrScanning" && <OcrScanning />}
       {page === "materialSubmittals" && <MaterialSubmittals />}
+      {page === "projectPL" && <ProjectPL />}
     </Layout>
   );
 }
