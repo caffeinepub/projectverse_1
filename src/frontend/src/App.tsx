@@ -29,6 +29,7 @@ import Documents from "./pages/Documents";
 import Drawings from "./pages/Drawings";
 import EmergencyPlan from "./pages/EmergencyPlan";
 import EmployeeSurveys from "./pages/EmployeeSurveys";
+import EnergyTracking from "./pages/EnergyTracking";
 import EnvironmentalManagement from "./pages/EnvironmentalManagement";
 import Equipment from "./pages/Equipment";
 import FieldOps from "./pages/FieldOps";
@@ -70,6 +71,7 @@ import ResourceCalendar from "./pages/ResourceCalendar";
 import RiskRegister from "./pages/RiskRegister";
 import RoleSelect from "./pages/RoleSelect";
 import RoleSettings from "./pages/RoleSettings";
+import SahaDenetimFormu from "./pages/SahaDenetimFormu";
 import SelfService from "./pages/SelfService";
 import Shipments from "./pages/Shipments";
 import SiteAccess from "./pages/SiteAccess";
@@ -78,6 +80,7 @@ import SiteLog from "./pages/SiteLog";
 import SitePhotos from "./pages/SitePhotos";
 import StakeholderMatrix from "./pages/StakeholderMatrix";
 import SubcontractorManagement from "./pages/SubcontractorManagement";
+import SupplierPortal from "./pages/SupplierPortal";
 import SupplyChainAnalysis from "./pages/SupplyChainAnalysis";
 import Timesheet from "./pages/Timesheet";
 import VehicleFleet from "./pages/VehicleFleet";
@@ -158,7 +161,10 @@ type AppPage =
   | "stakeholderMatrix"
   | "projectPL"
   | "projectCalendar"
-  | "isEmriYonetimi";
+  | "isEmriYonetimi"
+  | "supplierPortal"
+  | "sahaDenetimFormu"
+  | "energyTracking";
 
 function Inner() {
   const {
@@ -343,6 +349,9 @@ function Inner() {
     else if (p === "ocrScanning") setPage("ocrScanning");
     else if (p === "materialSubmittals") setPage("materialSubmittals");
     else if (p === "stakeholderMatrix") setPage("stakeholderMatrix");
+    else if (p === "supplierPortal") setPage("supplierPortal");
+    else if (p === "sahaDenetimFormu") setPage("sahaDenetimFormu");
+    else if (p === "energyTracking") setPage("energyTracking");
     else setPage(p as AppPage);
   };
 
@@ -462,6 +471,9 @@ function Inner() {
       {page === "projectCalendar" && <ProjectCalendar />}
       {page === "isEmriYonetimi" && <IsEmriYonetimi />}
       {page === "projectPL" && <ProjectPL />}
+      {page === "supplierPortal" && <SupplierPortal />}
+      {page === "sahaDenetimFormu" && <SahaDenetimFormu />}
+      {page === "energyTracking" && <EnergyTracking />}
     </Layout>
   );
 }
