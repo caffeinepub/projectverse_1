@@ -28,7 +28,15 @@ import {
 } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
-import { Check, ChevronDown, ChevronUp, FileText, Plus, X } from "lucide-react";
+import {
+  Check,
+  ChevronDown,
+  ChevronUp,
+  FilePlus,
+  FileText,
+  Plus,
+  X,
+} from "lucide-react";
 import { useState } from "react";
 import AccessDenied from "../components/AccessDenied";
 import { useApp } from "../contexts/AppContext";
@@ -46,12 +54,27 @@ const CO_STATUS_STYLES: Record<string, string> = {
   Reddedildi: "bg-red-500/20 text-red-400",
 };
 
+const ADDENDUM_STATUS_STYLES: Record<string, string> = {
+  Taslak: "bg-muted text-muted-foreground",
+  İmzalandı: "bg-green-500/20 text-green-400",
+  İptal: "bg-red-500/20 text-red-400",
+};
+
+const ADDENDUM_TYPE_STYLES: Record<string, string> = {
+  Zeyilname: "bg-blue-500/20 text-blue-400",
+  "Ek Protokol": "bg-purple-500/20 text-purple-400",
+  Revizyon: "bg-amber-500/20 text-amber-400",
+  "Fiyat Farkı": "bg-orange-500/20 text-orange-400",
+};
+
 export default function Contracts() {
   const {
     contracts,
     setContracts,
     changeOrders,
     setChangeOrders,
+    contractAddendums,
+    setContractAddendums,
     projects,
     hakedisItems,
     currentCompany,
@@ -66,6 +89,7 @@ export default function Contracts() {
   const [expandedContract, setExpandedContract] = useState<string | null>(null);
   const [contractOpen, setContractOpen] = useState(false);
   const [coOpen, setCoOpen] = useState(false);
+  const [addendumOpen, setAddendumOpen] = useState(false);
 
   const [newContract, setNewContract] = useState({
     contractNo: "",
@@ -86,11 +110,28 @@ export default function Contracts() {
     requestedBy: "",
   });
 
+  const [newAddendum, setNewAddendum] = useState({
+    contractId: "",
+    addendumNo: "",
+    type: "Zeyilname" as
+      | "Zeyilname"
+      | "Ek Protokol"
+      | "Revizyon"
+      | "Fiyat Farkı",
+    description: "",
+    amountChange: "",
+    effectiveDate: "",
+    status: "Taslak" as "Taslak" | "İmzalandı" | "İptal",
+  });
+
   const companyContracts = contracts.filter(
     (c) => c.companyId === currentCompany?.id,
   );
   const companyChangeOrders = changeOrders.filter(
     (co) => co.companyId === currentCompany?.id,
+  );
+  const companyAddendums = (contractAddendums || []).filter(
+    (a) => a.companyId === currentCompany?.id,
   );
 
   if (!canView) return <AccessDenied />;
@@ -161,9 +202,57 @@ export default function Contracts() {
     setCoOpen(false);
   };
 
+  const handleAddAddendum = () => {
+    if (!newAddendum.contractId || !newAddendum.addendumNo) return;
+    const contract = companyContracts.find(
+      (c) => c.id === newAddendum.contractId,
+    );
+    const amountChange = Number(newAddendum.amountChange) || 0;
+    const revisedAmount = (contract?.amount || 0) + amountChange;
+    const addendum = {
+      id: `ad${Date.now()}`,
+      companyId: currentCompany?.id || "",
+      contractId: newAddendum.contractId,
+      contractNo: contract?.contractNo || "",
+      addendumNo: newAddendum.addendumNo,
+      type: newAddendum.type,
+      description: newAddendum.description,
+      amountChange,
+      revisedAmount,
+      effectiveDate: newAddendum.effectiveDate,
+      status: newAddendum.status,
+      createdAt: new Date().toISOString(),
+    };
+    setContractAddendums([addendum, ...(contractAddendums || [])]);
+    addAuditLog({
+      module: "contracts",
+      action: "Adendum Eklendi",
+      description: `${addendum.addendumNo} - ${addendum.type} (${contract?.contractNo})`,
+      performedBy: user?.name || "",
+    });
+    setNewAddendum({
+      contractId: "",
+      addendumNo: "",
+      type: "Zeyilname",
+      description: "",
+      amountChange: "",
+      effectiveDate: "",
+      status: "Taslak",
+    });
+    setAddendumOpen(false);
+  };
+
   const handleCOStatus = (id: string, status: "Onaylandı" | "Reddedildi") => {
     setChangeOrders(
       changeOrders.map((co) => (co.id === id ? { ...co, status } : co)),
+    );
+  };
+
+  const handleAddendumStatus = (id: string, status: "İmzalandı" | "İptal") => {
+    setContractAddendums(
+      (contractAddendums || []).map((a) =>
+        a.id === id ? { ...a, status } : a,
+      ),
     );
   };
 
@@ -186,6 +275,9 @@ export default function Contracts() {
   const getContractCOs = (contractId: string) =>
     companyChangeOrders.filter((co) => co.contractId === contractId);
 
+  const getContractAddendums = (contractId: string) =>
+    companyAddendums.filter((a) => a.contractId === contractId);
+
   const formatCurrency = (n: number) =>
     new Intl.NumberFormat("tr-TR", {
       style: "currency",
@@ -201,7 +293,7 @@ export default function Contracts() {
             Sözleşme Yönetimi
           </h1>
           <p className="text-muted-foreground text-sm mt-1">
-            Müşteri sözleşmeleri ve değişiklik emirleri
+            Müşteri sözleşmeleri, değişiklik emirleri ve adendumlar
           </p>
         </div>
       </div>
@@ -216,6 +308,9 @@ export default function Contracts() {
             data-ocid="contracts.change_orders.tab"
           >
             Değişiklik Emirleri
+          </TabsTrigger>
+          <TabsTrigger value="addendums" data-ocid="contracts.addendums.tab">
+            Adendum & Revizyon
           </TabsTrigger>
         </TabsList>
 
@@ -433,6 +528,7 @@ export default function Contracts() {
               {companyContracts.map((contract, idx) => {
                 const hakedisTotal = getContractHakedisTotal(contract.id);
                 const coList = getContractCOs(contract.id);
+                const addendumList = getContractAddendums(contract.id);
                 const isExpanded = expandedContract === contract.id;
 
                 return (
@@ -451,6 +547,11 @@ export default function Contracts() {
                             <Badge className={STATUS_STYLES[contract.status]}>
                               {contract.status}
                             </Badge>
+                            {addendumList.length > 0 && (
+                              <Badge className="bg-purple-500/20 text-purple-400 text-xs">
+                                {addendumList.length} Adendum
+                              </Badge>
+                            )}
                           </div>
                           <p className="text-sm text-muted-foreground mt-0.5">
                             {contract.clientName}
@@ -774,6 +875,332 @@ export default function Contracts() {
                         </TableRow>
                       );
                     })}
+                  </TableBody>
+                </Table>
+              </CardContent>
+            </Card>
+          )}
+        </TabsContent>
+
+        {/* Addendum & Revision Tab */}
+        <TabsContent value="addendums" className="mt-4 space-y-4">
+          <div className="flex items-center justify-between">
+            <p className="text-sm text-muted-foreground">
+              Sözleşme zeyilnameleri, ek protokoller ve revizyon kayıtları
+            </p>
+            {canEdit && (
+              <Dialog open={addendumOpen} onOpenChange={setAddendumOpen}>
+                <DialogTrigger asChild>
+                  <Button
+                    data-ocid="contracts.addendum.primary_button"
+                    className="gradient-bg text-white"
+                  >
+                    <FilePlus className="h-4 w-4 mr-2" />
+                    Yeni Adendum
+                  </Button>
+                </DialogTrigger>
+                <DialogContent
+                  data-ocid="contracts.addendum.dialog"
+                  className="bg-card border-border max-w-lg"
+                >
+                  <DialogHeader>
+                    <DialogTitle>Yeni Adendum / Revizyon</DialogTitle>
+                  </DialogHeader>
+                  <div className="space-y-3">
+                    <div>
+                      <Label>Sözleşme *</Label>
+                      <Select
+                        value={newAddendum.contractId}
+                        onValueChange={(v) =>
+                          setNewAddendum({ ...newAddendum, contractId: v })
+                        }
+                      >
+                        <SelectTrigger
+                          data-ocid="contracts.addendum.contract.select"
+                          className="bg-background border-border mt-1"
+                        >
+                          <SelectValue placeholder="Sözleşme seçin..." />
+                        </SelectTrigger>
+                        <SelectContent className="bg-card border-border">
+                          {companyContracts.map((c) => (
+                            <SelectItem key={c.id} value={c.id}>
+                              {c.contractNo} - {c.clientName}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <Label>Adendum No *</Label>
+                        <Input
+                          data-ocid="contracts.addendum.no.input"
+                          value={newAddendum.addendumNo}
+                          onChange={(e) =>
+                            setNewAddendum({
+                              ...newAddendum,
+                              addendumNo: e.target.value,
+                            })
+                          }
+                          className="bg-background border-border mt-1"
+                          placeholder="AD-001"
+                        />
+                      </div>
+                      <div>
+                        <Label>Tür</Label>
+                        <Select
+                          value={newAddendum.type}
+                          onValueChange={(v) =>
+                            setNewAddendum({ ...newAddendum, type: v as any })
+                          }
+                        >
+                          <SelectTrigger
+                            data-ocid="contracts.addendum.type.select"
+                            className="bg-background border-border mt-1"
+                          >
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent className="bg-card border-border">
+                            {[
+                              "Zeyilname",
+                              "Ek Protokol",
+                              "Revizyon",
+                              "Fiyat Farkı",
+                            ].map((t) => (
+                              <SelectItem key={t} value={t}>
+                                {t}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <Label>Tutar Değişimi (₺)</Label>
+                        <Input
+                          data-ocid="contracts.addendum.amount.input"
+                          type="number"
+                          value={newAddendum.amountChange}
+                          onChange={(e) =>
+                            setNewAddendum({
+                              ...newAddendum,
+                              amountChange: e.target.value,
+                            })
+                          }
+                          className="bg-background border-border mt-1"
+                          placeholder="+/- tutar"
+                        />
+                      </div>
+                      <div>
+                        <Label>Yürürlük Tarihi</Label>
+                        <Input
+                          data-ocid="contracts.addendum.date.input"
+                          type="date"
+                          value={newAddendum.effectiveDate}
+                          onChange={(e) =>
+                            setNewAddendum({
+                              ...newAddendum,
+                              effectiveDate: e.target.value,
+                            })
+                          }
+                          className="bg-background border-border mt-1"
+                        />
+                      </div>
+                    </div>
+                    <div>
+                      <Label>Durum</Label>
+                      <Select
+                        value={newAddendum.status}
+                        onValueChange={(v) =>
+                          setNewAddendum({ ...newAddendum, status: v as any })
+                        }
+                      >
+                        <SelectTrigger
+                          data-ocid="contracts.addendum.status.select"
+                          className="bg-background border-border mt-1"
+                        >
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent className="bg-card border-border">
+                          {["Taslak", "İmzalandı", "İptal"].map((s) => (
+                            <SelectItem key={s} value={s}>
+                              {s}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div>
+                      <Label>Açıklama</Label>
+                      <Textarea
+                        data-ocid="contracts.addendum.description.textarea"
+                        value={newAddendum.description}
+                        onChange={(e) =>
+                          setNewAddendum({
+                            ...newAddendum,
+                            description: e.target.value,
+                          })
+                        }
+                        className="bg-background border-border mt-1"
+                        rows={2}
+                        placeholder="Adendum içeriği veya revizyon detayları"
+                      />
+                    </div>
+                  </div>
+                  <DialogFooter className="mt-4">
+                    <Button
+                      variant="ghost"
+                      onClick={() => setAddendumOpen(false)}
+                    >
+                      İptal
+                    </Button>
+                    <Button
+                      data-ocid="contracts.addendum.submit_button"
+                      className="gradient-bg text-white"
+                      onClick={handleAddAddendum}
+                    >
+                      Adendum Ekle
+                    </Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
+            )}
+          </div>
+
+          {companyAddendums.length === 0 ? (
+            <Card
+              data-ocid="contracts.addendums.empty_state"
+              className="bg-card border-border"
+            >
+              <CardContent className="flex flex-col items-center justify-center py-16 gap-4">
+                <FilePlus className="w-12 h-12 text-muted-foreground/40" />
+                <p className="text-muted-foreground">
+                  Henüz adendum veya revizyon eklenmedi
+                </p>
+                {canEdit && (
+                  <Button
+                    className="gradient-bg text-white"
+                    onClick={() => setAddendumOpen(true)}
+                  >
+                    <Plus className="h-4 w-4 mr-2" />
+                    İlk Adendumu Ekle
+                  </Button>
+                )}
+              </CardContent>
+            </Card>
+          ) : (
+            <Card className="bg-card border-border">
+              <CardContent className="p-0">
+                <Table>
+                  <TableHeader>
+                    <TableRow className="border-border hover:bg-transparent">
+                      <TableHead className="text-muted-foreground">
+                        Adendum No
+                      </TableHead>
+                      <TableHead className="text-muted-foreground">
+                        Sözleşme
+                      </TableHead>
+                      <TableHead className="text-muted-foreground">
+                        Tür
+                      </TableHead>
+                      <TableHead className="text-muted-foreground">
+                        Açıklama
+                      </TableHead>
+                      <TableHead className="text-muted-foreground text-right">
+                        Tutar Değişimi
+                      </TableHead>
+                      <TableHead className="text-muted-foreground text-right">
+                        Revize Tutar
+                      </TableHead>
+                      <TableHead className="text-muted-foreground">
+                        Yürürlük
+                      </TableHead>
+                      <TableHead className="text-muted-foreground">
+                        Durum
+                      </TableHead>
+                      {canEdit && (
+                        <TableHead className="text-muted-foreground">
+                          İşlem
+                        </TableHead>
+                      )}
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {companyAddendums.map((a, idx) => (
+                      <TableRow
+                        key={a.id}
+                        data-ocid={`contracts.addendum.item.${idx + 1}`}
+                        className="border-border"
+                      >
+                        <TableCell className="font-medium text-foreground">
+                          {a.addendumNo}
+                        </TableCell>
+                        <TableCell className="text-muted-foreground">
+                          {a.contractNo || "-"}
+                        </TableCell>
+                        <TableCell>
+                          <Badge
+                            className={
+                              ADDENDUM_TYPE_STYLES[a.type] ||
+                              "bg-muted text-muted-foreground"
+                            }
+                          >
+                            {a.type}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="text-muted-foreground max-w-[160px] truncate">
+                          {a.description || "-"}
+                        </TableCell>
+                        <TableCell
+                          className={`text-right font-medium ${a.amountChange >= 0 ? "text-green-400" : "text-red-400"}`}
+                        >
+                          {a.amountChange >= 0 ? "+" : ""}
+                          {formatCurrency(a.amountChange)}
+                        </TableCell>
+                        <TableCell className="text-right text-amber-400">
+                          {formatCurrency(a.revisedAmount)}
+                        </TableCell>
+                        <TableCell className="text-muted-foreground">
+                          {a.effectiveDate || "-"}
+                        </TableCell>
+                        <TableCell>
+                          <Badge className={ADDENDUM_STATUS_STYLES[a.status]}>
+                            {a.status}
+                          </Badge>
+                        </TableCell>
+                        {canEdit && (
+                          <TableCell>
+                            {a.status === "Taslak" && (
+                              <div className="flex gap-1">
+                                <Button
+                                  data-ocid={`contracts.addendum.sign.${idx + 1}`}
+                                  size="icon"
+                                  variant="ghost"
+                                  className="h-7 w-7 text-green-400 hover:text-green-300"
+                                  onClick={() =>
+                                    handleAddendumStatus(a.id, "İmzalandı")
+                                  }
+                                >
+                                  <Check className="w-3.5 h-3.5" />
+                                </Button>
+                                <Button
+                                  data-ocid={`contracts.addendum.cancel.${idx + 1}`}
+                                  size="icon"
+                                  variant="ghost"
+                                  className="h-7 w-7 text-red-400 hover:text-red-300"
+                                  onClick={() =>
+                                    handleAddendumStatus(a.id, "İptal")
+                                  }
+                                >
+                                  <X className="w-3.5 h-3.5" />
+                                </Button>
+                              </div>
+                            )}
+                          </TableCell>
+                        )}
+                      </TableRow>
+                    ))}
                   </TableBody>
                 </Table>
               </CardContent>

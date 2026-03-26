@@ -20,6 +20,7 @@ import {
 } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
+  AlertTriangle,
   Building2,
   Check,
   DollarSign,
@@ -28,6 +29,7 @@ import {
   Phone,
   Plus,
   Shield,
+  ShieldCheck,
   User,
   Wrench,
   X as XIcon,
@@ -68,6 +70,24 @@ interface SubPayment {
   status: "Ödendi" | "Bekliyor" | "Gecikmiş";
 }
 
+interface SubHSERecord {
+  id: string;
+  subcontractorId: string;
+  employeeName: string;
+  employeeRole: string;
+  certificates: {
+    name: string;
+    expiryDate: string;
+    status: "Geçerli" | "Süresi Dolmuş" | "Yakında Dolacak";
+  }[];
+  kpdDelivered: boolean;
+  kpdDate: string;
+  hseTrainingCompleted: boolean;
+  hseTrainingDate: string;
+  complianceScore: number;
+  createdAt: string;
+}
+
 const SPECIALTIES = [
   "Elektrik",
   "Tesisat",
@@ -79,6 +99,21 @@ const SPECIALTIES = [
   "Cam & Alüminyum",
   "Isı & Ses Yalıtımı",
   "Peyzaj",
+  "Diğer",
+];
+
+const EMPLOYEE_ROLES = [
+  "Elektrikçi",
+  "Kalıpçı",
+  "Kaynakçı",
+  "Boyacı",
+  "Tesisatçı",
+  "Beton İşçisi",
+  "Çelik Montajcı",
+  "Formen",
+  "Ustabaşı",
+  "Sıvacı",
+  "Vinç Operatörü",
   "Diğer",
 ];
 
@@ -100,6 +135,25 @@ function formatCurrency(v: number) {
     currency: "TRY",
     maximumFractionDigits: 0,
   }).format(v);
+}
+
+function calcComplianceScore(
+  kpdDelivered: boolean,
+  hseTrainingCompleted: boolean,
+  certificates: SubHSERecord["certificates"],
+): number {
+  let score = 0;
+  if (kpdDelivered) score += 40;
+  if (hseTrainingCompleted) score += 30;
+  if (certificates.length > 0) {
+    const validCount = certificates.filter(
+      (c) => c.status === "Geçerli",
+    ).length;
+    score += Math.round((validCount / certificates.length) * 30);
+  } else {
+    score += 30; // no certs required → full cert points
+  }
+  return score;
 }
 
 export default function SubcontractorManagement() {
@@ -136,6 +190,109 @@ export default function SubcontractorManagement() {
       return [];
     }
   });
+
+  // ── HSE Records ───────────────────────────────────────────────────────────
+  const [hseRecords, setHseRecords] = useState<SubHSERecord[]>(() => {
+    try {
+      return JSON.parse(
+        localStorage.getItem(`pv_sub_hse_${companyId}`) || "[]",
+      );
+    } catch {
+      return [];
+    }
+  });
+
+  const saveHseRecords = (data: SubHSERecord[]) => {
+    setHseRecords(data);
+    localStorage.setItem(`pv_sub_hse_${companyId}`, JSON.stringify(data));
+  };
+
+  const [hseFilterSub, setHseFilterSub] = useState("all");
+  const [newHseOpen, setNewHseOpen] = useState(false);
+  const [newHse, setNewHse] = useState({
+    subcontractorId: "",
+    employeeName: "",
+    employeeRole: "",
+    kpdDelivered: false,
+    kpdDate: "",
+    hseTrainingCompleted: false,
+    hseTrainingDate: "",
+    certName: "",
+    certExpiry: "",
+  });
+
+  const handleAddHse = () => {
+    if (!newHse.subcontractorId || !newHse.employeeName || !newHse.employeeRole)
+      return;
+    const certificates: SubHSERecord["certificates"] = [];
+    if (newHse.certName.trim() && newHse.certExpiry) {
+      const today = new Date();
+      const expiry = new Date(newHse.certExpiry);
+      const diffDays = Math.ceil(
+        (expiry.getTime() - today.getTime()) / (1000 * 60 * 60 * 24),
+      );
+      let certStatus: SubHSERecord["certificates"][number]["status"] =
+        "Geçerli";
+      if (diffDays < 0) certStatus = "Süresi Dolmuş";
+      else if (diffDays <= 30) certStatus = "Yakında Dolacak";
+      certificates.push({
+        name: newHse.certName.trim(),
+        expiryDate: newHse.certExpiry,
+        status: certStatus,
+      });
+    }
+    const score = calcComplianceScore(
+      newHse.kpdDelivered,
+      newHse.hseTrainingCompleted,
+      certificates,
+    );
+    const record: SubHSERecord = {
+      id: `hse_${Date.now()}`,
+      subcontractorId: newHse.subcontractorId,
+      employeeName: newHse.employeeName,
+      employeeRole: newHse.employeeRole,
+      certificates,
+      kpdDelivered: newHse.kpdDelivered,
+      kpdDate: newHse.kpdDate,
+      hseTrainingCompleted: newHse.hseTrainingCompleted,
+      hseTrainingDate: newHse.hseTrainingDate,
+      complianceScore: score,
+      createdAt: new Date().toISOString().split("T")[0],
+    };
+    saveHseRecords([record, ...hseRecords]);
+    setNewHseOpen(false);
+    setNewHse({
+      subcontractorId: "",
+      employeeName: "",
+      employeeRole: "",
+      kpdDelivered: false,
+      kpdDate: "",
+      hseTrainingCompleted: false,
+      hseTrainingDate: "",
+      certName: "",
+      certExpiry: "",
+    });
+  };
+
+  const filteredHseRecords = useMemo(() => {
+    if (hseFilterSub === "all") return hseRecords;
+    return hseRecords.filter((r) => r.subcontractorId === hseFilterSub);
+  }, [hseRecords, hseFilterSub]);
+
+  const hseKpis = useMemo(() => {
+    const total = hseRecords.length;
+    const compliant = hseRecords.filter((r) => r.complianceScore >= 80).length;
+    const nonCompliant = hseRecords.filter(
+      (r) => r.complianceScore < 60,
+    ).length;
+    const avg =
+      total > 0
+        ? Math.round(
+            hseRecords.reduce((s, r) => s + r.complianceScore, 0) / total,
+          )
+        : 0;
+    return { total, compliant, nonCompliant, avg };
+  }, [hseRecords]);
 
   const saveSubcontractors = (data: Subcontractor[]) => {
     setSubcontractors(data);
@@ -579,7 +736,7 @@ export default function SubcontractorManagement() {
 
       {/* Tabs */}
       <Tabs defaultValue="subcontractors">
-        <TabsList className="bg-card border border-border">
+        <TabsList className="bg-card border border-border flex-wrap h-auto gap-1">
           <TabsTrigger
             value="subcontractors"
             data-ocid="subcontractor.subcontractors.tab"
@@ -621,6 +778,14 @@ export default function SubcontractorManagement() {
             className="data-[state=active]:bg-amber-500/20 data-[state=active]:text-amber-300"
           >
             İş Emirleri
+          </TabsTrigger>
+          <TabsTrigger
+            value="hse"
+            data-ocid="subcontractor.hse.tab"
+            className="data-[state=active]:bg-amber-500/20 data-[state=active]:text-amber-300 flex items-center gap-1"
+          >
+            <ShieldCheck className="w-3.5 h-3.5" />
+            İSG Uyum
           </TabsTrigger>
         </TabsList>
 
@@ -1235,11 +1400,456 @@ export default function SubcontractorManagement() {
             subcontractors={subcontractors}
           />
         </TabsContent>
+
         <TabsContent value="workorders" className="mt-6">
           <WorkOrdersTab
             companyId={companyId}
             subcontractors={subcontractors}
           />
+        </TabsContent>
+
+        {/* HSE Compliance Tab */}
+        <TabsContent value="hse" className="mt-6">
+          {/* KPI Cards */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+            <Card className="bg-card border-border">
+              <CardContent className="p-4">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 rounded-lg bg-blue-500/15">
+                    <User className="w-5 h-5 text-blue-400" />
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">
+                      Takip Edilen
+                    </p>
+                    <p className="text-2xl font-bold text-foreground">
+                      {hseKpis.total}
+                    </p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+            <Card className="bg-card border-border">
+              <CardContent className="p-4">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 rounded-lg bg-emerald-500/15">
+                    <ShieldCheck className="w-5 h-5 text-emerald-400" />
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">
+                      Uyumlu (≥80)
+                    </p>
+                    <p className="text-2xl font-bold text-emerald-400">
+                      {hseKpis.compliant}
+                    </p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+            <Card className="bg-card border-border">
+              <CardContent className="p-4">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 rounded-lg bg-rose-500/15">
+                    <AlertTriangle className="w-5 h-5 text-rose-400" />
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">
+                      Uyumsuz (&lt;60)
+                    </p>
+                    <p className="text-2xl font-bold text-rose-400">
+                      {hseKpis.nonCompliant}
+                    </p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+            <Card className="bg-card border-border">
+              <CardContent className="p-4">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 rounded-lg bg-amber-500/15">
+                    <ShieldCheck className="w-5 h-5 text-amber-400" />
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">
+                      Ort. Uyum Skoru
+                    </p>
+                    <p className="text-2xl font-bold text-amber-400">
+                      {hseKpis.avg}
+                    </p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Toolbar */}
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-4">
+            <Select value={hseFilterSub} onValueChange={setHseFilterSub}>
+              <SelectTrigger
+                data-ocid="subcontractor.hse.select"
+                className="bg-background border-border w-full sm:w-56"
+              >
+                <SelectValue placeholder="Tüm Taşeronlar" />
+              </SelectTrigger>
+              <SelectContent className="bg-card border-border">
+                <SelectItem value="all">Tüm Taşeronlar</SelectItem>
+                {subcontractors.map((s) => (
+                  <SelectItem key={s.id} value={s.id}>
+                    {s.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            <Dialog open={newHseOpen} onOpenChange={setNewHseOpen}>
+              <DialogTrigger asChild>
+                <Button
+                  data-ocid="subcontractor.hse.add_button"
+                  size="sm"
+                  className="gradient-bg text-white gap-1"
+                  disabled={subcontractors.length === 0}
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  Kayıt Ekle
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="bg-card border-border max-w-lg">
+                <DialogHeader>
+                  <DialogTitle>İSG Uyum Kaydı Ekle</DialogTitle>
+                </DialogHeader>
+                <div className="space-y-3 max-h-[70vh] overflow-y-auto pr-1">
+                  <div>
+                    <Label>Taşeron Firma *</Label>
+                    <Select
+                      value={newHse.subcontractorId}
+                      onValueChange={(v) =>
+                        setNewHse({ ...newHse, subcontractorId: v })
+                      }
+                    >
+                      <SelectTrigger className="bg-background border-border mt-1">
+                        <SelectValue placeholder="Taşeron seçin" />
+                      </SelectTrigger>
+                      <SelectContent className="bg-card border-border">
+                        {subcontractors.map((s) => (
+                          <SelectItem key={s.id} value={s.id}>
+                            {s.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <Label>Çalışan Adı *</Label>
+                      <Input
+                        data-ocid="subcontractor.hse.name_input"
+                        className="bg-background border-border mt-1"
+                        value={newHse.employeeName}
+                        onChange={(e) =>
+                          setNewHse({ ...newHse, employeeName: e.target.value })
+                        }
+                        placeholder="Ad Soyad"
+                      />
+                    </div>
+                    <div>
+                      <Label>Meslek *</Label>
+                      <Select
+                        value={newHse.employeeRole}
+                        onValueChange={(v) =>
+                          setNewHse({ ...newHse, employeeRole: v })
+                        }
+                      >
+                        <SelectTrigger className="bg-background border-border mt-1">
+                          <SelectValue placeholder="Seçiniz" />
+                        </SelectTrigger>
+                        <SelectContent className="bg-card border-border">
+                          {EMPLOYEE_ROLES.map((r) => (
+                            <SelectItem key={r} value={r}>
+                              {r}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+
+                  <div className="rounded-lg border border-border p-3 space-y-2">
+                    <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                      KKD (Kişisel Koruyucu Donanım)
+                    </p>
+                    <div className="flex items-center gap-3">
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setNewHse({
+                            ...newHse,
+                            kpdDelivered: !newHse.kpdDelivered,
+                          })
+                        }
+                        className={`w-5 h-5 rounded flex items-center justify-center border transition-colors ${
+                          newHse.kpdDelivered
+                            ? "bg-emerald-500 border-emerald-500"
+                            : "border-border bg-background"
+                        }`}
+                      >
+                        {newHse.kpdDelivered && (
+                          <Check className="w-3 h-3 text-white" />
+                        )}
+                      </button>
+                      <span className="text-sm">KKD Teslim Edildi</span>
+                    </div>
+                    {newHse.kpdDelivered && (
+                      <div>
+                        <Label className="text-xs">Teslim Tarihi</Label>
+                        <Input
+                          className="bg-background border-border mt-1 h-8 text-sm"
+                          type="date"
+                          value={newHse.kpdDate}
+                          onChange={(e) =>
+                            setNewHse({ ...newHse, kpdDate: e.target.value })
+                          }
+                        />
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="rounded-lg border border-border p-3 space-y-2">
+                    <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                      İSG Eğitimi
+                    </p>
+                    <div className="flex items-center gap-3">
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setNewHse({
+                            ...newHse,
+                            hseTrainingCompleted: !newHse.hseTrainingCompleted,
+                          })
+                        }
+                        className={`w-5 h-5 rounded flex items-center justify-center border transition-colors ${
+                          newHse.hseTrainingCompleted
+                            ? "bg-emerald-500 border-emerald-500"
+                            : "border-border bg-background"
+                        }`}
+                      >
+                        {newHse.hseTrainingCompleted && (
+                          <Check className="w-3 h-3 text-white" />
+                        )}
+                      </button>
+                      <span className="text-sm">Eğitim Tamamlandı</span>
+                    </div>
+                    {newHse.hseTrainingCompleted && (
+                      <div>
+                        <Label className="text-xs">Eğitim Tarihi</Label>
+                        <Input
+                          className="bg-background border-border mt-1 h-8 text-sm"
+                          type="date"
+                          value={newHse.hseTrainingDate}
+                          onChange={(e) =>
+                            setNewHse({
+                              ...newHse,
+                              hseTrainingDate: e.target.value,
+                            })
+                          }
+                        />
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="rounded-lg border border-border p-3 space-y-2">
+                    <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                      Sertifika (İsteğe Bağlı)
+                    </p>
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <Label className="text-xs">Sertifika Adı</Label>
+                        <Input
+                          className="bg-background border-border mt-1 h-8 text-sm"
+                          value={newHse.certName}
+                          onChange={(e) =>
+                            setNewHse({ ...newHse, certName: e.target.value })
+                          }
+                          placeholder="ör. Forklift Operatörlük"
+                        />
+                      </div>
+                      <div>
+                        <Label className="text-xs">Son Geçerlilik</Label>
+                        <Input
+                          className="bg-background border-border mt-1 h-8 text-sm"
+                          type="date"
+                          value={newHse.certExpiry}
+                          onChange={(e) =>
+                            setNewHse({ ...newHse, certExpiry: e.target.value })
+                          }
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="rounded-lg bg-muted/20 border border-border p-3">
+                    <p className="text-xs text-muted-foreground mb-1">
+                      Tahmini Uyum Skoru
+                    </p>
+                    <p className="text-2xl font-bold text-amber-400">
+                      {calcComplianceScore(
+                        newHse.kpdDelivered,
+                        newHse.hseTrainingCompleted,
+                        newHse.certName.trim() && newHse.certExpiry
+                          ? [
+                              {
+                                name: newHse.certName,
+                                expiryDate: newHse.certExpiry,
+                                status: "Geçerli",
+                              },
+                            ]
+                          : [],
+                      )}
+                      <span className="text-sm font-normal text-muted-foreground">
+                        {" "}
+                        / 100
+                      </span>
+                    </p>
+                  </div>
+                </div>
+                <DialogFooter>
+                  <Button
+                    variant="outline"
+                    onClick={() => setNewHseOpen(false)}
+                  >
+                    İptal
+                  </Button>
+                  <Button
+                    className="gradient-bg text-white"
+                    onClick={handleAddHse}
+                    disabled={
+                      !newHse.subcontractorId ||
+                      !newHse.employeeName ||
+                      !newHse.employeeRole
+                    }
+                  >
+                    Ekle
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+          </div>
+
+          {/* Table */}
+          {filteredHseRecords.length === 0 ? (
+            <div
+              data-ocid="subcontractor.hse.empty_state"
+              className="text-center py-16 text-muted-foreground"
+            >
+              <ShieldCheck className="w-12 h-12 mx-auto mb-4 opacity-30" />
+              <p className="font-medium">Henüz İSG uyum kaydı eklenmedi.</p>
+              <p className="text-sm mt-1">
+                Taşeron çalışanlarının KKD, eğitim ve sertifika uyumunu buradan
+                takip edebilirsiniz.
+              </p>
+            </div>
+          ) : (
+            <div className="rounded-xl border border-border overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr
+                    className="border-b border-border"
+                    style={{ background: "oklch(0.15 0.018 245)" }}
+                  >
+                    <th className="text-left px-4 py-3 font-medium text-muted-foreground">
+                      Çalışan
+                    </th>
+                    <th className="text-left px-4 py-3 font-medium text-muted-foreground">
+                      Meslek
+                    </th>
+                    <th className="text-left px-4 py-3 font-medium text-muted-foreground">
+                      Taşeron
+                    </th>
+                    <th className="text-center px-4 py-3 font-medium text-muted-foreground">
+                      KKD
+                    </th>
+                    <th className="text-center px-4 py-3 font-medium text-muted-foreground">
+                      Eğitim
+                    </th>
+                    <th className="text-center px-4 py-3 font-medium text-muted-foreground">
+                      Sertifika
+                    </th>
+                    <th className="text-center px-4 py-3 font-medium text-muted-foreground">
+                      Uyum Skoru
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredHseRecords.map((rec, idx) => {
+                    const scoreColor =
+                      rec.complianceScore >= 80
+                        ? "bg-emerald-500/15 text-emerald-400 border-emerald-500/30"
+                        : rec.complianceScore >= 60
+                          ? "bg-amber-500/15 text-amber-400 border-amber-500/30"
+                          : "bg-rose-500/15 text-rose-400 border-rose-500/30";
+                    return (
+                      <tr
+                        key={rec.id}
+                        data-ocid={`subcontractor.hse.item.${idx + 1}`}
+                        className="border-b border-border/50 hover:bg-muted/10 transition-colors"
+                      >
+                        <td className="px-4 py-3 font-medium">
+                          {rec.employeeName}
+                        </td>
+                        <td className="px-4 py-3 text-foreground/80 text-xs">
+                          {rec.employeeRole}
+                        </td>
+                        <td className="px-4 py-3 text-foreground/80 text-xs">
+                          {subMap[rec.subcontractorId] || "—"}
+                        </td>
+                        <td className="px-4 py-3 text-center">
+                          {rec.kpdDelivered ? (
+                            <Check className="w-4 h-4 text-emerald-400 mx-auto" />
+                          ) : (
+                            <XIcon className="w-4 h-4 text-rose-400 mx-auto" />
+                          )}
+                        </td>
+                        <td className="px-4 py-3 text-center">
+                          {rec.hseTrainingCompleted ? (
+                            <Check className="w-4 h-4 text-emerald-400 mx-auto" />
+                          ) : (
+                            <XIcon className="w-4 h-4 text-rose-400 mx-auto" />
+                          )}
+                        </td>
+                        <td className="px-4 py-3 text-center">
+                          <span className="text-xs text-muted-foreground">
+                            {rec.certificates.length > 0 ? (
+                              <span className="flex items-center justify-center gap-1">
+                                {rec.certificates.length}
+                                {rec.certificates.some(
+                                  (c) => c.status === "Süresi Dolmuş",
+                                ) && (
+                                  <AlertTriangle className="w-3 h-3 text-rose-400" />
+                                )}
+                                {rec.certificates.some(
+                                  (c) => c.status === "Yakında Dolacak",
+                                ) && (
+                                  <AlertTriangle className="w-3 h-3 text-amber-400" />
+                                )}
+                              </span>
+                            ) : (
+                              "—"
+                            )}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 text-center">
+                          <span
+                            className={`px-2.5 py-1 rounded text-xs font-semibold border ${scoreColor}`}
+                          >
+                            {rec.complianceScore}
+                          </span>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
         </TabsContent>
       </Tabs>
     </div>

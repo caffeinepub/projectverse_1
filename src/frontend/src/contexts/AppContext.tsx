@@ -871,6 +871,20 @@ export interface ChangeOrder {
   createdAt: string;
 }
 
+export interface ContractAddendum {
+  id: string;
+  companyId: string;
+  contractId: string;
+  contractNo: string;
+  addendumNo: string;
+  type: "Zeyilname" | "Ek Protokol" | "Revizyon" | "Fiyat Farkı";
+  description: string;
+  amountChange: number;
+  revisedAmount: number;
+  effectiveDate: string;
+  status: "Taslak" | "İmzalandı" | "İptal";
+  createdAt: string;
+}
 // Malzeme Talep & RFI
 export interface MaterialRequest {
   id: string;
@@ -1126,6 +1140,8 @@ interface AppState {
   setContracts: (c: Contract[]) => void;
   changeOrders: ChangeOrder[];
   setChangeOrders: (c: ChangeOrder[]) => void;
+  contractAddendums: ContractAddendum[];
+  setContractAddendums: (a: ContractAddendum[]) => void;
   // Material Requests & RFI
   materialRequests: MaterialRequest[];
   setMaterialRequests: (m: MaterialRequest[]) => void;
@@ -1374,6 +1390,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [changeOrdersState, setChangeOrdersState] = useState<ChangeOrder[]>(
     () => loadCompanyData(activeCompanyId || "", "change_orders", []),
   );
+  const [contractAddendumsState, setContractAddendumsState] = useState<
+    ContractAddendum[]
+  >(() => loadCompanyData(activeCompanyId || "", "contract_addendums", []));
   const [materialRequestsState, setMaterialRequestsState] = useState<
     MaterialRequest[]
   >(() => loadCompanyData(activeCompanyId || "", "material_requests", []));
@@ -1517,6 +1536,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setAttendanceRecordsState(loadCompanyData(companyId, "attendance", []));
     setContractsState(loadCompanyData(companyId, "contracts", []));
     setChangeOrdersState(loadCompanyData(companyId, "change_orders", []));
+    setContractAddendumsState(
+      loadCompanyData(companyId, "contract_addendums", []),
+    );
     setMaterialRequestsState(
       loadCompanyData(companyId, "material_requests", []),
     );
@@ -1794,6 +1816,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const setChangeOrders = (c: ChangeOrder[]) => {
     setChangeOrdersState(c);
     saveCompanyData(activeCompanyId, "change_orders", c);
+  };
+  const setContractAddendums = (a: ContractAddendum[]) => {
+    setContractAddendumsState(a);
+    saveCompanyData(activeCompanyId, "contract_addendums", a);
   };
   const setMaterialRequests = (m: MaterialRequest[]) => {
     setMaterialRequestsState(m);
@@ -2438,6 +2464,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
         setContracts,
         changeOrders: changeOrdersState,
         setChangeOrders,
+        contractAddendums: contractAddendumsState,
+        setContractAddendums,
         materialRequests: materialRequestsState,
         setMaterialRequests,
         rfis: rfisState,
