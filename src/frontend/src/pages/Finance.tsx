@@ -1045,6 +1045,289 @@ function CashFlowTab({ companyId }: { companyId: string }) {
   );
 }
 
+// ── BÜTÇE EŞİK UYARI SİSTEMİ ──────────────────────────────────────────────
+interface BudgetAlert {
+  projectId: string;
+  threshold: number;
+}
+
+function BudgetAlertsTab({
+  companyId,
+  projectBudgets,
+}: {
+  companyId: string;
+  projectBudgets: {
+    id: string;
+    project: string;
+    planned: number;
+    spent: number;
+  }[];
+}) {
+  const storageKey = `budgetAlerts_${companyId}`;
+
+  const [alerts, setAlerts] = React.useState<BudgetAlert[]>(() => {
+    try {
+      return JSON.parse(localStorage.getItem(storageKey) || "[]");
+    } catch {
+      return [];
+    }
+  });
+
+  React.useEffect(() => {
+    localStorage.setItem(storageKey, JSON.stringify(alerts));
+  }, [alerts, storageKey]);
+
+  const [editingId, setEditingId] = React.useState<string | null>(null);
+  const [editThreshold, setEditThreshold] = React.useState("80");
+
+  const getThreshold = (projectId: string) => {
+    return alerts.find((a) => a.projectId === projectId)?.threshold ?? 80;
+  };
+
+  const setThreshold = (projectId: string, threshold: number) => {
+    setAlerts((prev) => {
+      const existing = prev.find((a) => a.projectId === projectId);
+      if (existing) {
+        return prev.map((a) =>
+          a.projectId === projectId ? { ...a, threshold } : a,
+        );
+      }
+      return [...prev, { projectId, threshold }];
+    });
+  };
+
+  const rows = projectBudgets.map((pb) => {
+    const pct = pb.planned > 0 ? (pb.spent / pb.planned) * 100 : 0;
+    const threshold = getThreshold(pb.id);
+    let status: "safe" | "warning" | "danger";
+    if (pct >= 100) status = "danger";
+    else if (pct >= threshold) status = "warning";
+    else status = "safe";
+    return { ...pb, pct, threshold, status };
+  });
+
+  const dangerCount = rows.filter((r) => r.status === "danger").length;
+  const warningCount = rows.filter((r) => r.status === "warning").length;
+
+  const statusBadge = (status: "safe" | "warning" | "danger", pct: number) => {
+    if (status === "danger")
+      return (
+        <Badge className="bg-red-500/20 text-red-400 border-red-500/30">
+          🔴 Aşıldı {pct.toFixed(0)}%
+        </Badge>
+      );
+    if (status === "warning")
+      return (
+        <Badge className="bg-yellow-500/20 text-yellow-400 border-yellow-500/30">
+          🟡 Yaklaşıyor {pct.toFixed(0)}%
+        </Badge>
+      );
+    return (
+      <Badge className="bg-green-500/20 text-green-400 border-green-500/30">
+        🟢 Normal {pct.toFixed(0)}%
+      </Badge>
+    );
+  };
+
+  return (
+    <div className="space-y-5">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <Card className="bg-card border-border">
+          <CardContent className="pt-4 pb-4">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-lg bg-red-500/10 flex items-center justify-center">
+                <AlertCircle className="h-5 w-5 text-red-400" />
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground">Bütçe Aşıldı</p>
+                <p className="text-2xl font-bold text-red-400">{dangerCount}</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        <Card className="bg-card border-border">
+          <CardContent className="pt-4 pb-4">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-lg bg-yellow-500/10 flex items-center justify-center">
+                <TrendingUp className="h-5 w-5 text-yellow-400" />
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground">Eşiğe Yakın</p>
+                <p className="text-2xl font-bold text-yellow-400">
+                  {warningCount}
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        <Card className="bg-card border-border">
+          <CardContent className="pt-4 pb-4">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-lg bg-green-500/10 flex items-center justify-center">
+                <CheckCircle2 className="h-5 w-5 text-green-400" />
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground">Normal</p>
+                <p className="text-2xl font-bold text-green-400">
+                  {rows.filter((r) => r.status === "safe").length}
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+      {rows.length === 0 ? (
+        <Card className="bg-card border-border">
+          <CardContent
+            className="py-12 text-center"
+            data-ocid="finance.budget_alert.empty_state"
+          >
+            <TrendingDown className="h-10 w-10 text-muted-foreground mx-auto mb-3 opacity-40" />
+            <p className="text-muted-foreground text-sm">
+              Bütçesi tanımlı proje bulunamadı.
+            </p>
+            <p className="text-muted-foreground text-xs mt-1">
+              Projeler bölümünden bütçe ekleyebilirsiniz.
+            </p>
+          </CardContent>
+        </Card>
+      ) : (
+        <Card className="bg-card border-border">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm font-semibold text-foreground flex items-center gap-2">
+              <AlertCircle className="h-4 w-4 text-primary" />
+              Proje Bütçe Durumu
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="p-0">
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-border">
+                    <th className="text-left py-2 px-4 text-xs text-muted-foreground font-medium">
+                      Proje
+                    </th>
+                    <th className="text-right py-2 px-4 text-xs text-muted-foreground font-medium">
+                      Bütçe
+                    </th>
+                    <th className="text-right py-2 px-4 text-xs text-muted-foreground font-medium">
+                      Harcanan
+                    </th>
+                    <th className="text-center py-2 px-4 text-xs text-muted-foreground font-medium">
+                      Kullanım
+                    </th>
+                    <th className="text-center py-2 px-4 text-xs text-muted-foreground font-medium">
+                      Eşik
+                    </th>
+                    <th className="text-center py-2 px-4 text-xs text-muted-foreground font-medium">
+                      Durum
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {rows.map((row, idx) => (
+                    <tr
+                      key={row.id}
+                      data-ocid={`finance.budget_alert.item.${idx + 1}`}
+                      className={`border-b border-border last:border-0 transition-colors ${
+                        row.status === "danger"
+                          ? "bg-red-500/5"
+                          : row.status === "warning"
+                            ? "bg-yellow-500/5"
+                            : ""
+                      }`}
+                    >
+                      <td className="py-3 px-4 font-medium text-foreground">
+                        {row.project}
+                      </td>
+                      <td className="py-3 px-4 text-right text-muted-foreground">
+                        {row.planned.toLocaleString("tr-TR")} ₺
+                      </td>
+                      <td className="py-3 px-4 text-right text-muted-foreground">
+                        {row.spent.toLocaleString("tr-TR")} ₺
+                      </td>
+                      <td className="py-3 px-4">
+                        <div className="flex flex-col items-center gap-1">
+                          <Progress
+                            value={Math.min(row.pct, 100)}
+                            className={`h-2 w-24 ${
+                              row.status === "danger"
+                                ? "[&>div]:bg-red-500"
+                                : row.status === "warning"
+                                  ? "[&>div]:bg-yellow-500"
+                                  : "[&>div]:bg-green-500"
+                            }`}
+                          />
+                        </div>
+                      </td>
+                      <td className="py-3 px-4 text-center">
+                        {editingId === row.id ? (
+                          <div className="flex items-center gap-1 justify-center">
+                            <Input
+                              data-ocid={`finance.budget_alert.input.${idx + 1}`}
+                              type="number"
+                              min={1}
+                              max={100}
+                              className="w-16 h-7 text-xs text-center"
+                              value={editThreshold}
+                              onChange={(e) => setEditThreshold(e.target.value)}
+                            />
+                            <span className="text-xs text-muted-foreground">
+                              %
+                            </span>
+                            <Button
+                              data-ocid={`finance.budget_alert.save_button.${idx + 1}`}
+                              size="sm"
+                              className="h-7 px-2 gradient-bg text-white text-xs"
+                              onClick={() => {
+                                const val = Number(editThreshold);
+                                if (val > 0 && val <= 100) {
+                                  setThreshold(row.id, val);
+                                }
+                                setEditingId(null);
+                              }}
+                            >
+                              <Check className="h-3 w-3" />
+                            </Button>
+                            <Button
+                              data-ocid={`finance.budget_alert.cancel_button.${idx + 1}`}
+                              size="sm"
+                              variant="ghost"
+                              className="h-7 px-2 text-xs"
+                              onClick={() => setEditingId(null)}
+                            >
+                              <X className="h-3 w-3" />
+                            </Button>
+                          </div>
+                        ) : (
+                          <button
+                            type="button"
+                            data-ocid={`finance.budget_alert.edit_button.${idx + 1}`}
+                            className="text-xs text-muted-foreground hover:text-primary transition-colors flex items-center gap-1 mx-auto"
+                            onClick={() => {
+                              setEditingId(row.id);
+                              setEditThreshold(String(row.threshold));
+                            }}
+                          >
+                            <Edit className="h-3 w-3" />%{row.threshold}
+                          </button>
+                        )}
+                      </td>
+                      <td className="py-3 px-4 text-center">
+                        {statusBadge(row.status, row.pct)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+    </div>
+  );
+}
+
 export default function Finance() {
   const {
     activeRoleId,
@@ -1417,6 +1700,14 @@ export default function Finance() {
           >
             <Globe className="h-4 w-4 mr-1" />
             Para Birimleri
+          </TabsTrigger>
+          <TabsTrigger
+            data-ocid="finance.budget_alerts.tab"
+            value="budget_alerts"
+            className="data-[state=active]:gradient-bg data-[state=active]:text-white text-xs md:text-sm"
+          >
+            <AlertCircle className="h-4 w-4 mr-1" />
+            Bütçe Uyarıları
           </TabsTrigger>
         </TabsList>
 
@@ -2725,6 +3016,12 @@ export default function Finance() {
         </TabsContent>
         <TabsContent value="commitments" className="space-y-5">
           <CommitmentsTab companyId={activeCompanyId || ""} />
+        </TabsContent>
+        <TabsContent value="budget_alerts" className="space-y-5">
+          <BudgetAlertsTab
+            companyId={activeCompanyId || ""}
+            projectBudgets={projectBudgets}
+          />
         </TabsContent>
       </Tabs>
     </div>
