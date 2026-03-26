@@ -39,6 +39,7 @@ import ISG from "./pages/ISG";
 import Insurance from "./pages/Insurance";
 import Inventory from "./pages/Inventory";
 import InviteJoin from "./pages/InviteJoin";
+import IsEmriYonetimi from "./pages/IsEmriYonetimi";
 import KPITargets from "./pages/KPITargets";
 import LanguageSelect from "./pages/LanguageSelect";
 import LegalCorrespondence from "./pages/LegalCorrespondence";
@@ -156,7 +157,8 @@ type AppPage =
   | "materialSubmittals"
   | "stakeholderMatrix"
   | "projectPL"
-  | "projectCalendar";
+  | "projectCalendar"
+  | "isEmriYonetimi";
 
 function Inner() {
   const {
@@ -458,6 +460,7 @@ function Inner() {
       {page === "materialSubmittals" && <MaterialSubmittals />}
       {page === "stakeholderMatrix" && <StakeholderMatrix />}
       {page === "projectCalendar" && <ProjectCalendar />}
+      {page === "isEmriYonetimi" && <IsEmriYonetimi />}
       {page === "projectPL" && <ProjectPL />}
     </Layout>
   );

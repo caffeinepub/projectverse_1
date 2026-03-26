@@ -170,6 +170,7 @@ const NAV_GROUPS: { label: string; keys: string[] }[] = [
       "vehicleFleet",
       "workflowAutomation",
       "ocrScanning",
+      "isEmriYonetimi",
     ],
   },
   {
@@ -1082,6 +1083,13 @@ export default function Layout({
       icon: <Scan className="w-4 h-4" />,
       label: "Belge Tarama (OCR)",
       href: "ocrScanning",
+      available: true,
+    },
+    {
+      key: "isEmriYonetimi",
+      icon: <ClipboardList className="w-4 h-4" />,
+      label: "İş Emirleri",
+      href: "isEmriYonetimi",
       available: true,
     },
   ];
