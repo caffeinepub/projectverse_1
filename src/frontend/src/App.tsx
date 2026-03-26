@@ -52,6 +52,7 @@ import PendingApproval from "./pages/PendingApproval";
 import Permits from "./pages/Permits";
 import PortfolioManagement from "./pages/PortfolioManagement";
 import Profile from "./pages/Profile";
+import ProjectCalendar from "./pages/ProjectCalendar";
 import ProjectDetail from "./pages/ProjectDetail";
 import ProjectFinancing from "./pages/ProjectFinancing";
 import ProjectHub from "./pages/ProjectHub";
@@ -74,6 +75,7 @@ import SiteAccess from "./pages/SiteAccess";
 import SiteAlarms from "./pages/SiteAlarms";
 import SiteLog from "./pages/SiteLog";
 import SitePhotos from "./pages/SitePhotos";
+import StakeholderMatrix from "./pages/StakeholderMatrix";
 import SubcontractorManagement from "./pages/SubcontractorManagement";
 import SupplyChainAnalysis from "./pages/SupplyChainAnalysis";
 import Timesheet from "./pages/Timesheet";
@@ -152,7 +154,9 @@ type AppPage =
   | "customerPortal"
   | "ocrScanning"
   | "materialSubmittals"
-  | "projectPL";
+  | "stakeholderMatrix"
+  | "projectPL"
+  | "projectCalendar";
 
 function Inner() {
   const {
@@ -336,6 +340,7 @@ function Inner() {
     else if (p === "customerPortal") setPage("customerPortal");
     else if (p === "ocrScanning") setPage("ocrScanning");
     else if (p === "materialSubmittals") setPage("materialSubmittals");
+    else if (p === "stakeholderMatrix") setPage("stakeholderMatrix");
     else setPage(p as AppPage);
   };
 
@@ -451,6 +456,8 @@ function Inner() {
       {page === "customerPortal" && <CustomerPortal />}
       {page === "ocrScanning" && <OcrScanning />}
       {page === "materialSubmittals" && <MaterialSubmittals />}
+      {page === "stakeholderMatrix" && <StakeholderMatrix />}
+      {page === "projectCalendar" && <ProjectCalendar />}
       {page === "projectPL" && <ProjectPL />}
     </Layout>
   );
