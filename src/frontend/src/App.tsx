@@ -53,6 +53,7 @@ import OcrScanning from "./pages/OcrScanning";
 import PendingApproval from "./pages/PendingApproval";
 import Permits from "./pages/Permits";
 import PortfolioManagement from "./pages/PortfolioManagement";
+import ProcurementSchedule from "./pages/ProcurementSchedule";
 import Profile from "./pages/Profile";
 import ProjectCalendar from "./pages/ProjectCalendar";
 import ProjectDetail from "./pages/ProjectDetail";
@@ -164,7 +165,8 @@ type AppPage =
   | "isEmriYonetimi"
   | "supplierPortal"
   | "sahaDenetimFormu"
-  | "energyTracking";
+  | "energyTracking"
+  | "procurementSchedule";
 
 function Inner() {
   const {
@@ -352,6 +354,7 @@ function Inner() {
     else if (p === "supplierPortal") setPage("supplierPortal");
     else if (p === "sahaDenetimFormu") setPage("sahaDenetimFormu");
     else if (p === "energyTracking") setPage("energyTracking");
+    else if (p === "procurementSchedule") setPage("procurementSchedule");
     else setPage(p as AppPage);
   };
 
@@ -474,6 +477,7 @@ function Inner() {
       {page === "supplierPortal" && <SupplierPortal />}
       {page === "sahaDenetimFormu" && <SahaDenetimFormu />}
       {page === "energyTracking" && <EnergyTracking />}
+      {page === "procurementSchedule" && <ProcurementSchedule />}
     </Layout>
   );
 }

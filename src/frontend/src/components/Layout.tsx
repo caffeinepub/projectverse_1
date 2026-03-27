@@ -174,6 +174,7 @@ const NAV_GROUPS: { label: string; keys: string[] }[] = [
       "ocrScanning",
       "isEmriYonetimi",
       "energyTracking",
+      "procurementSchedule",
     ],
   },
   {
