@@ -79,6 +79,7 @@ import { useApp } from "../contexts/AppContext";
 import AttendanceDailyTab from "./tabs/AttendanceDailyTab";
 import CSVImportModal from "./tabs/CSVImportModal";
 import CareerPlanTab from "./tabs/CareerPlanTab";
+import LeaveBalanceTab from "./tabs/LeaveBalanceTab";
 import PerformanceReview from "./tabs/PerformanceReview";
 import RecruitmentTab from "./tabs/RecruitmentTab";
 
@@ -1760,6 +1761,13 @@ export default function HumanResources() {
           >
             Kariyer Planu0131
           </TabsTrigger>
+          <TabsTrigger
+            data-ocid="hr.leave_balance.tab"
+            value="leave_balance"
+            className="text-xs md:text-sm"
+          >
+            u0130zin Bakiye
+          </TabsTrigger>
         </TabsList>
 
         {/* ─── PERSONNEL TAB ─── */}
@@ -3107,6 +3115,9 @@ export default function HumanResources() {
         </TabsContent>
         <TabsContent value="career_plan" className="mt-4">
           <CareerPlanTab />
+        </TabsContent>
+        <TabsContent value="leave_balance" className="mt-4 space-y-4">
+          <LeaveBalanceTab personnel={personnel} leaves={leaves} />
         </TabsContent>
       </Tabs>
 
