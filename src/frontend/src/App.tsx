@@ -22,6 +22,7 @@ import CompanySettings from "./pages/CompanySettings";
 import ConstructionSupervision from "./pages/ConstructionSupervision";
 import Contracts from "./pages/Contracts";
 import Correspondence from "./pages/Correspondence";
+import CostCenterPage from "./pages/CostCenterPage";
 import CostControl from "./pages/CostControl";
 import CustomFormBuilder from "./pages/CustomFormBuilder";
 import CustomerPortal from "./pages/CustomerPortal";
@@ -152,6 +153,7 @@ type AppPage =
   | "employeeSurveys"
   | "supplyChainAnalysis"
   | "costControl"
+  | "costCenter"
   | "projectFinancing"
   | "vehicleFleet"
   | "biAnalytics"
@@ -346,6 +348,7 @@ function Inner() {
     else if (p === "employeeSurveys") setPage("employeeSurveys");
     else if (p === "supplyChainAnalysis") setPage("supplyChainAnalysis");
     else if (p === "costControl") setPage("costControl");
+    else if (p === "costCenter") setPage("costCenter");
     else if (p === "projectFinancing") setPage("projectFinancing");
     else if (p === "vehicleFleet") setPage("vehicleFleet");
     else if (p === "biAnalytics") setPage("biAnalytics");
@@ -470,6 +473,7 @@ function Inner() {
       {page === "employeeSurveys" && <EmployeeSurveys />}
       {page === "supplyChainAnalysis" && <SupplyChainAnalysis />}
       {page === "costControl" && <CostControl />}
+      {page === "costCenter" && <CostCenterPage />}
       {page === "projectFinancing" && <ProjectFinancing />}
       {page === "vehicleFleet" && <VehicleFleet />}
       {page === "biAnalytics" && <BIAnalytics />}
