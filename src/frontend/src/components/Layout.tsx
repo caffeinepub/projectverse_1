@@ -206,6 +206,7 @@ const NAV_GROUPS: { label: string; keys: string[] }[] = [
       "sahaDenetimFormu",
       "customFormBuilder",
       "constructionSupervision",
+      "kickoffChecklist",
     ],
   },
   {
@@ -1151,6 +1152,13 @@ export default function Layout({
       icon: <FileText className="w-4 h-4" />,
       label: "Proje Durum Raporu",
       href: "projectStatusReport",
+      available: true,
+    },
+    {
+      key: "kickoffChecklist",
+      icon: <CheckSquare className="w-4 h-4" />,
+      label: "Açılış & Kapanış",
+      href: "kickoffChecklist",
       available: true,
     },
   ];

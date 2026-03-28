@@ -45,6 +45,7 @@ import Inventory from "./pages/Inventory";
 import InviteJoin from "./pages/InviteJoin";
 import IsEmriYonetimi from "./pages/IsEmriYonetimi";
 import KPITargets from "./pages/KPITargets";
+import KickoffChecklist from "./pages/KickoffChecklist";
 import LanguageSelect from "./pages/LanguageSelect";
 import LegalCorrespondence from "./pages/LegalCorrespondence";
 import LocationMap from "./pages/LocationMap";
@@ -174,7 +175,8 @@ type AppPage =
   | "procurementSchedule"
   | "customFormBuilder"
   | "projectStatusReport"
-  | "constructionSupervision";
+  | "constructionSupervision"
+  | "kickoffChecklist";
 
 function Inner() {
   const {
@@ -368,6 +370,7 @@ function Inner() {
     else if (p === "projectStatusReport") setPage("projectStatusReport");
     else if (p === "constructionSupervision")
       setPage("constructionSupervision");
+    else if (p === "kickoffChecklist") setPage("kickoffChecklist");
     else setPage(p as AppPage);
   };
 
@@ -495,6 +498,7 @@ function Inner() {
       {page === "customFormBuilder" && <CustomFormBuilder />}
       {page === "projectStatusReport" && <ProjectStatusReport />}
       {page === "constructionSupervision" && <ConstructionSupervision />}
+      {page === "kickoffChecklist" && <KickoffChecklist />}
     </Layout>
   );
 }
