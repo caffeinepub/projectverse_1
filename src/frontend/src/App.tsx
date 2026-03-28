@@ -19,6 +19,7 @@ import ClientReport from "./pages/ClientReport";
 import Communication from "./pages/Communication";
 import CompanySelect from "./pages/CompanySelect";
 import CompanySettings from "./pages/CompanySettings";
+import ConstructionSupervision from "./pages/ConstructionSupervision";
 import Contracts from "./pages/Contracts";
 import Correspondence from "./pages/Correspondence";
 import CostControl from "./pages/CostControl";
@@ -170,7 +171,8 @@ type AppPage =
   | "energyTracking"
   | "procurementSchedule"
   | "customFormBuilder"
-  | "projectStatusReport";
+  | "projectStatusReport"
+  | "constructionSupervision";
 
 function Inner() {
   const {
@@ -361,6 +363,8 @@ function Inner() {
     else if (p === "procurementSchedule") setPage("procurementSchedule");
     else if (p === "customFormBuilder") setPage("customFormBuilder");
     else if (p === "projectStatusReport") setPage("projectStatusReport");
+    else if (p === "constructionSupervision")
+      setPage("constructionSupervision");
     else setPage(p as AppPage);
   };
 
@@ -486,6 +490,7 @@ function Inner() {
       {page === "procurementSchedule" && <ProcurementSchedule />}
       {page === "customFormBuilder" && <CustomFormBuilder />}
       {page === "projectStatusReport" && <ProjectStatusReport />}
+      {page === "constructionSupervision" && <ConstructionSupervision />}
     </Layout>
   );
 }

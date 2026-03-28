@@ -203,6 +203,7 @@ const NAV_GROUPS: { label: string; keys: string[] }[] = [
       "projectCalendar",
       "sahaDenetimFormu",
       "customFormBuilder",
+      "constructionSupervision",
     ],
   },
   {
@@ -1127,6 +1128,13 @@ export default function Layout({
       icon: <ClipboardEdit className="w-4 h-4" />,
       label: "Özel Form Şablonları",
       href: "customFormBuilder",
+      available: true,
+    },
+    {
+      key: "constructionSupervision",
+      icon: <Building2 className="w-4 h-4" />,
+      label: "Yapı Denetim Takibi",
+      href: "constructionSupervision",
       available: true,
     },
     {

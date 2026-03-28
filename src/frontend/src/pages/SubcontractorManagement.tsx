@@ -28,6 +28,7 @@ import {
   Mail,
   Phone,
   Plus,
+  ReceiptText,
   Shield,
   ShieldCheck,
   User,
@@ -36,6 +37,7 @@ import {
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { useApp } from "../contexts/AppContext";
+import SubcontractorHakedisTab from "./tabs/SubcontractorHakedisTab";
 import SubcontractorSelfService from "./tabs/SubcontractorSelfService";
 import WorkOrdersTab from "./tabs/WorkOrdersTab";
 
@@ -787,6 +789,14 @@ export default function SubcontractorManagement() {
             <ShieldCheck className="w-3.5 h-3.5" />
             İSG Uyum
           </TabsTrigger>
+          <TabsTrigger
+            value="hakedis"
+            data-ocid="subcontractor.hakedis.tab"
+            className="data-[state=active]:bg-amber-500/20 data-[state=active]:text-amber-300 flex items-center gap-1"
+          >
+            <ReceiptText className="w-3.5 h-3.5" />
+            Hakediş
+          </TabsTrigger>
         </TabsList>
 
         {/* Subcontractors Tab */}
@@ -1403,6 +1413,14 @@ export default function SubcontractorManagement() {
 
         <TabsContent value="workorders" className="mt-6">
           <WorkOrdersTab
+            companyId={companyId}
+            subcontractors={subcontractors}
+          />
+        </TabsContent>
+
+        {/* Hakedis Tab */}
+        <TabsContent value="hakedis" className="mt-6">
+          <SubcontractorHakedisTab
             companyId={companyId}
             subcontractors={subcontractors}
           />
