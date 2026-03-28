@@ -29,6 +29,7 @@ import {
   CheckSquare,
   ChevronRight,
   ClipboardCheck,
+  ClipboardEdit,
   ClipboardList,
   Clock,
   DollarSign,
@@ -201,6 +202,7 @@ const NAV_GROUPS: { label: string; keys: string[] }[] = [
       "locationMap",
       "projectCalendar",
       "sahaDenetimFormu",
+      "customFormBuilder",
     ],
   },
   {
@@ -218,6 +220,7 @@ const NAV_GROUPS: { label: string; keys: string[] }[] = [
       "costControl",
       "biAnalytics",
       "projectPL",
+      "projectStatusReport",
     ],
   },
   {
@@ -1117,6 +1120,20 @@ export default function Layout({
       icon: <ClipboardCheck className="w-4 h-4" />,
       label: "Saha Denetim Formu",
       href: "sahaDenetimFormu",
+      available: true,
+    },
+    {
+      key: "customFormBuilder",
+      icon: <ClipboardEdit className="w-4 h-4" />,
+      label: "Özel Form Şablonları",
+      href: "customFormBuilder",
+      available: true,
+    },
+    {
+      key: "projectStatusReport",
+      icon: <FileText className="w-4 h-4" />,
+      label: "Proje Durum Raporu",
+      href: "projectStatusReport",
       available: true,
     },
   ];

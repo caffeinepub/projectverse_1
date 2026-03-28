@@ -22,6 +22,7 @@ import CompanySettings from "./pages/CompanySettings";
 import Contracts from "./pages/Contracts";
 import Correspondence from "./pages/Correspondence";
 import CostControl from "./pages/CostControl";
+import CustomFormBuilder from "./pages/CustomFormBuilder";
 import CustomerPortal from "./pages/CustomerPortal";
 import DLP from "./pages/DLP";
 import Dashboard from "./pages/Dashboard";
@@ -60,6 +61,7 @@ import ProjectDetail from "./pages/ProjectDetail";
 import ProjectFinancing from "./pages/ProjectFinancing";
 import ProjectHub from "./pages/ProjectHub";
 import ProjectPL from "./pages/ProjectPL";
+import ProjectStatusReport from "./pages/ProjectStatusReport";
 import ProjectTemplates from "./pages/ProjectTemplates";
 import Projects from "./pages/Projects";
 import PunchList from "./pages/PunchList";
@@ -166,7 +168,9 @@ type AppPage =
   | "supplierPortal"
   | "sahaDenetimFormu"
   | "energyTracking"
-  | "procurementSchedule";
+  | "procurementSchedule"
+  | "customFormBuilder"
+  | "projectStatusReport";
 
 function Inner() {
   const {
@@ -355,6 +359,8 @@ function Inner() {
     else if (p === "sahaDenetimFormu") setPage("sahaDenetimFormu");
     else if (p === "energyTracking") setPage("energyTracking");
     else if (p === "procurementSchedule") setPage("procurementSchedule");
+    else if (p === "customFormBuilder") setPage("customFormBuilder");
+    else if (p === "projectStatusReport") setPage("projectStatusReport");
     else setPage(p as AppPage);
   };
 
@@ -478,6 +484,8 @@ function Inner() {
       {page === "sahaDenetimFormu" && <SahaDenetimFormu />}
       {page === "energyTracking" && <EnergyTracking />}
       {page === "procurementSchedule" && <ProcurementSchedule />}
+      {page === "customFormBuilder" && <CustomFormBuilder />}
+      {page === "projectStatusReport" && <ProjectStatusReport />}
     </Layout>
   );
 }
