@@ -53,6 +53,7 @@ import AccessDenied from "../components/AccessDenied";
 import { useApp } from "../contexts/AppContext";
 import AdvancesTab from "./tabs/AdvancesTab";
 import CommitmentsTab from "./tabs/CommitmentsTab";
+import ReceivablesTab from "./tabs/ReceivablesTab";
 
 import type {
   AuditLog,
@@ -1709,6 +1710,14 @@ export default function Finance() {
             <AlertCircle className="h-4 w-4 mr-1" />
             Bütçe Uyarıları
           </TabsTrigger>
+          <TabsTrigger
+            data-ocid="finance.receivables.tab"
+            value="receivables"
+            className="data-[state=active]:gradient-bg data-[state=active]:text-white text-xs md:text-sm"
+          >
+            <Receipt className="h-4 w-4 mr-1" />
+            Alacak Takibi
+          </TabsTrigger>
         </TabsList>
 
         {/* BUDGET TAB */}
@@ -3022,6 +3031,9 @@ export default function Finance() {
             companyId={activeCompanyId || ""}
             projectBudgets={projectBudgets}
           />
+        </TabsContent>
+        <TabsContent value="receivables" className="space-y-5">
+          <ReceivablesTab companyId={activeCompanyId || ""} />
         </TabsContent>
       </Tabs>
     </div>
