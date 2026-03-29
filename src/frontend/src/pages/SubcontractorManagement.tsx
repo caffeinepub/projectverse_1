@@ -19,10 +19,12 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Textarea } from "@/components/ui/textarea";
 import {
   AlertTriangle,
   Building2,
   Check,
+  ClipboardList,
   DollarSign,
   FileText,
   Mail,
@@ -37,6 +39,7 @@ import {
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { useApp } from "../contexts/AppContext";
+import PrequalificationTab from "./tabs/PrequalificationTab";
 import SubcontractorHakedisTab from "./tabs/SubcontractorHakedisTab";
 import SubcontractorSelfService from "./tabs/SubcontractorSelfService";
 import WorkOrdersTab from "./tabs/WorkOrdersTab";
@@ -796,6 +799,14 @@ export default function SubcontractorManagement() {
           >
             <ReceiptText className="w-3.5 h-3.5" />
             Hakediş
+          </TabsTrigger>
+          <TabsTrigger
+            value="prequalification"
+            data-ocid="subcontractor.prequalification.tab"
+            className="data-[state=active]:bg-amber-500/20 data-[state=active]:text-amber-300 flex items-center gap-1"
+          >
+            <ClipboardList className="w-3.5 h-3.5" />
+            Ön Yeterlilik
           </TabsTrigger>
         </TabsList>
 
@@ -1868,6 +1879,12 @@ export default function SubcontractorManagement() {
               </table>
             </div>
           )}
+        </TabsContent>
+        <TabsContent value="prequalification" className="mt-6">
+          <PrequalificationTab
+            companyId={companyId}
+            subcontractors={subcontractors}
+          />
         </TabsContent>
       </Tabs>
     </div>
